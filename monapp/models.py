@@ -20,7 +20,7 @@ class Agent(models.Model):
     nom = models.CharField(max_length=100)
     prenom = models.CharField(max_length=100)
     email = models.CharField(unique=True, max_length=100)
-    mot_de_passe = models.CharField(max_length=255)
+    mot_de_passe = models.CharField(max_length=255, blank=True, null=True)  # Autorise vide
     telephone = models.CharField(max_length=50)
     date_prise_service = models.DateField()
     adresse = models.CharField(max_length=255)
@@ -35,13 +35,25 @@ class Agent(models.Model):
     def __str__(self):
         return f"{self.nom} {self.prenom} - {self.matricule}"
 
+class Role(models.Model):
+    libelle = models.CharField(max_length=100)
 
+    class Meta:
+        db_table = 'role'
+
+    def __str__(self):
+        return self.libelle
+    
 class AgentRole(models.Model):
-    role = models.ForeignKey('Role', on_delete=models.CASCADE)
-    agent_id = models.IntegerField()
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)  # ← Change agent_id en agent
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'agent_role'
+        managed = False 
+        unique_together = (('agent', 'role'),)
+
+
 
 
 class Avancement(models.Model):
@@ -187,14 +199,7 @@ class PosteVacant(models.Model):
         return f"Poste {self.intitule} - {self.statut}"
 
 
-class Role(models.Model):
-    libelle = models.CharField(max_length=100)
 
-    class Meta:
-        db_table = 'role'
-
-    def __str__(self):
-        return self.libelle
 
 
 class RolePermission(models.Model):

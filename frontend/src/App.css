@@ -184,7 +184,7 @@ body {
     url('/unsplash.jpg') no-repeat center/cover;
   
   color: white;
-  padding: 8.5rem 2.5rem; 
+  padding: 9.5rem 2.5rem; 
   width: 100%;
   border-bottom: 4px solid #D4AF37;
   min-height: 340px; 
@@ -1944,5 +1944,798 @@ body {
 @media (min-width: 1200px) {
   .auth-card {
     max-width: 750px;
+  }
+}
+
+/* ==========================================================================
+   DASHBOARD ADMIN
+   ========================================================================== */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem 2rem 0 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.admin-stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #E2E8F0;
+}
+
+.admin-stat-icon {
+  font-size: 2.5rem;
+}
+
+.admin-stat-info h3 {
+  font-size: 0.8rem;
+  color: #64748B;
+  margin-bottom: 0.3rem;
+}
+
+.admin-stat-number {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0B192C;
+}
+
+.admin-section {
+  background: white;
+  border-radius: 16px;
+  margin: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #E2E8F0;
+  max-width: 1400px;
+  margin: 2rem auto;
+}
+
+.admin-section h3 {
+  margin-bottom: 1rem;
+  color: #0B192C;
+}
+
+.admin-table-container {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 0.75rem;
+  background: #F8FAFC;
+  font-weight: 600;
+  color: #0B192C;
+}
+
+.admin-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.role-badge {
+  background: #EFF6FF;
+  color: #1E40AF;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.btn-table-edit, .btn-table-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.2rem 0.4rem;
+}
+
+.admin-actions {
+  background: white;
+  border-radius: 16px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  border: 1px solid #E2E8F0;
+  max-width: 1400px;
+}
+
+.admin-actions h3 {
+  margin-bottom: 1rem;
+}
+
+.admin-actions-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-action-btn {
+  background: #0B192C;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-action-btn:hover {
+  background: #D4AF37;
+  color: #0B192C;
+}
+
+/* ==========================================================================
+   DROPDOWN MENU UTILISATEUR
+   ========================================================================== */
+.user-menu-container {
+  position: relative;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background-color: #F1F5F9;
+  padding: 0.4rem 1rem;
+  border-radius: 50px;
+  border: 1px solid #E2E8F0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-badge:hover {
+  background-color: #E2E8F0;
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+  color: #64748B;
+  margin-left: 0.3rem;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  border: 1px solid #E2E8F0;
+  min-width: 220px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.dropdown-header {
+  padding: 0.8rem 1rem;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.dropdown-header strong {
+  display: block;
+  color: #0B192C;
+  margin-bottom: 0.2rem;
+}
+
+.dropdown-header small {
+  font-size: 0.7rem;
+  color: #64748B;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #E2E8F0;
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #1E293B;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dropdown-item:hover {
+  background-color: #F1F5F9;
+}
+
+.dropdown-item.logout {
+  color: #EF4444;
+}
+
+.dropdown-item.logout:hover {
+  background-color: #FEF2F2;
+}
+
+/* Pour fermer le dropdown en cliquant ailleurs */
+.dropdown-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
+
+/* Page Gestion Agents */
+.admin-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 1.5rem 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.search-box {
+  flex: 1;
+  max-width: 300px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-add, .btn-export {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-add {
+  background: #0B192C;
+  color: white;
+}
+
+.btn-add:hover {
+  background: #D4AF37;
+  color: #0B192C;
+}
+
+.btn-export {
+  background: #10B981;
+  color: white;
+}
+
+.btn-export:hover {
+  background: #059669;
+}
+
+.btn-edit-role {
+  background: #3B82F6;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.btn-edit-role:hover {
+  background: #2563EB;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content h3 {
+  margin-bottom: 1.5rem;
+  color: #0B192C;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.modal-buttons button:first-child {
+  background: #EF4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.modal-buttons button:last-child {
+  background: #0B192C;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.role-select-modal {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.error {
+  color: #EF4444;
+  font-size: 0.7rem;
+}
+
+.btn-import {
+  background: #8B5CF6;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-import:hover {
+  background: #7C3AED;
+}
+
+.modal-info {
+  background: #EFF6FF;
+  color: #1E40AF;
+  padding: 0.5rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+/* Page Gestion Rôles */
+.roles-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+  padding: 0 2rem;
+  margin-bottom: 2rem;
+}
+
+.role-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #E2E8F0;
+  transition: all 0.3s;
+}
+
+.role-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.role-card-icon {
+  font-size: 2.5rem;
+}
+
+.role-card-content {
+  flex: 1;
+}
+
+.role-card-content h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0B192C;
+  margin-bottom: 0.3rem;
+}
+
+.role-description {
+  font-size: 0.7rem;
+  color: #64748B;
+  margin-top: 0.5rem;
+}
+
+.role-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-assign {
+  background: #0B192C;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.btn-assign:hover {
+  background: #D4AF37;
+  color: #0B192C;
+}
+
+.btn-delete-role {
+  background: #EF4444;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.btn-delete-role:hover {
+  background: #DC2626;
+}
+
+/* Badges rôles */
+.role-badge.admin {
+  background: #EF4444;
+  color: white;
+}
+
+.role-badge.rh {
+  background: #3B82F6;
+  color: white;
+}
+
+.role-badge.chef {
+  background: #8B5CF6;
+  color: white;
+}
+
+.role-badge.agent {
+  background: #10B981;
+  color: white;
+}
+
+/* Statistiques rôles */
+.roles-stats {
+  background: white;
+  border-radius: 16px;
+  margin: 0 2rem 2rem 2rem;
+  padding: 1.5rem;
+  border: 1px solid #E2E8F0;
+}
+
+.roles-stats h3 {
+  margin-bottom: 1rem;
+  color: #0B192C;
+}
+
+.stats-roles-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stat-role-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.stat-role-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.stat-role-name {
+  font-weight: 600;
+  color: #0B192C;
+}
+
+.stat-role-count {
+  color: #64748B;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #E2E8F0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #0B192C;
+  border-radius: 4px;
+}
+
+.stat-role-percentage {
+  font-size: 0.7rem;
+  color: #64748B;
+}
+
+.modal-content.large {
+  max-width: 600px;
+}
+
+.agents-list-modal {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 1rem 0;
+}
+
+.agent-check-item {
+  padding: 0.5rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.agent-check-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   DASHBOARD AGENT
+   ========================================================================== */
+
+/* Statistiques */
+.agent-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.agent-stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #E2E8F0;
+  border-left: 4px solid;
+}
+
+.agent-stat-icon {
+  font-size: 2rem;
+}
+
+.agent-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-stat-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #0B192C;
+}
+
+.agent-stat-label {
+  font-size: 0.75rem;
+  color: #64748B;
+}
+
+/* Grille dashboard */
+.agent-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  padding: 0 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Cartes */
+.agent-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.2rem;
+  border: 1px solid #E2E8F0;
+  margin-bottom: 1.5rem;
+}
+
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.agent-card-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0B192C;
+}
+
+.agent-card-btn {
+  background: none;
+  border: none;
+  color: #D4AF37;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.agent-card-btn:hover {
+  text-decoration: underline;
+}
+
+/* Tableau des demandes */
+.agent-table-container {
+  overflow-x: auto;
+}
+
+.agent-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.agent-table th {
+  text-align: left;
+  padding: 0.5rem;
+  font-size: 0.7rem;
+  color: #64748B;
+  font-weight: 600;
+}
+
+.agent-table td {
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+/* Badges de statut */
+.status-badge.approved {
+  background: #D1FAE5;
+  color: #059669;
+}
+
+.status-badge.pending {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+.status-badge.waiting {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+/* Liste des congés */
+.agent-conges-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.agent-conge-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem;
+  background: #F8FAFC;
+  border-radius: 8px;
+}
+
+.agent-conge-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-conge-type {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0B192C;
+}
+
+.agent-conge-date {
+  font-size: 0.7rem;
+  color: #64748B;
+}
+
+.agent-conge-jours {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #D4AF37;
+}
+
+/* Section profil */
+.agent-profile-section {
+  padding: 0 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  margin-bottom: 2rem;
+}
+
+.agent-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.agent-info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.agent-info-label {
+  font-size: 0.8rem;
+  color: #64748B;
+}
+
+.agent-info-value {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #0B192C;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .agent-stats-grid {
+    padding: 1rem;
+  }
+  
+  .agent-dashboard-grid {
+    grid-template-columns: 1fr;
+    padding: 0 1rem;
+  }
+  
+  .agent-profile-section {
+    padding: 0 1rem;
+  }
+  
+  .agent-info-grid {
+    grid-template-columns: 1fr;
   }
 }
