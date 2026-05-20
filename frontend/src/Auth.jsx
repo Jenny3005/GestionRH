@@ -75,8 +75,30 @@ export default function Auth({ onLogin }) {
 
           if (response.ok) {
             alert(`Bienvenue ${data.prenom} ${data.nom}`);
-            if (onLogin) onLogin(formData.matricule);
-            navigate('/dashboard');
+            
+            // Stocker les informations
+            localStorage.setItem('userMatricule', data.matricule);
+            localStorage.setItem('userNom', data.nom);
+            localStorage.setItem('userPrenom', data.prenom);
+            localStorage.setItem('userRole', data.role);
+            localStorage.setItem('userRoles', JSON.stringify(data.roles || [data.role]));
+            
+            if (onLogin) onLogin(data.matricule, data.role);
+            
+            // Redirection selon le rôle
+            switch(data.role) {
+              case 'admin':
+                navigate('/admin/dashboard');
+                break;
+              case 'chef':
+                navigate('/chef/dashboard');
+                break;
+              case 'rh':
+                navigate('/rh/dashboard');
+                break;
+              default:
+                navigate('/dashboard');
+            }
           } else {
             alert(data.error || 'Erreur de connexion');
           }
@@ -132,7 +154,13 @@ export default function Auth({ onLogin }) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <img src="/logo_MND.png" alt="Logo MND" className="auth-logo-img" />
+           <a href="/" className="logo-nav-link">
+            <img 
+              src="/logo_MND.png" 
+              alt="Logo MND" 
+              className="mnd-official-logo" 
+            />
+          </a>
           <h1>{isLogin ? 'Connexion' : 'Inscription'}</h1>
           <p>{isLogin ? 'Accédez à votre espace agent' : 'Créez votre compte agent'}</p>
         </div>
@@ -147,7 +175,6 @@ export default function Auth({ onLogin }) {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {/* Matricule - commun aux deux */}
           <div className="form-group">
             <label>Matricule Agent <span className="required">*</span></label>
             <input type="text" name="matricule" placeholder="Ex: 875825" value={formData.matricule} onChange={handleChange} className={errors.matricule ? 'error' : ''} disabled={isLoading} />
@@ -189,13 +216,13 @@ export default function Auth({ onLogin }) {
                   {errors.date_prise_service && <span className="error-text">{errors.date_prise_service}</span>}
                 </div>
                 <div className="form-group">
-                    <label>Type de contrat <span className="required">*</span></label>
-                    <select name="typecontrat" value={formData.typecontrat} onChange={handleChange} className={errors.typecontrat ? 'error' : ''} disabled={isLoading}>
-                        <option value="">Sélectionnez</option>
-                        <option value="APE">APE - Agent Permanent de l'État</option>
-                        <option value="ACDPE">ACDPE - Agent Contractuel de Droit Public de l'État</option>
-                    </select>
-                    {errors.typecontrat && <span className="error-text">{errors.typecontrat}</span>}
+                  <label>Type de contrat <span className="required">*</span></label>
+                  <select name="typecontrat" value={formData.typecontrat} onChange={handleChange} className={errors.typecontrat ? 'error' : ''} disabled={isLoading}>
+                    <option value="">Sélectionnez</option>
+                    <option value="APE">APE - Agent Permanent de l'État</option>
+                    <option value="ACDPE">ACDPE - Agent Contractuel de Droit Public de l'État</option>
+                  </select>
+                  {errors.typecontrat && <span className="error-text">{errors.typecontrat}</span>}
                 </div>
               </div>
 
@@ -208,7 +235,7 @@ export default function Auth({ onLogin }) {
               <div className="form-row">
                 <div className="form-group">
                   <label>Poste <span className="required">*</span></label>
-                  <input type="text" name="poste" placeholder="Ex: Agent RH, Développeur, etc." value={formData.poste} onChange={handleChange} className={errors.poste ? 'error' : ''} disabled={isLoading} />
+                  <input type="text" name="poste" placeholder="Ex: Agent RH, Développeur" value={formData.poste} onChange={handleChange} className={errors.poste ? 'error' : ''} disabled={isLoading} />
                   {errors.poste && <span className="error-text">{errors.poste}</span>}
                 </div>
                 <div className="form-group">

@@ -1,9 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './App.css';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Vérifier si l'utilisateur est connecté au chargement
+  useEffect(() => {
+    const savedMatricule = localStorage.getItem('userMatricule');
+    const savedNom = localStorage.getItem('userNom');
+    const savedPrenom = localStorage.getItem('userPrenom');
+    const savedEmail = localStorage.getItem('userEmail');
+    
+    if (savedMatricule) {
+      setIsLoggedIn(true);
+      setUserName(`${savedPrenom} ${savedNom}`);
+      setUserEmail(savedEmail);
+    }
+  }, []);
+
+  // Fermer le dropdown en cliquant ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [dropdownOpen]);
 
   const [postesVacants] = useState([
     {
@@ -44,16 +73,12 @@ export default function App() {
     }
   ]);
 
-  // Gestion de la connexion
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setUserName('Jenny-Mary A.');
-  };
-
   // Gestion de la déconnexion
   const handleLogout = () => {
+    localStorage.clear();
     setIsLoggedIn(false);
     setUserName('');
+    navigate('/auth');
   };
 
   return (
@@ -75,25 +100,57 @@ export default function App() {
           <a href="/" className="nav-tab-item">Accueil</a>
           <a href="/demarches" className="nav-tab-item">Démarches RH</a>
           <a href="/documents" className="nav-tab-item">Documents</a>
-          {isLoggedIn && (
-            <a href="#profil" className="nav-tab-item">Mon Profil</a>
-          )}
         </nav>
 
         <div className="nav-right">
-          {!isLoggedIn ? (
-            // Au lieu de onClick={handleLogin}
+          {isLoggedIn ? (
+            <div className="user-menu-container">
+              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
+              <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
+              <div className="user-meta">
+                <span className="user-name">{userName}</span>
+                <span className="user-role">
+                  {localStorage.getItem('userRole') === 'admin' ? 'Administrateur' : 
+                  localStorage.getItem('userRole') === 'rh' ? 'Ressources Humaines' :
+                  localStorage.getItem('userRole') === 'chef' ? 'Chef de service' : 'Agent'}
+                </span>
+              </div>
+              <span className="dropdown-arrow">▼</span>
+            </div>
+              
+              {dropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <strong>{userName}</strong>
+                    <small>{userEmail}</small>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  <button 
+                    className="dropdown-item" 
+                    onClick={() => {
+                      const role = localStorage.getItem('userRole');
+                      if (role === 'admin') navigate('/admin/dashboard');
+                      else if (role === 'rh') navigate('/rh/dashboard');
+                      else if (role === 'chef') navigate('/chef/dashboard');
+                      else navigate('/dashboard');
+                    }}
+                  >
+                    📊 Tableau de bord
+                  </button>
+                  <button className="dropdown-item" onClick={() => navigate('/profile')}>
+                    👤 Mon profil
+                  </button>
+                  <div className="dropdown-divider"></div>
+                  <button className="dropdown-item logout" onClick={handleLogout}>
+                    🔓 Se déconnecter
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
             <button className="btn-login-main" onClick={() => window.location.href = '/auth'}>
               Se connecter / S'inscrire
             </button>
-          ) : (
-            <div className="user-badge">
-              <div className="avatar-circle">JM</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <button className="btn-logout" onClick={handleLogout}>Déconnexion</button>
-              </div>
-            </div>
           )}
         </div>
       </header>
@@ -257,25 +314,13 @@ export default function App() {
 
       {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
-        
-        {/* LIGNE DE DÉMARCATION TRICOLORE NATIONALE */}
         <div className="benin-national-tricolor-line"></div>
-
         <div className="footer-main-content">
-          
           <div className="footer-centered-logo-zone">
-            <img 
-              src="/logo2.png" 
-              alt="Logo Officiel Ministère du Numérique et de la Digitalisation" 
-              className="footer-logo-official-center"
-            />
-            <p className="brand-motto-centered">
-              Ministère du Numérique et de la Digitalisation — République du Bénin
-            </p>
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
-
           <div className="footer-columns-grid">
-            
             <div className="footer-col">
               <h4>Navigation Portail</h4>
               <ul>
@@ -285,32 +330,24 @@ export default function App() {
                 <li><a href="#documents">Documents & Notes</a></li>
               </ul>
             </div>
-
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noreferrer">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">Statut de l'Agent (SGG)</a></li>
-                <li><a href="https://www.service-public.bj" target="_blank" rel="noreferrer">Service-Public.bj</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
-
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 <strong>Adresse :</strong> Avenue Jean-Paul II, Face Cour Suprême, Cotonou, Bénin</p>
-              <p>📞 <strong>Téléphone :</strong> +229 21 30 70 13 / 21 30 70 14</p>
-              <p>✉️ <strong>Email :</strong> numerique@gouv.bj</p>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
             </div>
-
           </div>
         </div>
-
         <div className="footer-bottom-bar">
-          <div className="footer-bottom-content">
-            <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin. Tous droits réservés.</p>
-            <p className="security-mention">Portail Intra-RH sécurisé — Usage professionnel.</p>
-          </div>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
 
