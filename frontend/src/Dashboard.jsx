@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import './App.css';
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
-
+export default function Dashboard({ userMatricule, onLogout }) {
   const [postesVacants] = useState([
     {
       id: "MND-PV-2026-01",
@@ -44,25 +41,13 @@ export default function App() {
     }
   ]);
 
-  // Gestion de la connexion
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setUserName('Jenny-Mary A.');
-  };
-
-  // Gestion de la déconnexion
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserName('');
-  };
-
   return (
     <div className="intranet-home">
       
       {/* BARRE DE NAVIGATION */}
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-          <a href="/" className="logo-nav-link">
+          <a href="/dashboard" className="logo-nav-link">
             <img 
               src="/logo_MND.png" 
               alt="Logo Ministère du Numérique et de la Digitalisation" 
@@ -72,29 +57,20 @@ export default function App() {
         </div>
 
         <nav className="nav-central-links">
-          <a href="/" className="nav-tab-item">Accueil</a>
+          <a href="/dashboard" className="nav-tab-item">Accueil</a>
           <a href="/demarches" className="nav-tab-item">Démarches RH</a>
           <a href="/documents" className="nav-tab-item">Documents</a>
-          {isLoggedIn && (
-            <a href="#profil" className="nav-tab-item">Mon Profil</a>
-          )}
+          <a href="/profil" className="nav-tab-item">Mon Profil</a>
         </nav>
 
         <div className="nav-right">
-          {!isLoggedIn ? (
-            // Au lieu de onClick={handleLogin}
-            <button className="btn-login-main" onClick={() => window.location.href = '/auth'}>
-              Se connecter / S'inscrire
-            </button>
-          ) : (
-            <div className="user-badge">
-              <div className="avatar-circle">JM</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <button className="btn-logout" onClick={handleLogout}>Déconnexion</button>
-              </div>
+          <div className="user-badge">
+            <div className="avatar-circle">JM</div>
+            <div className="user-meta">
+              <span className="user-name">Jenny-Mary A.</span>
+              <button className="btn-logout" onClick={onLogout}>Déconnexion</button>
             </div>
-          )}
+          </div>
         </div>
       </header>
 
@@ -103,7 +79,7 @@ export default function App() {
         {/* BANDEAU HERO */}
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Bienvenue sur votre Portail Intra-RH</h2>
+            <h2>Bienvenue sur votre Espace Agent</h2>
             <p>
               Retrouvez toutes les actualités administratives du Ministère, consultez les appels à candidatures internes 
               et accédez directement à vos outils de gestion de carrière.
@@ -242,11 +218,7 @@ export default function App() {
               <ul className="useful-links-list">
                 <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">🌐 Site Officiel du MND</a></li>
                 <li><a href="https://sigrh.gouv.bj/SIGRHWEB" target="_blank" rel="noreferrer">🖥️ Accès SIGRH National</a></li>
-                <li>
-                  <a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">
-                    📜 Statut de l'Agent de l'État (Loi 2015-18)
-                  </a>
-                </li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">📜 Statut de l'Agent de l'État</a></li>
               </ul>
             </section>
 
@@ -255,65 +227,41 @@ export default function App() {
         </div>
       </main>
 
-      {/* FOOTER INSTITUTIONNEL */}
+      {/* FOOTER */}
       <footer className="mnd-grand-footer">
-        
-        {/* LIGNE DE DÉMARCATION TRICOLORE NATIONALE */}
         <div className="benin-national-tricolor-line"></div>
-
         <div className="footer-main-content">
-          
           <div className="footer-centered-logo-zone">
-            <img 
-              src="/logo2.png" 
-              alt="Logo Officiel Ministère du Numérique et de la Digitalisation" 
-              className="footer-logo-official-center"
-            />
-            <p className="brand-motto-centered">
-              Ministère du Numérique et de la Digitalisation — République du Bénin
-            </p>
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
-
           <div className="footer-columns-grid">
-            
             <div className="footer-col">
-              <h4>Navigation Portail</h4>
+              <h4>Navigation</h4>
               <ul>
-                <li><a href="#accueil">Accueil Portail</a></li>
-                <li><a href="#carriere">Mon Profil & Carrière</a></li>
-                <li><a href="#demarches">Démarches en Ligne</a></li>
-                <li><a href="#documents">Documents & Notes</a></li>
+                <li><a href="/dashboard">Accueil</a></li>
+                <li><a href="/demarches">Démarches RH</a></li>
+                <li><a href="/documents">Documents</a></li>
               </ul>
             </div>
-
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noreferrer">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">Statut de l'Agent (SGG)</a></li>
-                <li><a href="https://www.service-public.bj" target="_blank" rel="noreferrer">Service-Public.bj</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Site Officiel MND</a></li>
+                <li><a href="#">Accès SIGRH</a></li>
               </ul>
             </div>
-
             <div className="footer-col">
-              <h4>Contact & Situation</h4>
-              <p>📍 <strong>Adresse :</strong> Avenue Jean-Paul II, Face Cour Suprême, Cotonou, Bénin</p>
-              <p>📞 <strong>Téléphone :</strong> +229 21 30 70 13 / 21 30 70 14</p>
-              <p>✉️ <strong>Email :</strong> numerique@gouv.bj</p>
+              <h4>Contact</h4>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
             </div>
-
           </div>
         </div>
-
         <div className="footer-bottom-bar">
-          <div className="footer-bottom-content">
-            <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin. Tous droits réservés.</p>
-            <p className="security-mention">Portail Intra-RH sécurisé — Usage professionnel.</p>
-          </div>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation</p>
         </div>
       </footer>
-
     </div>
   );
 }
