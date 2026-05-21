@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-
+import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -115,6 +115,18 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Configuration email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Pour Gmail
+
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'jennyhoundon@gmail.com'  # Remplace par ton email
+EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
+DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
+
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'monapp/static')]
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
