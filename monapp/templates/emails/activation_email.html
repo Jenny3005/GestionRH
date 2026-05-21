@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Activation de votre compte MND</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #0B192C 0%, #152942 100%);
+            padding: 30px;
+            text-align: center;
+            border-bottom: 4px solid #D4AF37;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .header h1 {
+            color: white;
+            font-size: 24px;
+            margin: 0;
+            font-weight: 600;
+        }
+        .header p {
+            color: #94A3B8;
+            margin: 5px 0 0;
+            font-size: 14px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .greeting {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0B192C;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background-color: #F8FAFC;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #D4AF37;
+        }
+        .info-item {
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+        }
+        .info-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #0B192C;
+            width: 100px;
+        }
+        .info-value {
+            color: #475569;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .activation-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #0B192C 0%, #1E2E44 100%);
+            color: white;
+            text-decoration: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            font-weight: 600;
+            margin: 20px 0;
+            transition: all 0.3s;
+        }
+        .activation-btn:hover {
+            background: linear-gradient(135deg, #1E2E44 0%, #2A3A50 100%);
+            transform: translateY(-2px);
+        }
+        .features {
+            display: flex;
+            justify-content: space-between;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+        .feature {
+            text-align: center;
+            flex: 1;
+            padding: 10px;
+        }
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .feature-text {
+            font-size: 12px;
+            color: #64748B;
+        }
+        .warning-box {
+            background-color: #FFFBEB;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            border-left: 4px solid #F59E0B;
+            font-size: 13px;
+            color: #92400E;
+        }
+        .footer {
+            background-color: #F8FAFC;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #E2E8F0;
+        }
+        .footer p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #64748B;
+        }
+        .tricolor {
+            height: 4px;
+            background: linear-gradient(90deg, #008751 0%, #008751 33%, #FFD200 33%, #FFD200 66%, #E8112D 66%, #E8112D 100%);
+        }
+        @media (max-width: 600px) {
+            .container {
+                margin: 10px;
+            }
+            .features {
+                flex-direction: column;
+            }
+            .info-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div style="padding: 20px;">
+        <div class="container">
+            <div class="tricolor"></div>
+            <div class="header">
+            <div class="logo">
+                <img src="http://localhost:8000/static/images/logo2.png" alt="Logo MND" style="height: 100px; width: auto;">
+            </div>
+                <h1>Ministère du Numérique et de la Digitalisation</h1>
+                <p>République du Bénin</p>
+            </div>
+            
+            <div class="content">
+                <div class="greeting">
+                    Bonjour {{ prenom }} {{ nom }},
+                </div>
+                
+                <p style="color: #475569; line-height: 1.6;">
+                    Votre compte a été créé sur la plateforme de gestion RH du MND. 
+                    Veuillez activer votre compte pour accéder à vos services.
+                </p>
+                
+                <div class="info-box">
+                    <div class="info-item">
+                        <span class="info-icon">👤</span>
+                        <span class="info-label">Matricule :</span>
+                        <span class="info-value">{{ matricule }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">📧</span>
+                        <span class="info-label">Email :</span>
+                        <span class="info-value">{{ email }}</span>
+                    </div>
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="{{ activation_link }}" class="activation-btn">
+                        🔓 Activer mon compte
+                    </a>
+                </div>
+                
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">📋</div>
+                        <div class="feature-text">Demandes en ligne</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">🌴</div>
+                        <div class="feature-text">Gestion des congés</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📄</div>
+                        <div class="feature-text">Documents officiels</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📈</div>
+                        <div class="feature-text">Suivi carrière</div>
+                    </div>
+                </div>
+                
+                <div class="warning-box">
+                    <strong>⚠️ Attention</strong><br>
+                    Ce lien d'activation est valable <strong>7 jours</strong>. 
+                    Après cette période, veuillez contacter l'administrateur.
+                </div>
+                
+                <p style="font-size: 13px; color: #64748B; text-align: center;">
+                    Une fois votre compte activé, vous pourrez créer votre mot de passe 
+                    et accéder à votre espace personnel.
+                </p>
+            </div>
+            
+            <div class="footer">
+                <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin</p>
+                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin | 📞 +229 21 30 70 13</p>
+                <p style="font-size: 11px;">Cet email est généré automatiquement, merci de ne pas y répondre.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
