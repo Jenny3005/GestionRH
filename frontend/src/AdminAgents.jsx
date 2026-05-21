@@ -212,7 +212,7 @@ export default function AdminAgents() {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth');
+    navigate('/'); 
   };
 
   const handleImportExcel = async (e) => {

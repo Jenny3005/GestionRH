@@ -153,7 +153,7 @@ export default function AdminRoles() {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth');
+    navigate('/'); 
   };
 
   return (

@@ -91,7 +91,7 @@ export default function DashboardAdmin() {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth');
+    navigate('/'); 
   };
 
   // Fonction pour afficher le libellé du rôle
