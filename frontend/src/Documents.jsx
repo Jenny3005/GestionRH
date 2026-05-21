@@ -1,19 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './App.css';
 
 export default function Documents() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [userName, setUserName] = useState('Jenny-Mary A.');
+  const navigate = useNavigate();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setUserName('Jenny-Mary A.');
-  };
+  // Vérifier si l'utilisateur est connecté au chargement
+  useEffect(() => {
+    const savedMatricule = localStorage.getItem('userMatricule');
+    const savedNom = localStorage.getItem('userNom');
+    const savedPrenom = localStorage.getItem('userPrenom');
+    const savedEmail = localStorage.getItem('userEmail');
+    
+    if (savedMatricule) {
+      setIsLoggedIn(true);
+      setUserName(`${savedPrenom} ${savedNom}`);
+      setUserEmail(savedEmail);
+    }
+  }, []);
+
+  // Fermer le dropdown en cliquant ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [dropdownOpen]);
 
   const handleLogout = () => {
+    localStorage.clear();
     setIsLoggedIn(false);
     setUserName('');
+    setUserEmail('');
+    navigate('/'); 
   };
+
+  // Données statiques pour les documents
+  const userRole = localStorage.getItem('userRole');
 
   return (
     <div className="intranet-home">
@@ -34,22 +64,57 @@ export default function Documents() {
           <a href="/" className="nav-tab-item">Accueil</a>
           <a href="/demarches" className="nav-tab-item">Démarches RH</a>
           <a href="/documents" className="nav-tab-item active">Documents</a>
-          {isLoggedIn && (
-            <a href="#profil" className="nav-tab-item">Mon Profil</a>
-          )}
         </nav>
 
         <div className="nav-right">
-          {!isLoggedIn ? (
-            <button className="btn-login-main" onClick={handleLogin}>Se connecter / S'inscrire</button>
-          ) : (
-            <div className="user-badge">
-              <div className="avatar-circle">JM</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <button className="btn-logout" onClick={handleLogout}>Déconnexion</button>
+          {isLoggedIn ? (
+            <div className="user-menu-container">
+              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
+                <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
+                <div className="user-meta">
+                  <span className="user-name">{userName}</span>
+                  <span className="user-role">
+                    {userRole === 'admin' ? 'Administrateur' : 
+                     userRole === 'rh' ? 'Ressources Humaines' :
+                     userRole === 'chef' ? 'Chef de service' : 'Agent'}
+                  </span>
+                </div>
+                <span className="dropdown-arrow">▼</span>
               </div>
+              
+              {dropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <strong>{userName}</strong>
+                    <small>{userEmail}</small>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  <button 
+                    className="dropdown-item" 
+                    onClick={() => {
+                      const role = localStorage.getItem('userRole');
+                      if (role === 'admin') navigate('/admin/dashboard');
+                      else if (role === 'rh') navigate('/rh/dashboard');
+                      else if (role === 'chef') navigate('/chef/dashboard');
+                      else navigate('/dashboard');
+                    }}
+                  >
+                    📊 Tableau de bord
+                  </button>
+                  <button className="dropdown-item" onClick={() => navigate('/profile')}>
+                    👤 Mon profil
+                  </button>
+                  <div className="dropdown-divider"></div>
+                  <button className="dropdown-item logout" onClick={handleLogout}>
+                    🔓 Se déconnecter
+                  </button>
+                </div>
+              )}
             </div>
+          ) : (
+            <button className="btn-login-main" onClick={() => navigate('/auth')}>
+              Se connecter / S'inscrire
+            </button>
           )}
         </div>
       </header>
@@ -108,7 +173,7 @@ export default function Documents() {
           </div>
         </section>
 
-        {/* PIÈCES D'IDENTITÉ */}
+        {/* RESTE DE LA PAGE INCHANGÉ... */}
         <section className="docs-section">
           <div className="section-header-with-icon">
             <div className="header-icon">🆔</div>
@@ -151,7 +216,6 @@ export default function Documents() {
           </div>
         </section>
 
-        {/* DOSSIER ACADÉMIQUE & CARRIÈRE */}
         <section className="docs-section alt-bg">
           <div className="section-header-with-icon">
             <div className="header-icon">🎓</div>
@@ -194,7 +258,6 @@ export default function Documents() {
           </div>
         </section>
 
-        {/* ATTESTATIONS GÉNÉRÉES */}
         <section className="docs-section">
           <div className="section-header-with-icon">
             <div className="header-icon">📑</div>

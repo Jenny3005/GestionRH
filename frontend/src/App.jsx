@@ -73,18 +73,44 @@ export default function App() {
     }
   ]);
 
-  // Gestion de la déconnexion
+  // Fonction pour vérifier si l'utilisateur est connecté avant action
+  const requireLogin = (action) => {
+    if (!isLoggedIn) {
+      alert('Veuillez vous connecter pour accéder à cette fonctionnalité');
+      navigate('/auth');
+      return false;
+    }
+    action();
+    return true;
+  };
+
+  const handlePostuler = (poste) => {
+    requireLogin(() => {
+      alert(`Vous allez postuler pour le poste : ${poste.titre}`);
+      // Rediriger vers le formulaire de candidature
+      navigate('/demarches');
+    });
+  };
+
+  const handleAppRH = (appName) => {
+    requireLogin(() => {
+      alert(`Accès à ${appName}`);
+      navigate('/dashboard');
+    });
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     setIsLoggedIn(false);
     setUserName('');
-    navigate('/auth');
+    setUserEmail('');
+    navigate('/'); 
   };
 
   return (
     <div className="intranet-home">
       
-      {/* BARRE DE NAVIGATION */}
+      {/* BARRE DE NAVIGATION - PLUS D'ONGLET ACCUEIL */}
       <header className="intranet-navbar">
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
@@ -96,8 +122,8 @@ export default function App() {
           </a>
         </div>
 
+        {/* Navigation sans l'onglet Accueil */}
         <nav className="nav-central-links">
-          <a href="/" className="nav-tab-item">Accueil</a>
           <a href="/demarches" className="nav-tab-item">Démarches RH</a>
           <a href="/documents" className="nav-tab-item">Documents</a>
         </nav>
@@ -148,7 +174,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <button className="btn-login-main" onClick={() => window.location.href = '/auth'}>
+            <button className="btn-login-main" onClick={() => navigate('/auth')}>
               Se connecter / S'inscrire
             </button>
           )}
@@ -224,7 +250,12 @@ export default function App() {
                     </div>
                     <div className="poste-action-zone">
                       <span className="limit-date">Limite : <strong>{poste.dateLimite}</strong></span>
-                      <button className="btn-apply-small">Postuler</button>
+                      <button 
+                        className="btn-apply-small" 
+                        onClick={() => handlePostuler(poste)}
+                      >
+                        Postuler
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -259,7 +290,10 @@ export default function App() {
               <div className="title-divider-gold"></div>
               
               <div className="apps-vertical-menu">
-                <button className="menu-item-link">
+                <button 
+                  className="menu-item-link"
+                  onClick={() => handleAppRH("Dossier Numérique")}
+                >
                   <span className="m-icon">📂</span>
                   <div className="m-text">
                     <strong>Dossier Numérique</strong>
@@ -267,7 +301,10 @@ export default function App() {
                   </div>
                 </button>
 
-                <button className="menu-item-link">
+                <button 
+                  className="menu-item-link"
+                  onClick={() => handleAppRH("Demandes d'Actes")}
+                >
                   <span className="m-icon">📄</span>
                   <div className="m-text">
                     <strong>Demandes d'Actes</strong>
@@ -275,7 +312,10 @@ export default function App() {
                   </div>
                 </button>
 
-                <button className="menu-item-link">
+                <button 
+                  className="menu-item-link"
+                  onClick={() => handleAppRH("Espace Congés")}
+                >
                   <span className="m-icon">🌴</span>
                   <div className="m-text">
                     <strong>Espace Congés</strong>
@@ -283,7 +323,10 @@ export default function App() {
                   </div>
                 </button>
 
-                <button className="menu-item-link">
+                <button 
+                  className="menu-item-link"
+                  onClick={() => handleAppRH("Suivi Avancement")}
+                >
                   <span className="m-icon">📈</span>
                   <div className="m-text">
                     <strong>Suivi Avancement</strong>
@@ -324,7 +367,6 @@ export default function App() {
             <div className="footer-col">
               <h4>Navigation Portail</h4>
               <ul>
-                <li><a href="#accueil">Accueil Portail</a></li>
                 <li><a href="#carriere">Mon Profil & Carrière</a></li>
                 <li><a href="#demarches">Démarches en Ligne</a></li>
                 <li><a href="#documents">Documents & Notes</a></li>

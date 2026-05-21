@@ -58,7 +58,7 @@ export default function DashboardAgent() {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth');
+    navigate('/'); 
   };
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`;

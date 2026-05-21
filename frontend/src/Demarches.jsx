@@ -1,9 +1,120 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './App.css';
 
 export default function Demarches() {
+  const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Vérifier si l'utilisateur est connecté au chargement
+  useEffect(() => {
+    const savedMatricule = localStorage.getItem('userMatricule');
+    const savedNom = localStorage.getItem('userNom');
+    const savedPrenom = localStorage.getItem('userPrenom');
+    const savedEmail = localStorage.getItem('userEmail');
+    
+    if (savedMatricule) {
+      setIsLoggedIn(true);
+      setUserName(`${savedPrenom} ${savedNom}`);
+      setUserEmail(savedEmail);
+    }
+  }, []);
+
+  // Fermer le dropdown en cliquant ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [dropdownOpen]);
+
+  const handleLogout = () => {
+    localStorage.clear();
+    setIsLoggedIn(false);
+    setUserName('');
+    setUserEmail('');
+    navigate('/'); 
+  };
+
+  // Fonction pour vérifier si l'utilisateur est connecté avant action
+  const requireLogin = (actionName, action) => {
+    if (!isLoggedIn) {
+      alert(`Veuillez vous connecter pour ${actionName}`);
+      navigate('/auth');
+      return false;
+    }
+    if (action) action();
+    return true;
+  };
+
+  // Gestionnaires d'actions protégés
+  const handleFaireDemande = (titre) => {
+    requireLogin(`faire une ${titre}`, () => {
+      alert(`Demande de ${titre} en cours de traitement...`);
+      // Ici, appel API pour créer la demande
+    });
+  };
+
+  const handleConsulterSolde = () => {
+    requireLogin("consulter votre solde de congés", () => {
+      alert("Redirection vers votre solde de congés...");
+      navigate('/dashboard');
+    });
+  };
+
+  const handlePostulerOffre = (titre) => {
+    requireLogin(`postuler à l'offre ${titre}`, () => {
+      alert(`Candidature à l'offre "${titre}" enregistrée !`);
+      // Ici, appel API pour enregistrer la candidature
+    });
+  };
+
+  const handleVoirOffres = () => {
+    requireLogin("consulter les offres de postes internes", () => {
+      alert("Voici la liste complète des offres...");
+      // Ici, afficher les offres
+    });
+  };
+
+  const handleConsulterDossier = () => {
+    requireLogin("consulter votre dossier", () => {
+      alert("Redirection vers votre dossier...");
+      navigate('/documents');
+    });
+  };
+
+  const handleDeposerPiece = () => {
+    requireLogin("déposer une pièce", () => {
+      alert("Redirection vers le dépôt de pièces...");
+      navigate('/documents');
+    });
+  };
+
+  const handleVoirAlertes = () => {
+    requireLogin("voir les alertes de votre dossier", () => {
+      alert("Affichage des alertes...");
+    });
+  };
+
+  const handleConsulterAvancement = () => {
+    requireLogin("consulter votre avancement", () => {
+      alert("Redirection vers votre avancement...");
+      navigate('/dashboard');
+    });
+  };
+
+  const handleHistoriqueCarriere = () => {
+    requireLogin("consulter votre historique de carrière", () => {
+      alert("Affichage de l'historique...");
+    });
+  };
+
   // Données des attestations
   const attestations = [
     {
@@ -78,17 +189,7 @@ export default function Demarches() {
     }
   ];
 
-  // Gestion de la connexion
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setUserName('Jenny-Mary A.');
-  };
-
-  // Gestion de la déconnexion
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserName('');
-  };
+  const userRole = localStorage.getItem('userRole');
 
   return (
     <div className="intranet-home">
@@ -107,24 +208,59 @@ export default function Demarches() {
 
         <nav className="nav-central-links">
           <a href="/" className="nav-tab-item">Accueil</a>
-          <a href="/demarches" className="nav-tab-item">Démarches RH</a>
+          <a href="/demarches" className="nav-tab-item active">Démarches RH</a>
           <a href="/documents" className="nav-tab-item">Documents</a>
-          {isLoggedIn && (
-            <a href="#profil" className="nav-tab-item">Mon Profil</a>
-          )}
         </nav>
 
         <div className="nav-right">
-          {!isLoggedIn ? (
-            <button className="btn-login-main" onClick={handleLogin}>Se connecter / S'inscrire</button>
-          ) : (
-            <div className="user-badge">
-              <div className="avatar-circle">JM</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <button className="btn-logout" onClick={handleLogout}>Déconnexion</button>
+          {isLoggedIn ? (
+            <div className="user-menu-container">
+              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
+                <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
+                <div className="user-meta">
+                  <span className="user-name">{userName}</span>
+                  <span className="user-role">
+                    {userRole === 'admin' ? 'Administrateur' : 
+                     userRole === 'rh' ? 'Ressources Humaines' :
+                     userRole === 'chef' ? 'Chef de service' : 'Agent'}
+                  </span>
+                </div>
+                <span className="dropdown-arrow">▼</span>
               </div>
+              
+              {dropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-header">
+                    <strong>{userName}</strong>
+                    <small>{userEmail}</small>
+                  </div>
+                  <div className="dropdown-divider"></div>
+                  <button 
+                    className="dropdown-item" 
+                    onClick={() => {
+                      const role = localStorage.getItem('userRole');
+                      if (role === 'admin') navigate('/admin/dashboard');
+                      else if (role === 'rh') navigate('/rh/dashboard');
+                      else if (role === 'chef') navigate('/chef/dashboard');
+                      else navigate('/dashboard');
+                    }}
+                  >
+                    📊 Tableau de bord
+                  </button>
+                  <button className="dropdown-item" onClick={() => navigate('/profile')}>
+                    👤 Mon profil
+                  </button>
+                  <div className="dropdown-divider"></div>
+                  <button className="dropdown-item logout" onClick={handleLogout}>
+                    🔓 Se déconnecter
+                  </button>
+                </div>
+              )}
             </div>
+          ) : (
+            <button className="btn-login-main" onClick={() => navigate('/auth')}>
+              Se connecter / S'inscrire
+            </button>
           )}
         </div>
       </header>
@@ -169,7 +305,12 @@ export default function Demarches() {
                 <h3>{item.titre}</h3>
                 <p>{item.description}</p>
                 <div className="delai">{item.delai}</div>
-                <button className="btn-demande">Faire la demande →</button>
+                <button 
+                  className="btn-demande" 
+                  onClick={() => handleFaireDemande(item.titre)}
+                >
+                  Faire la demande →
+                </button>
               </div>
             ))}
           </div>
@@ -189,7 +330,16 @@ export default function Demarches() {
                 <p>{item.description}</p>
                 <div className="info">{item.info}</div>
                 {item.limite && <div className="limite">{item.limite}</div>}
-                <button className="btn-demande">
+                <button 
+                  className="btn-demande"
+                  onClick={() => {
+                    if (item.titre.includes("Consulter")) {
+                      handleConsulterSolde();
+                    } else {
+                      handleFaireDemande(item.titre);
+                    }
+                  }}
+                >
                   {item.titre.includes("Consulter") ? "Consulter →" : "Faire la demande →"}
                 </button>
               </div>
@@ -210,75 +360,72 @@ export default function Demarches() {
                 <h3>{item.titre}</h3>
                 <p>{item.description}</p>
                 <div className="frequence">{item.info}</div>
-                <button className="btn-demande">
-                  {item.titre.includes("Postuler") ? "Voir les offres →" : "Consulter →"}
+                <button 
+                  className="btn-demande"
+                  onClick={() => {
+                    if (item.titre.includes("Postuler")) {
+                      handleVoirOffres();
+                    } else if (item.titre.includes("Consulter mon avancement")) {
+                      handleConsulterAvancement();
+                    } else if (item.titre.includes("Historique")) {
+                      handleHistoriqueCarriere();
+                    } else {
+                      handleFaireDemande(item.titre);
+                    }
+                  }}
+                >
+                  {item.titre.includes("Postuler") ? "Voir les offres →" : 
+                   item.titre.includes("Consulter") ? "Consulter →" : "Faire la demande →"}
                 </button>
               </div>
             ))}
           </div>
         </section>
 
-       {/* SECTION MON DOSSIER INDIVIDUEL */}
+        {/* SECTION MON DOSSIER INDIVIDUEL */}
         <section className="dossier-complet-section">
-        <div className="dossier-header">
+          <div className="dossier-header">
             <h2>Mon dossier individuel</h2>
             <p>Gestion de vos pièces administratives</p>
-        </div>
-        
-        <div className="dossier-cards-grid">
+          </div>
+          
+          <div className="dossier-cards-grid">
             <div className="dossier-card">
-            <div className="dossier-card-icon">📂</div>
-            <h3>Consulter mon dossier</h3>
-            <p>Accédez à toutes vos pièces administratives enregistrées.</p>
-            <div className="dossier-badge">Accès immédiat</div>
-            <button className="btn-dossier-card">Consulter →</button>
+              <div className="dossier-card-icon">📂</div>
+              <h3>Consulter mon dossier</h3>
+              <p>Accédez à toutes vos pièces administratives enregistrées.</p>
+              <div className="dossier-badge">Accès immédiat</div>
+              <button className="btn-dossier-card" onClick={handleConsulterDossier}>Consulter →</button>
             </div>
             
             <div className="dossier-card">
-            <div className="dossier-card-icon">📤</div>
-            <h3>Déposer une pièce</h3>
-            <p>Ajoutez un document manquant à votre dossier administratif.</p>
-            <div className="dossier-badge">PDF, JPG acceptés</div>
-            <button className="btn-dossier-card">Déposer →</button>
+              <div className="dossier-card-icon">📤</div>
+              <h3>Déposer une pièce</h3>
+              <p>Ajoutez un document manquant à votre dossier administratif.</p>
+              <div className="dossier-badge">PDF, JPG acceptés</div>
+              <button className="btn-dossier-card" onClick={handleDeposerPiece}>Déposer →</button>
             </div>
             
             <div className="dossier-card alert">
-            <div className="dossier-card-icon">⚠️</div>
-            <h3>Alertes de mon dossier</h3>
-            <p>Consultez les pièces manquantes ou arrivant à expiration.</p>
-            <div className="dossier-badge">Notifications auto</div>
-            <button className="btn-dossier-card">Voir les alertes →</button>
+              <div className="dossier-card-icon">⚠️</div>
+              <h3>Alertes de mon dossier</h3>
+              <p>Consultez les pièces manquantes ou arrivant à expiration.</p>
+              <div className="dossier-badge">Notifications auto</div>
+              <button className="btn-dossier-card" onClick={handleVoirAlertes}>Voir les alertes →</button>
             </div>
-        </div>
+          </div>
         </section>
       </main>
 
-            {/* ==========================================================================
-      FOOTER INSTITUTIONNEL CONFORME NUMERIQUE.GOUV.BJ (LOGO CENTRÉ & TRICOLORE)
-      ========================================================================== */}
+      {/* FOOTER */}
       <footer className="mnd-grand-footer">
-        
-        {/* LIGNE DE DÉMARCATION TRICOLORE NATIONALE (VERT, JAUNE, ROUGE) */}
         <div className="benin-national-tricolor-line"></div>
-
         <div className="footer-main-content">
-          
-          {/* ZONE DU LOGO CENTRÉ EN AMONT */}
           <div className="footer-centered-logo-zone">
-            <img 
-              src="/logo2.png" 
-              alt="Logo Officiel Ministère du Numérique et de la Digitalisation" 
-              className="footer-logo-official-center"
-            />
-            <p className="brand-motto-centered">
-              Ministère du Numérique et de la Digitalisation — République du Bénin
-            </p>
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
-
-          {/* GRILLE DES LIENS ET CONTACTS EN DESSOUS */}
           <div className="footer-columns-grid">
-            
-            {/* Colonne 1 : Navigation Portail */}
             <div className="footer-col">
               <h4>Navigation Portail</h4>
               <ul>
@@ -288,35 +435,24 @@ export default function Demarches() {
                 <li><a href="#documents">Documents & Notes</a></li>
               </ul>
             </div>
-
-            {/* Colonne 2 : Liens officiels */}
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noreferrer">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">Statut de l'Agent (SGG)</a></li>
-                <li><a href="https://www.service-public.bj" target="_blank" rel="noreferrer">Service-Public.bj</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">🌐 Site Officiel du MND</a></li>
+                <li><a href="#">🖥️ Accès SIGRH National</a></li>
+                <li><a href="#">📜 Statut de l'Agent de l'État</a></li>
               </ul>
             </div>
-
-            {/* Colonne 3 : Contacts officiels */}
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 <strong>Adresse :</strong> Avenue Jean-Paul II, Face Cour Suprême, Cotonou, Bénin</p>
-              <p>📞 <strong>Téléphone :</strong> +229 21 30 70 13 / 21 30 70 14</p>
-              <p>✉️ <strong>Email :</strong> numerique@gouv.bj</p>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
             </div>
-
           </div>
         </div>
-
-        {/* Ligne finale de copyright */}
         <div className="footer-bottom-bar">
-          <div className="footer-bottom-content">
-            <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin. Tous droits réservés.</p>
-            <p className="security-mention">Portail Intra-RH sécurisé — Usage professionnel.</p>
-          </div>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
     </div>
