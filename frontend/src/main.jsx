@@ -11,6 +11,8 @@ import AdminAgents from './AdminAgents';
 import AdminRoles from './AdminRoles';
 import ActivateAccount from './ActivateAccount';
 import DashboardAgent from './DashboardAgent';
+import DashboardChef from './DashboardChef';
+import AdminTypesDemande from './AdminTypesDemande';
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte
@@ -32,6 +34,9 @@ createRoot(document.getElementById('root')).render(
       <Route path="/admin/roles" element={<AdminRoles />} />
       <Route path="/activate" element={<ActivateAccount />} />
       <Route path="/dashboard" element={<DashboardAgent />} />
+      <Route path="/chef/dashboard" element={<DashboardChef />} />
+      <Route path="/admin/types-demande" element={<AdminTypesDemande />} />
+      
     </Routes>
   </BrowserRouter>
 );

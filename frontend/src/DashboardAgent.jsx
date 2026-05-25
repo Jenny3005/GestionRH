@@ -15,14 +15,22 @@ export default function DashboardAgent() {
     direction: '',
     typecontrat: ''
   });
+  const [demandesRecentes, setDemandesRecentes] = useState([]);
+  const [soldeConge, setSoldeConge] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const matricule = localStorage.getItem('userMatricule');
 
   useEffect(() => {
-    const matricule = localStorage.getItem('userMatricule');
     if (!matricule) {
       navigate('/auth');
       return;
     }
-    fetchUserInfo(matricule);
+    fetchUserInfo();
+    fetchDemandesRecentes();
+    fetchSoldeConge();
+    fetchNotifications();
   }, []);
 
   useEffect(() => {
@@ -35,7 +43,7 @@ export default function DashboardAgent() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
 
-  const fetchUserInfo = async (matricule) => {
+  const fetchUserInfo = async () => {
     try {
       const response = await fetch(`http://localhost:8000/api/agent/${matricule}/`);
       if (response.ok) {
@@ -56,67 +64,84 @@ export default function DashboardAgent() {
     }
   };
 
+  const fetchDemandesRecentes = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        // Formater les demandes pour l'affichage
+        const formatted = data.slice(0, 4).map(d => ({
+          id: d.id,
+          type: "Demande de congé",
+          date: d.date_soumission,
+          statut: d.statut === 'valide' ? 'Approuvée' : d.statut === 'refuse' ? 'Rejetée' : 'En attente'
+        }));
+        setDemandesRecentes(formatted);
+      }
+    } catch (error) {
+      console.error('Erreur demandes:', error);
+    }
+  };
+
+  const fetchSoldeConge = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/conges/solde/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setSoldeConge(data);
+      }
+    } catch (error) {
+      console.error('Erreur solde:', error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.slice(0, 3));
+      }
+    } catch (error) {
+      console.error('Erreur notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const marquerNotificationLue = async (notificationId) => {
+    try {
+      await fetch(`http://localhost:8000/api/notifications/${notificationId}/lue/`, {
+        method: 'PUT'
+      });
+      fetchNotifications();
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/'); 
+    navigate('/');
   };
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
 
-  // Données statiques pour l'aperçu
+  // Statistiques dynamiques
   const stats = [
-    { label: "Demandes en cours", value: "4", icon: "📋", color: "#3B82F6" },
-    { label: "Solde congés", value: "18.5", icon: "🌴", color: "#10B981", unit: "jours" },
-    { label: "Notifications", value: "3", icon: "🔔", color: "#F59E0B" },
+    { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: "📋", color: "#3B82F6" },
+    { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: "🌴", color: "#10B981", unit: "jours" },
+    { label: "Notifications", value: notifications.filter(n => !n.lue).length.toString(), icon: "🔔", color: "#F59E0B" },
     { label: "Complétude dossier", value: "76%", icon: "📊", color: "#8B5CF6" }
   ];
-
-  const demandesRecentes = [
-    { id: 1, type: "Attestation de travail", date: "15/05/2026", statut: "En cours" },
-    { id: 2, type: "Demande de congé", date: "10/05/2026", statut: "Approuvée" },
-    { id: 3, type: "Avancement", date: "01/05/2026", statut: "En attente" },
-    { id: 4, type: "Certificat médical", date: "28/04/2026", statut: "Validé" }
-  ];
-
-  const soldesConges = {
-    annee: 2026,
-    jours_acquis: 30,
-    jours_pris: 11.5,
-    jours_restants: 18.5,
-    jours_prevus: 5
-  };
-
-  const notifications = [
-    { id: 1, message: "Votre demande de congé a été approuvée", date: "10/05/2026", lu: false, type: "success" },
-    { id: 2, message: "Nouveau document disponible dans votre dossier", date: "08/05/2026", lu: false, type: "info" },
-    { id: 3, message: "Pièce d'identité expirant dans 30 jours", date: "05/05/2026", lu: true, type: "warning" }
-  ];
-
-  const prochainAvancement = {
-    echelon_actuel: "8ème échelon",
-    echelon_suivant: "9ème échelon",
-    date_prevue: "15/12/2026",
-    jours_restants: 208,
-    conditions_remplies: true
-  };
-
-  const alertesPieces = [
-    { id: 1, piece: "Carte Nationale d'Identité", date_expiration: "15/06/2026", jours_restants: 26, statut: "warning" },
-    { id: 2, piece: "Certificat médical", date_expiration: "10/07/2026", jours_restants: 51, statut: "info" },
-    { id: 3, piece: "Diplôme Master", date_expiration: "Permanent", jours_restants: null, statut: "valid" }
-  ];
-
-  const completudeDossier = {
-    total: 85,
-    pieces_manquantes: ["Attestation de résidence", "Relevé bancaire"],
-    pieces_expirees: ["Carte Nationale d'Identité"]
-  };
 
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-          <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+          <a href="/" className="logo-nav-link">
+            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+          </a>
         </div>
         <nav className="nav-central-links">
           <a href="/dashboard" className="nav-tab-item active">Accueil</a>
@@ -159,7 +184,7 @@ export default function DashboardAgent() {
           </div>
         </section>
 
-        {/* STATISTIQUES */}
+        {/* STATISTIQUES DYNAMIQUES */}
         <div className="agent-stats-grid">
           {stats.map((stat, index) => (
             <div key={index} className="agent-stat-card" style={{ borderLeftColor: stat.color }}>
@@ -176,7 +201,7 @@ export default function DashboardAgent() {
         {/* GRILLE PRINCIPALE */}
         <div className="agent-dashboard-grid">
           
-          {/* Demandes récentes */}
+          {/* Demandes récentes - DYNAMIQUE */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>📋 Demandes récentes</h3>
@@ -185,50 +210,62 @@ export default function DashboardAgent() {
             <div className="agent-table-container">
               <table className="agent-table">
                 <thead>
-                  <tr><th>Type</th><th>Date</th><th>Statut</th></tr>
+                  <tr>
+                    <th>Type</th>
+                    <th>Date</th>
+                    <th>Statut</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {demandesRecentes.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.type}</td>
-                      <td>{d.date}</td>
-                      <td><span className={`status-badge ${d.statut === 'Approuvée' ? 'approved' : d.statut === 'En cours' ? 'pending' : 'waiting'}`}>{d.statut}</span></td>
+                  {demandesRecentes.length === 0 ? (
+                    <tr>
+                      <td colSpan="3" style={{ textAlign: 'center' }}>Aucune demande récente</td>
                     </tr>
-                  ))}
+                  ) : (
+                    demandesRecentes.map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.type}</td>
+                        <td>{d.date}</td>
+                        <td>
+                          <span className={`status-badge ${d.statut === 'Approuvée' ? 'approved' : d.statut === 'En attente' ? 'pending' : 'waiting'}`}>
+                            {d.statut}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Solde congés */}
+          {/* Solde congés - DYNAMIQUE */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>🌴 Solde congés {soldesConges.annee}</h3>
+              <h3>🌴 Solde congés {soldeConge?.annee || new Date().getFullYear()}</h3>
               <button className="agent-card-btn" onClick={() => navigate('/demarches')}>Demander →</button>
             </div>
             <div className="soldes-conges">
               <div className="solde-item">
                 <span className="solde-label">Jours acquis</span>
-                <span className="solde-value">{soldesConges.jours_acquis} jours</span>
+                <span className="solde-value">{soldeConge?.jours_acquis || 0} jours</span>
               </div>
               <div className="solde-item">
                 <span className="solde-label">Jours pris</span>
-                <span className="solde-value">{soldesConges.jours_pris} jours</span>
+                <span className="solde-value">{soldeConge?.jours_pris || 0} jours</span>
               </div>
               <div className="solde-item">
                 <span className="solde-label">Jours restants</span>
-                <span className="solde-value highlight">{soldesConges.jours_restants} jours</span>
-              </div>
-              <div className="solde-item">
-                <span className="solde-label">Jours prévus</span>
-                <span className="solde-value">{soldesConges.jours_prevus} jours</span>
+                <span className="solde-value highlight">{soldeConge?.jours_restants || 0} jours</span>
               </div>
               <div className="progress-bar-conges">
-                <div className="progress-fill-conges" style={{ width: `${(soldesConges.jours_pris / soldesConges.jours_acquis) * 100}%` }}></div>
+                <div className="progress-fill-conges" style={{ 
+                  width: `${((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100}%` 
+                }}></div>
               </div>
               <div className="progress-labels">
-                <span>Pris {soldesConges.jours_pris}j</span>
-                <span>Restant {soldesConges.jours_restants}j</span>
+                <span>Pris {soldeConge?.jours_pris || 0}j</span>
+                <span>Restant {soldeConge?.jours_restants || 0}j</span>
               </div>
             </div>
           </div>
@@ -237,31 +274,35 @@ export default function DashboardAgent() {
         {/* DEUXIÈME LIGNE */}
         <div className="agent-dashboard-grid">
           
-          {/* Notifications */}
+          {/* Notifications - DYNAMIQUE */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🔔 Notifications</h3>
-              <button className="agent-card-btn">Marquer tout lu →</button>
+              <button className="agent-card-btn" onClick={() => marquerNotificationLue('all')}>Marquer tout lu →</button>
             </div>
             <div className="notifications-list">
-              {notifications.map((notif) => (
-                <div key={notif.id} className={`notification-item ${!notif.lu ? 'unread' : ''}`}>
-                  <div className="notification-icon">
-                    {notif.type === 'success' && '✅'}
-                    {notif.type === 'info' && 'ℹ️'}
-                    {notif.type === 'warning' && '⚠️'}
+              {notifications.length === 0 ? (
+                <p className="no-notifications">Aucune notification</p>
+              ) : (
+                notifications.map((notif) => (
+                  <div key={notif.id} className={`notification-item ${!notif.lue ? 'unread' : ''}`}>
+                    <div className="notification-icon">
+                      {notif.type === 'success' && '✅'}
+                      {notif.type === 'info' && 'ℹ️'}
+                      {notif.type === 'warning' && '⚠️'}
+                    </div>
+                    <div className="notification-content">
+                      <div className="notification-message">{notif.message}</div>
+                      <div className="notification-date">{notif.date_envoi}</div>
+                    </div>
+                    {!notif.lue && <div className="notification-badge" onClick={() => marquerNotificationLue(notif.id)}></div>}
                   </div>
-                  <div className="notification-content">
-                    <div className="notification-message">{notif.message}</div>
-                    <div className="notification-date">{notif.date}</div>
-                  </div>
-                  {!notif.lu && <div className="notification-badge"></div>}
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
-          {/* Prochain avancement */}
+          {/* Prochain avancement - statique pour l'instant */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>📈 Prochain avancement</h3>
@@ -270,88 +311,15 @@ export default function DashboardAgent() {
             <div className="avancement-info">
               <div className="avancement-item">
                 <span className="avancement-label">Échelon actuel</span>
-                <span className="avancement-value">{prochainAvancement.echelon_actuel}</span>
+                <span className="avancement-value">À renseigner</span>
               </div>
               <div className="avancement-item">
-                <span className="avancement-label">Échelon suivant</span>
-                <span className="avancement-value highlight">{prochainAvancement.echelon_suivant}</span>
-              </div>
-              <div className="avancement-item">
-                <span className="avancement-label">Date prévue</span>
-                <span className="avancement-value">{prochainAvancement.date_prevue}</span>
-              </div>
-              <div className="avancement-item">
-                <span className="avancement-label">Jours restants</span>
-                <span className="avancement-value">{prochainAvancement.jours_restants} jours</span>
+                <span className="avancement-label">Prochain échelon</span>
+                <span className="avancement-value highlight">En attente</span>
               </div>
               <div className="avancement-status">
-                {prochainAvancement.conditions_remplies ? (
-                  <span className="status-success">✅ Toutes les conditions sont remplies</span>
-                ) : (
-                  <span className="status-warning">⚠️ Certaines conditions non remplies</span>
-                )}
+                <span className="status-info">ℹ️ Les avancements sont gérés par l'administration</span>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* TROISIÈME LIGNE */}
-        <div className="agent-dashboard-grid">
-          
-          {/* Complétude dossier */}
-          <div className="agent-card">
-            <div className="agent-card-header">
-              <h3>📁 Complétude du dossier</h3>
-              <button className="agent-card-btn" onClick={() => navigate('/documents')}>Compléter →</button>
-            </div>
-            <div className="completude-dossier">
-              <div className="completude-circle">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#E2E8F0" strokeWidth="10"/>
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#D4AF37" strokeWidth="10" 
-                          strokeDasharray="283" strokeDashoffset={283 - (283 * completudeDossier.total / 100)}
-                          strokeLinecap="round" transform="rotate(-90 50 50)"/>
-                </svg>
-                <div className="completude-text">{completudeDossier.total}%</div>
-              </div>
-              <div className="completude-details">
-                <div className="completude-item missing">
-                  <span>📄 Pièces manquantes</span>
-                  <span>{completudeDossier.pieces_manquantes.length}</span>
-                </div>
-                <div className="completude-item expired">
-                  <span>⚠️ Pièces expirées</span>
-                  <span>{completudeDossier.pieces_expirees.length}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Alertes pièces expirées */}
-          <div className="agent-card">
-            <div className="agent-card-header">
-              <h3>⚠️ Alertes documents</h3>
-              <button className="agent-card-btn" onClick={() => navigate('/documents')}>Mettre à jour →</button>
-            </div>
-            <div className="alertes-pieces">
-              {alertesPieces.map((piece) => (
-                <div key={piece.id} className={`alerte-piece ${piece.statut}`}>
-                  <div className="piece-info">
-                    <span className="piece-nom">{piece.piece}</span>
-                    {piece.date_expiration && (
-                      <span className="piece-expiration">Expire le {piece.date_expiration}</span>
-                    )}
-                  </div>
-                  {piece.jours_restants && (
-                    <div className="piece-urgence">
-                      <span className={`urgence-badge ${piece.jours_restants < 30 ? 'urgent' : 'normal'}`}>
-                        {piece.jours_restants} jours restants
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <button className="btn-upload-doc">📤 Déposer un nouveau document</button>
             </div>
           </div>
         </div>
@@ -375,6 +343,7 @@ export default function DashboardAgent() {
         </div>
       </main>
 
+      {/* FOOTER */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -382,9 +351,33 @@ export default function DashboardAgent() {
             <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
         </div>
         <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — Espace Agent</p>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
     </div>

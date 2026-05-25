@@ -128,8 +128,8 @@ export default function AdminAgents() {
 
       if (response.ok) {
         if (formData.role_id !== '1') {
-          await fetch(`http://localhost:8000/api/agents/${data.id}/role/`, {
-            method: 'PUT',
+          await fetch(`http://localhost:8000/api/agents/${data.id}/role/add/`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role_id: formData.role_id })
           });
@@ -154,38 +154,44 @@ export default function AdminAgents() {
     }
   };
 
-  const updateRole = async (agentId, roleId) => {
+  const toggleRole = async (agentId, roleId, isChecked) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentId}/role/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role_id: roleId })
-      });
-      if (response.ok) {
-        alert('Rôle modifié avec succès');
-        await fetchAgents();
-        setShowRoleModal(false);
+      if (isChecked) {
+        await fetch(`http://localhost:8000/api/agents/${agentId}/role/add/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role_id: roleId })
+        });
+      } else {
+        await fetch(`http://localhost:8000/api/agents/${agentId}/role/remove/`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role_id: roleId })
+        });
       }
+      alert('Rôle mis à jour');
+      fetchAgents();
     } catch (error) {
       console.error('Erreur:', error);
+      alert('Erreur lors de la modification du rôle');
     }
   };
 
   const exportToExcel = () => {
     const filteredAgents = agents.filter(agent =>
-      agent.nom.toLowerCase().includes(filterText.toLowerCase()) ||
-      agent.prenom.toLowerCase().includes(filterText.toLowerCase()) ||
-      agent.matricule.toLowerCase().includes(filterText.toLowerCase())
+      agent.nom?.toLowerCase().includes(filterText.toLowerCase()) ||
+      agent.prenom?.toLowerCase().includes(filterText.toLowerCase()) ||
+      agent.matricule?.toLowerCase().includes(filterText.toLowerCase())
     );
 
-    const headers = ['Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Rôle', 'Statut'];
+    const headers = ['Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Rôle(s)', 'Statut'];
     const rows = filteredAgents.map(agent => [
       agent.matricule,
       agent.nom,
       agent.prenom,
       agent.email,
       agent.telephone || '',
-      getRoleLabel(agent.role_libelle),
+      agent.roles?.map(r => getRoleLabel(r.libelle)).join(', ') || 'Agent',
       agent.actif ? 'Actif' : 'Inactif'
     ]);
 
@@ -348,13 +354,19 @@ export default function AdminAgents() {
       selector: row => row.telephone || '-',
     },
     {
-      name: 'Rôle',
-      selector: row => getRoleLabel(row.role_libelle),
-      sortable: true,
+      name: 'Rôle(s)',
       cell: row => (
-        <span className={`role-badge ${row.role_libelle}`}>
-          {getRoleLabel(row.role_libelle)}
-        </span>
+        <div className="roles-multi">
+          {row.roles && row.roles.length > 0 ? (
+            row.roles.map((role, idx) => (
+              <span key={idx} className={`role-badge ${role.libelle}`}>
+                {getRoleLabel(role.libelle)}
+              </span>
+            ))
+          ) : (
+            <span className="role-badge agent">Agent</span>
+          )}
+        </div>
       ),
     },
     {
@@ -377,14 +389,13 @@ export default function AdminAgents() {
             setShowRoleModal(true);
           }}
         >
-          🔄 Changer rôle
+          🔄 Gérer rôles
         </button>
       ),
       width: '130px',
     },
   ];
 
-  // Filtre pour la recherche
   const filteredAgents = agents.filter(agent =>
     agent.nom?.toLowerCase().includes(filterText.toLowerCase()) ||
     agent.prenom?.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -392,7 +403,6 @@ export default function AdminAgents() {
     agent.email?.toLowerCase().includes(filterText.toLowerCase())
   );
 
-  // Custom styles pour le DataTable
   const customStyles = {
     headCells: {
       style: {
@@ -416,12 +426,8 @@ export default function AdminAgents() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-           <a href="/" className="logo-nav-link">
-            <img 
-              src="/logo_MND.png" 
-              alt="Logo MND" 
-              className="mnd-official-logo" 
-            />
+          <a href="/" className="logo-nav-link">
+            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
         <nav className="nav-central-links">
@@ -513,7 +519,7 @@ export default function AdminAgents() {
         </section>
       </main>
 
-      {/* MODAL AJOUT AGENT (inchangé) */}
+      {/* MODAL AJOUT AGENT */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -546,13 +552,11 @@ export default function AdminAgents() {
                   <input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} required />
                 </div>
                 <div className="form-group">
-                  <label>Rôle</label>
+                  <label>Rôle initial</label>
                   <select name="role_id" value={formData.role_id} onChange={handleChange}>
                     {roles.map(role => (
                       <option key={role.id} value={role.id}>
-                        {role.libelle === 'admin' ? 'Administrateur' : 
-                         role.libelle === 'rh' ? 'Ressources Humaines' :
-                         role.libelle === 'chef' ? 'Chef de service' : 'Agent'}
+                        {getRoleLabel(role.libelle)}
                       </option>
                     ))}
                   </select>
@@ -567,30 +571,47 @@ export default function AdminAgents() {
         </div>
       )}
 
-      {/* MODAL CHANGER RÔLE (inchangé) */}
+      {/* MODAL GÉRER RÔLES - MULTI-SELECTION */}
       {showRoleModal && selectedAgent && (
         <div className="modal-overlay" onClick={() => setShowRoleModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Changer le rôle de {selectedAgent.prenom} {selectedAgent.nom}</h3>
-            <div className="form-group">
-              <label>Nouveau rôle</label>
-              <select id="newRole" className="role-select-modal" defaultValue={selectedAgent.role_id}>
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.libelle}</option>
-                ))}
-              </select>
+            <h3>Gérer les rôles de {selectedAgent.prenom} {selectedAgent.nom}</h3>
+            <p className="modal-info">Un agent peut avoir plusieurs rôles (ex: Agent + Chef)</p>
+            
+            <div className="roles-checkboxes">
+              {roles.map(role => {
+                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
+                                  (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
+                return (
+                  <label key={role.id} className="role-checkbox">
+                    <input
+                      type="checkbox"
+                      value={role.id}
+                      defaultChecked={isChecked}
+                      onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)}
+                    />
+                    <span className={`role-badge ${role.libelle}`}>
+                      {getRoleLabel(role.libelle)}
+                    </span>
+                    <span className="role-description">
+                      {role.libelle === 'admin' && '👑 Accès total'}
+                      {role.libelle === 'rh' && '👥 Gestion des demandes'}
+                      {role.libelle === 'chef' && '⭐ Validation des congés'}
+                      {role.libelle === 'agent' && '👤 Espace personnel'}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
+            
             <div className="modal-buttons">
-              <button onClick={() => setShowRoleModal(false)}>Annuler</button>
-              <button onClick={() => {
-                const select = document.getElementById('newRole');
-                updateRole(selectedAgent.id, select.value);
-              }}>Confirmer</button>
+              <button onClick={() => setShowRoleModal(false)}>Fermer</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -598,9 +619,33 @@ export default function AdminAgents() {
             <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
         </div>
         <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — Gestion des Agents</p>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
     </div>
