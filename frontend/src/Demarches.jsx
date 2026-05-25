@@ -8,6 +8,16 @@ export default function Demarches() {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  // État pour le formulaire de congé
+  const [showCongeForm, setShowCongeForm] = useState(false);
+  const [congeForm, setCongeForm] = useState({
+    date_debut: '',
+    date_fin: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [soldeConge, setSoldeConge] = useState(null);
+  const [mesDemandes, setMesDemandes] = useState([]);
 
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
@@ -20,6 +30,8 @@ export default function Demarches() {
       setIsLoggedIn(true);
       setUserName(`${savedPrenom} ${savedNom}`);
       setUserEmail(savedEmail);
+      fetchSoldeConge(savedMatricule);
+      fetchMesDemandes(savedMatricule);
     }
   }, []);
 
@@ -42,7 +54,33 @@ export default function Demarches() {
     navigate('/'); 
   };
 
-  // Fonction pour vérifier si l'utilisateur est connecté avant action
+  // Récupérer le solde de congés
+  const fetchSoldeConge = async (matricule) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/conges/solde/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setSoldeConge(data);
+      }
+    } catch (error) {
+      console.error('Erreur solde:', error);
+    }
+  };
+
+  // Récupérer les demandes de l'agent
+  const fetchMesDemandes = async (matricule) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setMesDemandes(data);
+      }
+    } catch (error) {
+      console.error('Erreur demandes:', error);
+    }
+  };
+
+  // Gestionnaires d'actions protégés
   const requireLogin = (actionName, action) => {
     if (!isLoggedIn) {
       alert(`Veuillez vous connecter pour ${actionName}`);
@@ -53,45 +91,88 @@ export default function Demarches() {
     return true;
   };
 
-  // Gestionnaires d'actions protégés
+  const handleCongeChange = (e) => {
+    setCongeForm({ ...congeForm, [e.target.name]: e.target.value });
+  };
+
+  const soumettreDemandeConge = async () => {
+    const matricule = localStorage.getItem('userMatricule');
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    if (!congeForm.date_debut || !congeForm.date_fin) {
+      alert('Veuillez remplir toutes les dates');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/conges/demander/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matricule: matricule,
+          date_debut: congeForm.date_debut,
+          date_fin: congeForm.date_fin
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Demande envoyée ! Numéro de suivi: ${data.numero_suivi}`);
+        setShowCongeForm(false);
+        setCongeForm({ date_debut: '', date_fin: '' });
+        fetchSoldeConge(matricule);
+        fetchMesDemandes(matricule);
+      } else {
+        alert(data.error || 'Erreur lors de la demande');
+      }
+    } catch (error) {
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFaireDemande = (titre) => {
     requireLogin(`faire une ${titre}`, () => {
-      alert(`Demande de ${titre} en cours de traitement...`);
-      // Ici, appel API pour créer la demande
+      if (titre.includes("Demande de congé")) {
+        setShowCongeForm(true);
+      } else {
+        alert(`Demande de ${titre} en cours de traitement...`);
+      }
     });
   };
 
   const handleConsulterSolde = () => {
     requireLogin("consulter votre solde de congés", () => {
-      alert("Redirection vers votre solde de congés...");
-      navigate('/dashboard');
+      alert(`Solde de congés ${soldeConge?.annee}: ${soldeConge?.jours_restants || 0} jours restants`);
     });
   };
 
   const handlePostulerOffre = (titre) => {
     requireLogin(`postuler à l'offre ${titre}`, () => {
       alert(`Candidature à l'offre "${titre}" enregistrée !`);
-      // Ici, appel API pour enregistrer la candidature
     });
   };
 
   const handleVoirOffres = () => {
     requireLogin("consulter les offres de postes internes", () => {
       alert("Voici la liste complète des offres...");
-      // Ici, afficher les offres
     });
   };
 
   const handleConsulterDossier = () => {
     requireLogin("consulter votre dossier", () => {
-      alert("Redirection vers votre dossier...");
       navigate('/documents');
     });
   };
 
   const handleDeposerPiece = () => {
     requireLogin("déposer une pièce", () => {
-      alert("Redirection vers le dépôt de pièces...");
       navigate('/documents');
     });
   };
@@ -104,7 +185,6 @@ export default function Demarches() {
 
   const handleConsulterAvancement = () => {
     requireLogin("consulter votre avancement", () => {
-      alert("Redirection vers votre avancement...");
       navigate('/dashboard');
     });
   };
@@ -150,13 +230,13 @@ export default function Demarches() {
       titre: "📅 Demande de congé administratif",
       description: "Soumettez votre demande de congé annuel en ligne.",
       info: "Validation chef →",
-      limite: "Max 10 jours/an"
+      limite: "Max 30 jours/an"
     },
     {
       id: 2,
       titre: "⏰ Autorisation d'absence",
       description: "Demandez une autorisation pour une absence exceptionnelle.",
-      info: "Traitement en temps réel →",
+      info: "Validation chef →",
       limite: "Max 10 jours/an"
     },
     {
@@ -417,7 +497,51 @@ export default function Demarches() {
         </section>
       </main>
 
-      {/* FOOTER */}
+      {/* MODAL FORMULAIRE CONGÉ - SANS MOTIF */}
+      {showCongeForm && (
+        <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>📅 Demande de congé</h3>
+            
+            {soldeConge && (
+              <div className="solde-info">
+                <p>Solde disponible : <strong>{soldeConge.jours_restants} jours</strong></p>
+              </div>
+            )}
+            
+            <div className="form-group">
+              <label>Date de début *</label>
+              <input 
+                type="date" 
+                name="date_debut" 
+                value={congeForm.date_debut} 
+                onChange={handleCongeChange} 
+                required
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Date de fin *</label>
+              <input 
+                type="date" 
+                name="date_fin" 
+                value={congeForm.date_fin} 
+                onChange={handleCongeChange} 
+                required
+              />
+            </div>
+            
+            <div className="modal-buttons">
+              <button onClick={() => setShowCongeForm(false)}>Annuler</button>
+              <button onClick={soumettreDemandeConge} disabled={loading}>
+                {loading ? 'Envoi...' : 'Envoyer la demande'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -429,7 +553,6 @@ export default function Demarches() {
             <div className="footer-col">
               <h4>Navigation Portail</h4>
               <ul>
-                <li><a href="#accueil">Accueil Portail</a></li>
                 <li><a href="#carriere">Mon Profil & Carrière</a></li>
                 <li><a href="#demarches">Démarches en Ligne</a></li>
                 <li><a href="#documents">Documents & Notes</a></li>
@@ -438,9 +561,9 @@ export default function Demarches() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">🌐 Site Officiel du MND</a></li>
-                <li><a href="#">🖥️ Accès SIGRH National</a></li>
-                <li><a href="#">📜 Statut de l'Agent de l'État</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
