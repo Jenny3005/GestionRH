@@ -213,9 +213,10 @@ class RolePermission(models.Model):
 
 class Soldeconge(models.Model):
     annee = models.IntegerField()
-    jours_acquis = models.IntegerField(blank=True, null=True)
-    jours_pris = models.IntegerField(blank=True, null=True)
-    jours_restants = models.IntegerField(blank=True, null=True)
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, null=True)
+    jours_acquis = models.IntegerField(default=30)  # ← valeur par défaut
+    jours_pris = models.IntegerField(default=0)     # ← valeur par défaut
+    jours_restants = models.IntegerField(default=30)
 
     class Meta:
         db_table = 'soldeconge'

@@ -9,7 +9,8 @@ export default function DashboardAdmin() {
     total_agents: 0,
     agents_actifs: 0,
     total_roles: 0,
-    total_demandes: 0
+    total_demandes: 0,
+    total_types_demande: 0
   });
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -108,7 +109,7 @@ export default function DashboardAdmin() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-           <a href="/" className="logo-nav-link">
+          <a href="/" className="logo-nav-link">
             <img 
               src="/logo_MND.png" 
               alt="Logo MND" 
@@ -120,7 +121,7 @@ export default function DashboardAdmin() {
           <a href="/admin/dashboard" className="nav-tab-item active">Dashboard</a>
           <a href="/admin/agents" className="nav-tab-item">Agents</a>
           <a href="/admin/roles" className="nav-tab-item">Rôles</a>
-          <a href="/admin/demandes" className="nav-tab-item">Demandes</a>
+          <a href="/admin/types-demande" className="nav-tab-item">Types de demande</a>
         </nav>
         <div className="nav-right">
           <div className="user-menu-container">
@@ -143,8 +144,14 @@ export default function DashboardAdmin() {
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
                   📊 Tableau de bord
                 </button>
-                <button className="dropdown-item" onClick={() => navigate('/profile')}>
-                  👤 Mon profil
+                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
+                  👥 Agents
+                </button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
+                  ⚙️ Rôles
+                </button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
+                  📝 Types de demande
                 </button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
@@ -161,11 +168,11 @@ export default function DashboardAdmin() {
         <section className="hero-banner-intranet">
           <div className="banner-content">
             <h2>Tableau de bord Administrateur</h2>
-            <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les demandes depuis cet espace.</p>
+            <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les types de demande depuis cet espace.</p>
           </div>
         </section>
 
-        {/* STATISTIQUES - 4 CARDS */}
+        {/* STATISTIQUES - 5 CARDS */}
         <div className="admin-stats-grid">
           <div className="admin-stat-card">
             <div className="admin-stat-icon">👥</div>
@@ -189,6 +196,13 @@ export default function DashboardAdmin() {
             </div>
           </div>
           <div className="admin-stat-card">
+            <div className="admin-stat-icon">📝</div>
+            <div className="admin-stat-info">
+              <h3>Types de demande</h3>
+              <p className="admin-stat-number">{stats.total_types_demande}</p>
+            </div>
+          </div>
+          <div className="admin-stat-card">
             <div className="admin-stat-icon">📋</div>
             <div className="admin-stat-info">
               <h3>Demandes</h3>
@@ -209,7 +223,7 @@ export default function DashboardAdmin() {
                   <th>Prénom</th>
                   <th>Email</th>
                   <th>Téléphone</th>
-                  <th>Rôle</th>
+                  <th>Rôle(s)</th>
                   <th>Statut</th>
                   <th>Actions</th>
                 </tr>
@@ -228,9 +242,17 @@ export default function DashboardAdmin() {
                       <td>{agent.email}</td>
                       <td>{agent.telephone || '-'}</td>
                       <td>
-                        <span className={`role-badge ${agent.role_libelle}`}>
-                          {getRoleLabel(agent.role_libelle)}
-                        </span>
+                        <div className="roles-multi">
+                          {agent.roles && agent.roles.length > 0 ? (
+                            agent.roles.map((role, idx) => (
+                              <span key={idx} className={`role-badge ${role.libelle}`}>
+                                {getRoleLabel(role.libelle)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="role-badge agent">Agent</span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
@@ -257,11 +279,14 @@ export default function DashboardAdmin() {
         <section className="admin-actions">
           <h3>⚡ Actions rapides</h3>
           <div className="admin-actions-grid">
-            <button className="admin-action-btn" onClick={() => navigate('/admin/agents/add')}>
-              ➕ Ajouter un agent
+            <button className="admin-action-btn" onClick={() => navigate('/admin/agents')}>
+              ➕ Gérer les agents
             </button>
             <button className="admin-action-btn" onClick={() => navigate('/admin/roles')}>
               ⚙️ Gérer les rôles
+            </button>
+            <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
+              📝 Types de demande
             </button>
             <button className="admin-action-btn" onClick={() => fetchAgents()}>
               🔄 Actualiser
@@ -270,6 +295,7 @@ export default function DashboardAdmin() {
         </section>
       </main>
 
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -277,9 +303,33 @@ export default function DashboardAdmin() {
             <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
         </div>
         <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — Espace Administrateur</p>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
     </div>

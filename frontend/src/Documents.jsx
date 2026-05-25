@@ -299,7 +299,7 @@ export default function Documents() {
 
       </main>
 
-      {/* FOOTER */}
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -311,7 +311,6 @@ export default function Documents() {
             <div className="footer-col">
               <h4>Navigation Portail</h4>
               <ul>
-                <li><a href="#accueil">Accueil Portail</a></li>
                 <li><a href="#carriere">Mon Profil & Carrière</a></li>
                 <li><a href="#demarches">Démarches en Ligne</a></li>
                 <li><a href="#documents">Documents & Notes</a></li>
@@ -320,9 +319,9 @@ export default function Documents() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">🌐 Site Officiel du MND</a></li>
-                <li><a href="#">🖥️ Accès SIGRH National</a></li>
-                <li><a href="#">📜 Statut de l'Agent de l'État</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
