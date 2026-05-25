@@ -6,6 +6,7 @@ export default function AdminRoles() {
   const navigate = useNavigate();
   const [roles, setRoles] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [filteredAgents, setFilteredAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -15,6 +16,7 @@ export default function AdminRoles() {
     libelle: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [agentSearchTerm, setAgentSearchTerm] = useState(''); // Barre de recherche pour les agents
 
   const userNom = localStorage.getItem('userNom');
   const userPrenom = localStorage.getItem('userPrenom');
@@ -39,6 +41,20 @@ export default function AdminRoles() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
+
+  // Filtrer les agents pour le modal
+  useEffect(() => {
+    if (selectedRole) {
+      const filtered = agents.filter(agent => {
+        const agentRoles = agent.roles?.map(r => r.libelle) || [];
+        const hasRole = agentRoles.includes(selectedRole.libelle);
+        const matchesSearch = agent.prenom?.toLowerCase().includes(agentSearchTerm.toLowerCase()) ||
+                             agent.nom?.toLowerCase().includes(agentSearchTerm.toLowerCase());
+        return !hasRole && matchesSearch;
+      });
+      setFilteredAgents(filtered);
+    }
+  }, [agents, selectedRole, agentSearchTerm]);
 
   const fetchRoles = async () => {
     try {
@@ -92,6 +108,28 @@ export default function AdminRoles() {
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de l\'ajout');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const assignRole = async (agentId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/agents/${agentId}/role/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_id: selectedRole.id })
+      });
+      if (response.ok) {
+        alert(`Rôle "${getRoleLabel(selectedRole.libelle)}" attribué avec succès`);
+        fetchAgents();
+        fetchRoles();
+        // Re-filtrer les agents après l'attribution
+        const updatedFiltered = filteredAgents.filter(agent => agent.id !== agentId);
+        setFilteredAgents(updatedFiltered);
+      } else {
+        alert('Erreur lors de l\'attribution');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -160,12 +198,8 @@ export default function AdminRoles() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-           <a href="/" className="logo-nav-link">
-            <img 
-              src="/logo_MND.png" 
-              alt="Logo MND" 
-              className="mnd-official-logo" 
-            />
+          <a href="/" className="logo-nav-link">
+            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
         <nav className="nav-central-links">
@@ -250,6 +284,7 @@ export default function AdminRoles() {
                     className="btn-assign"
                     onClick={() => {
                       setSelectedRole(role);
+                      setAgentSearchTerm('');
                       setShowAssignModal(true);
                     }}
                   >
@@ -274,7 +309,10 @@ export default function AdminRoles() {
           <h3>📊 Répartition des agents par rôle</h3>
           <div className="stats-roles-grid">
             {roles.map((role) => {
-              const count = agents.filter(a => a.role_libelle === role.libelle).length;
+              const count = agents.filter(a => {
+                const agentRoles = a.roles?.map(r => r.libelle) || [];
+                return agentRoles.includes(role.libelle);
+              }).length;
               const percentage = agents.length ? Math.round((count / agents.length) * 100) : 0;
               return (
                 <div key={role.id} className="stat-role-item">
@@ -319,37 +357,50 @@ export default function AdminRoles() {
         </div>
       )}
 
-      {/* MODAL ATTRIBUER RÔLE */}
+      {/* MODAL ATTRIBUER RÔLE AVEC BARRE DE RECHERCHE */}
       {showAssignModal && selectedRole && (
         <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <h3>Attribuer le rôle "{getRoleLabel(selectedRole.libelle)}"</h3>
             <p>Sélectionnez les agents qui auront ce rôle :</p>
-            <div className="agents-list-modal">
-              {agents.filter(a => a.role_libelle !== selectedRole.libelle).map(agent => (
-                <div key={agent.id} className="agent-check-item">
-                  <label>
-                    <input
-                      type="checkbox"
-                      value={agent.id}
-                      onChange={async (e) => {
-                        if (e.target.checked) {
-                          await fetch(`http://localhost:8000/api/agents/${agent.id}/role/`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ role_id: selectedRole.id })
-                          });
-                          alert(`${agent.prenom} ${agent.nom} a maintenant le rôle ${getRoleLabel(selectedRole.libelle)}`);
-                          fetchAgents();
-                          fetchRoles();
-                        }
-                      }}
-                    />
-                    {agent.prenom} {agent.nom} - {agent.matricule}
-                  </label>
-                </div>
-              ))}
+            
+            {/* Barre de recherche pour les agents */}
+            <div className="assign-search-box">
+              <input
+                type="text"
+                placeholder="🔍 Rechercher un agent par nom ou prénom..."
+                value={agentSearchTerm}
+                onChange={(e) => setAgentSearchTerm(e.target.value)}
+                className="search-input"
+              />
             </div>
+            
+            <div className="agents-list-modal">
+              {filteredAgents.length === 0 ? (
+                <p className="no-agents-message">
+                  {agentSearchTerm ? 'Aucun agent trouvé' : 'Tous les agents ont déjà ce rôle'}
+                </p>
+              ) : (
+                filteredAgents.map(agent => (
+                  <div key={agent.id} className="agent-check-item">
+                    <label>
+                      <input
+                        type="checkbox"
+                        value={agent.id}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            assignRole(agent.id);
+                          }
+                        }}
+                      />
+                      <span className="agent-name">{agent.prenom} {agent.nom}</span>
+                      <span className="agent-direction">{agent.direction || 'Direction non spécifiée'}</span>
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+            
             <div className="modal-buttons">
               <button onClick={() => setShowAssignModal(false)}>Fermer</button>
             </div>
@@ -357,6 +408,7 @@ export default function AdminRoles() {
         </div>
       )}
 
+      {/* FOOTER */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -364,9 +416,33 @@ export default function AdminRoles() {
             <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
         </div>
         <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — Gestion des Rôles</p>
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
         </div>
       </footer>
     </div>

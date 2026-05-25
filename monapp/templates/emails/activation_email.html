@@ -2,227 +2,358 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Activation de votre compte MND</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background-color: #f0f2f5;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            background: linear-gradient(145deg, #eef2f7 0%, #e0e7f0 100%);
+            margin: 0;
+            padding: 32px 16px;
+        }
+
         .container {
-            max-width: 600px;
+            max-width: 620px;
             margin: 0 auto;
             background-color: #ffffff;
-            border-radius: 16px;
+            border-radius: 32px;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
         }
+
+        /* Bande tricolore plus fine et élégante */
+        .tricolor {
+            height: 5px;
+            background: linear-gradient(90deg, #008751 0%, #008751 33.33%, #FFD200 33.33%, #FFD200 66.66%, #E8112D 66.66%, #E8112D 100%);
+        }
+
+        /* En-tête avec blason stylisé */
         .header {
-            background: linear-gradient(135deg, #0B192C 0%, #152942 100%);
-            padding: 30px;
+            background: linear-gradient(135deg, #0B192C 0%, #10243f 100%);
+            padding: 32px 28px 28px;
             text-align: center;
-            border-bottom: 4px solid #D4AF37;
+            position: relative;
         }
-        .logo {
-            font-size: 48px;
-            margin-bottom: 10px;
+
+        .logo-icon {
+            font-size: 56px;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+            margin-bottom: 12px;
         }
+
         .header h1 {
             color: white;
-            font-size: 24px;
-            margin: 0;
+            font-size: 26px;
             font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 6px;
         }
-        .header p {
-            color: #94A3B8;
-            margin: 5px 0 0;
+
+        .subhead {
+            color: #b9c8ff;
             font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            border-top: 1px dashed rgba(255, 210, 0, 0.3);
+            display: inline-block;
+            padding-top: 8px;
         }
+
         .content {
-            padding: 30px;
+            padding: 36px 32px 28px;
         }
+
         .greeting {
-            font-size: 20px;
-            font-weight: 600;
+            font-size: 22px;
+            font-weight: 700;
             color: #0B192C;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
+            background: linear-gradient(120deg, #0B192C, #2c3e5c);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
         }
-        .info-box {
-            background-color: #F8FAFC;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-            border-left: 4px solid #D4AF37;
+
+        .message {
+            color: #2c3e4e;
+            line-height: 1.55;
+            font-size: 16px;
+            margin-bottom: 28px;
+            border-left: 3px solid #D4AF37;
+            padding-left: 18px;
+            background: #FEFCF5;
+            border-radius: 0 16px 16px 0;
         }
+
+        /* Carte d'informations moderne */
+        .info-card {
+            background: #F8FAFE;
+            border-radius: 24px;
+            padding: 6px 0;
+            margin: 28px 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255,255,255,0.8);
+            border: 1px solid #eef2f8;
+        }
+
         .info-item {
-            margin: 12px 0;
             display: flex;
             align-items: center;
+            padding: 14px 24px;
+            border-bottom: 1px solid #e6edf4;
         }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
         .info-icon {
-            font-size: 20px;
-            margin-right: 12px;
+            font-size: 22px;
+            width: 44px;
+            text-align: center;
         }
+
         .info-label {
-            font-weight: 600;
+            font-weight: 700;
             color: #0B192C;
-            width: 100px;
-        }
-        .info-value {
-            color: #475569;
-            font-family: monospace;
+            width: 95px;
             font-size: 14px;
         }
+
+        .info-value {
+            color: #1e2f44;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 15px;
+            font-weight: 500;
+            background: #ffffffb3;
+            padding: 4px 12px;
+            border-radius: 40px;
+            letter-spacing: 0.2px;
+        }
+
+        /* Bouton principal */
+        .btn-wrapper {
+            text-align: center;
+            margin: 30px 0 20px;
+        }
+
         .activation-btn {
-            display: inline-block;
-            background: linear-gradient(135deg, #0B192C 0%, #1E2E44 100%);
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(105deg, #0B192C 0%, #1e3a5f 100%);
             color: white;
             text-decoration: none;
-            padding: 14px 28px;
-            border-radius: 50px;
-            font-weight: 600;
-            margin: 20px 0;
-            transition: all 0.3s;
+            padding: 15px 34px;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: 0.3px;
+            transition: all 0.25s;
+            box-shadow: 0 8px 18px -6px rgba(11, 25, 44, 0.3);
+            border: 1px solid rgba(212, 175, 55, 0.4);
         }
+
         .activation-btn:hover {
-            background: linear-gradient(135deg, #1E2E44 0%, #2A3A50 100%);
+            background: linear-gradient(105deg, #152f4a 0%, #0B192C 100%);
             transform: translateY(-2px);
+            box-shadow: 0 14px 24px -10px rgba(0, 0, 0, 0.35);
         }
+
+        /* Grille des fonctionnalités */
         .features {
             display: flex;
             justify-content: space-between;
-            margin: 25px 0;
-            flex-wrap: wrap;
+            gap: 12px;
+            margin: 32px 0 28px;
         }
+
         .feature {
+            background: #F9FBFE;
+            border-radius: 20px;
+            padding: 12px 8px;
             text-align: center;
             flex: 1;
-            padding: 10px;
+            transition: all 0.2s;
+            border: 1px solid #eef2fa;
         }
+
         .feature-icon {
             font-size: 28px;
             margin-bottom: 8px;
         }
+
         .feature-text {
             font-size: 12px;
-            color: #64748B;
+            font-weight: 600;
+            color: #1e3a5f;
+            letter-spacing: 0.2px;
         }
-        .warning-box {
-            background-color: #FFFBEB;
-            border-radius: 12px;
-            padding: 15px;
+
+        /* Alerte stylisée */
+        .alert {
+            background: #FFFAF0;
+            border-radius: 20px;
+            padding: 16px 20px;
             margin: 20px 0;
-            border-left: 4px solid #F59E0B;
+            border-left: 5px solid #F5A623;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .alert-icon {
+            font-size: 22px;
+        }
+
+        .alert-content {
+            font-size: 13.5px;
+            color: #8a6300;
+            line-height: 1.4;
+        }
+
+        .alert-content strong {
+            color: #b16200;
+        }
+
+        .footnote {
             font-size: 13px;
-            color: #92400E;
-        }
-        .footer {
-            background-color: #F8FAFC;
-            padding: 20px;
+            color: #59748f;
             text-align: center;
-            border-top: 1px solid #E2E8F0;
+            background: #F7F9FC;
+            padding: 12px 16px;
+            border-radius: 36px;
+            margin-top: 24px;
         }
+
+        .footer {
+            background: #F9FCFE;
+            padding: 22px 24px;
+            text-align: center;
+            border-top: 1px solid #E9F0F5;
+        }
+
         .footer p {
-            margin: 5px 0;
+            margin: 6px 0;
             font-size: 12px;
-            color: #64748B;
+            color: #5b7894;
         }
-        .tricolor {
-            height: 4px;
-            background: linear-gradient(90deg, #008751 0%, #008751 33%, #FFD200 33%, #FFD200 66%, #E8112D 66%, #E8112D 100%);
+
+        .footer a {
+            color: #0B192C;
+            text-decoration: none;
+            border-bottom: 1px dotted #D4AF37;
         }
-        @media (max-width: 600px) {
-            .container {
-                margin: 10px;
-            }
-            .features {
-                flex-direction: column;
+
+        @media (max-width: 550px) {
+            .content {
+                padding: 26px 20px;
             }
             .info-item {
-                flex-direction: column;
-                align-items: flex-start;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .info-label {
+                width: auto;
+            }
+            .features {
+                flex-wrap: wrap;
+            }
+            .feature {
+                min-width: 120px;
+            }
+            .greeting {
+                font-size: 20px;
+            }
+            .activation-btn {
+                padding: 12px 26px;
+                font-size: 14px;
             }
         }
     </style>
 </head>
 <body>
-    <div style="padding: 20px;">
-        <div class="container">
-            <div class="tricolor"></div>
-            <div class="header">
-            <div class="logo">
-                <img src="http://localhost:8000/static/images/logo2.png" alt="Logo MND" style="height: 100px; width: auto;">
-            </div>
-                <h1>Ministère du Numérique et de la Digitalisation</h1>
-                <p>République du Bénin</p>
-            </div>
-            
-            <div class="content">
-                <div class="greeting">
-                    Bonjour {{ prenom }} {{ nom }},
-                </div>
-                
-                <p style="color: #475569; line-height: 1.6;">
-                    Votre compte a été créé sur la plateforme de gestion RH du MND. 
-                    Veuillez activer votre compte pour accéder à vos services.
-                </p>
-                
-                <div class="info-box">
-                    <div class="info-item">
-                        <span class="info-icon">👤</span>
-                        <span class="info-label">Matricule :</span>
-                        <span class="info-value">{{ matricule }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-icon">📧</span>
-                        <span class="info-label">Email :</span>
-                        <span class="info-value">{{ email }}</span>
-                    </div>
-                </div>
-                
-                <div style="text-align: center;">
-                    <a href="{{ activation_link }}" class="activation-btn">
-                        🔓 Activer mon compte
-                    </a>
-                </div>
-                
-                <div class="features">
-                    <div class="feature">
-                        <div class="feature-icon">📋</div>
-                        <div class="feature-text">Demandes en ligne</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">🌴</div>
-                        <div class="feature-text">Gestion des congés</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">📄</div>
-                        <div class="feature-text">Documents officiels</div>
-                    </div>
-                    <div class="feature">
-                        <div class="feature-icon">📈</div>
-                        <div class="feature-text">Suivi carrière</div>
-                    </div>
-                </div>
-                
-                <div class="warning-box">
-                    <strong>⚠️ Attention</strong><br>
-                    Ce lien d'activation est valable <strong>7 jours</strong>. 
-                    Après cette période, veuillez contacter l'administrateur.
-                </div>
-                
-                <p style="font-size: 13px; color: #64748B; text-align: center;">
-                    Une fois votre compte activé, vous pourrez créer votre mot de passe 
-                    et accéder à votre espace personnel.
-                </p>
+    <div class="container">
+        <div class="tricolor"></div>
+        
+        <div class="header">
+            <div class="logo-icon">🏛️</div>
+            <h1>Ministère du Numérique<br>et de la Digitalisation</h1>
+            <div class="subhead">République du Bénin ·  Digitalisation & Progrès</div>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">
+                Bonjour {{ prenom }} {{ nom }},
             </div>
             
-            <div class="footer">
-                <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin</p>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin | 📞 +229 21 30 70 13</p>
-                <p style="font-size: 11px;">Cet email est généré automatiquement, merci de ne pas y répondre.</p>
+            <div class="message">
+                Votre compte agent a été officiellement créé sur la plateforme RH du MND.  
+                Activez-le dès maintenant pour accéder à l’ensemble de vos services numériques.
             </div>
+            
+            <div class="info-card">
+                <div class="info-item">
+                    <span class="info-icon">🆔</span>
+                    <span class="info-label">Matricule</span>
+                    <span class="info-value">{{ matricule }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-icon">📬</span>
+                    <span class="info-label">Email pro</span>
+                    <span class="info-value">{{ email }}</span>
+                </div>
+            </div>
+            
+            <div class="btn-wrapper">
+                <a href="{{ activation_link }}" class="activation-btn">
+                    🔓 Activer mon compte
+                    <span style="font-size: 18px;">→</span>
+                </a>
+            </div>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-text">Demandes<br>en ligne</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🌴</div>
+                    <div class="feature-text">Congés<br>simplifiés</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📄</div>
+                    <div class="feature-text">Documents<br>officiels</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📈</div>
+                    <div class="feature-text">Suivi de<br>carrière</div>
+                </div>
+            </div>
+            
+            <div class="alert">
+                <div class="alert-icon">⏳</div>
+                <div class="alert-content">
+                    <strong>Lien à validité limitée</strong><br>
+                    Ce lien d’activation expirera dans <strong>7 jours</strong>. Passé ce délai, merci de contacter l’administrateur du système.
+                </div>
+            </div>
+            
+            <div class="footnote">
+                🔐 Après activation, vous pourrez définir votre mot de passe sécurisé et accéder à votre tableau de bord personnalisé.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2026 — Ministère du Numérique et de la Digitalisation</p>
+            <p>📍 Avenue Jean-Paul II, Cotonou, Bénin  |  ☎️ +229 21 30 70 13</p>
+            <p style="font-size: 11px; opacity: 0.7;">📧 Ce message est généré automatiquement, merci de ne pas répondre.</p>
         </div>
     </div>
 </body>
