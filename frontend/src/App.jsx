@@ -15,6 +15,12 @@ export default function App() {
     const savedNom = localStorage.getItem('userNom');
     const savedPrenom = localStorage.getItem('userPrenom');
     const savedEmail = localStorage.getItem('userEmail');
+    const lastLogin = localStorage.getItem('lastLogin');
+    const sessionDuration = 8 * 60 * 60 * 1000; // 8 heures
+  
+    if (lastLogin && (Date.now() - parseInt(lastLogin)) > sessionDuration) {
+      localStorage.clear();
+    }
     
     if (savedMatricule) {
       setIsLoggedIn(true);

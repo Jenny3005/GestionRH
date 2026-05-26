@@ -7,12 +7,13 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from datetime import datetime, date, timedelta
 from .models import (
     Agent, Role, AgentRole, Typedemande, Demande, 
     Demandeconge, Notification, Soldeconge
 )
 import json
-from datetime import datetime
+
 import random
 
 # ==================== FONCTIONS PRINCIPALES ====================
@@ -613,24 +614,30 @@ def mes_demandes_conge(request, matricule):
 def demandes_direction(request, matricule_chef):
     """Chef consulte les demandes de sa direction"""
     try:
-        chef = Agent.objects.get(matricule=matricule_chef)
+        print(f"=== demandes_direction called for chef: {matricule_chef}")
         
+        chef = Agent.objects.get(matricule=matricule_chef)
+        print(f"Chef trouvé: {chef.nom} {chef.prenom}, direction: {chef.direction}")
+        
+        # Vérifier que c'est bien un chef
         role_chef = Role.objects.get(libelle='chef')
         if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
+        # Récupérer le type "Congé"
         try:
             type_demande = Typedemande.objects.get(libelle='Congé')
         except Typedemande.DoesNotExist:
-            return JsonResponse({
-                'error': 'Le type de demande "Congé" n\'a pas été configuré.'
-            }, status=500)
+            return JsonResponse({'error': 'Type Congé non configuré'}, status=500)
         
+        # Récupérer les demandes
         demandes = Demande.objects.filter(
             agent__direction=chef.direction,
             typedemande=type_demande,
             statut='en_attente_chef'
         ).select_related('agent', 'demandeconge')
+        
+        print(f"Nombre de demandes trouvées: {demandes.count()}")
         
         result = []
         for d in demandes:
@@ -638,17 +645,22 @@ def demandes_direction(request, matricule_chef):
                 'id': d.id,
                 'agent': f"{d.agent.prenom} {d.agent.nom}",
                 'matricule': d.agent.matricule,
-                'date_debut': d.demandeconge.date_debut,
-                'date_fin': d.demandeconge.date_fin,
+                'date_debut': str(d.demandeconge.date_debut),
+                'date_fin': str(d.demandeconge.date_fin),
                 'nombre_jours': d.demandeconge.nombrejours,
-                'date_soumission': d.date_soumission,
+                'date_soumission': str(d.date_soumission),
                 'numero_suivi': d.numero_suivi
             })
         
         return JsonResponse(result, safe=False)
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': f'Agent {matricule_chef} non trouvé'}, status=404)
     except Exception as e:
+        print(f"ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -864,5 +876,74 @@ def marquer_notification_lue(request, notification_id):
         return JsonResponse({'success': True})
     except Notification.DoesNotExist:
         return JsonResponse({'error': 'Notification non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+def demandes_direction(request, matricule_chef):
+    """Chef consulte les demandes de sa direction (triées par priorité)"""
+    try:
+        chef = Agent.objects.get(matricule=matricule_chef)
+        
+        role_chef = Role.objects.get(libelle='chef')
+        if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
+            return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        try:
+            type_demande = Typedemande.objects.get(libelle='Congé')
+        except Typedemande.DoesNotExist:
+            return JsonResponse({
+                'error': 'Le type de demande "Congé" n\'a pas été configuré.'
+            }, status=500)
+        
+        demandes = Demande.objects.filter(
+            agent__direction=chef.direction,
+            typedemande=type_demande,
+            statut='en_attente_chef'
+        ).select_related('agent', 'demandeconge')
+        
+        from .ia_utils import calculer_score_priorite
+        
+        result = []
+        for d in demandes:
+            # Calculer le score de priorité
+            priorite = calculer_score_priorite(d)
+            
+            # Déterminer le niveau de priorité
+            if priorite >= 40:
+                niveau_priorite = "URGENT"
+                couleur = "#EF4444"
+            elif priorite >= 25:
+                niveau_priorite = "ÉLEVÉE"
+                couleur = "#F59E0B"
+            elif priorite >= 15:
+                niveau_priorite = "NORMALE"
+                couleur = "#3B82F6"
+            else:
+                niveau_priorite = "FAIBLE"
+                couleur = "#10B981"
+            
+            result.append({
+                'id': d.id,
+                'agent': f"{d.agent.prenom} {d.agent.nom}",
+                'matricule': d.agent.matricule,
+                'date_debut': str(d.demandeconge.date_debut),
+                'date_fin': str(d.demandeconge.date_fin),
+                'nombre_jours': d.demandeconge.nombrejours,
+                'date_soumission': str(d.date_soumission),
+                'numero_suivi': d.numero_suivi,
+                'priorite': priorite,
+                'niveau_priorite': niveau_priorite,
+                'couleur_priorite': couleur,
+                'jours_attente': (datetime.now().date() - d.date_soumission).days,
+                'jours_avant_depart': (d.demandeconge.date_debut - datetime.now().date()).days
+            })
+        
+        # Trier par score de priorité (du plus élevé au plus bas)
+        result.sort(key=lambda x: x['priorite'], reverse=True)
+        
+        return JsonResponse(result, safe=False)
+        
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
