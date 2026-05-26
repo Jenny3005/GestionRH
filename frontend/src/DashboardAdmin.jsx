@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AdminNav from './AdminNav';
 import './App.css';
 
 export default function DashboardAdmin() {
@@ -10,7 +11,8 @@ export default function DashboardAdmin() {
     agents_actifs: 0,
     total_roles: 0,
     total_demandes: 0,
-    total_types_demande: 0
+    total_types_demande: 0,
+    total_types_piece: 0
   });
   const [loading, setLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -117,12 +119,7 @@ export default function DashboardAdmin() {
             />
           </a>
         </div>
-        <nav className="nav-central-links">
-          <a href="/admin/dashboard" className="nav-tab-item active">Dashboard</a>
-          <a href="/admin/agents" className="nav-tab-item">Agents</a>
-          <a href="/admin/roles" className="nav-tab-item">Rôles</a>
-          <a href="/admin/types-demande" className="nav-tab-item">Types de demande</a>
-        </nav>
+        <AdminNav />
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
@@ -152,6 +149,9 @@ export default function DashboardAdmin() {
                 </button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
                   📝 Types de demande
+                </button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
+                  📄 Types de pièce
                 </button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
@@ -207,6 +207,13 @@ export default function DashboardAdmin() {
             <div className="admin-stat-info">
               <h3>Demandes</h3>
               <p className="admin-stat-number">{stats.total_demandes}</p>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon">📄</div>
+            <div className="admin-stat-info">
+              <h3>Types de pièce</h3>
+              <p className="admin-stat-number">{stats.total_types_piece}</p>
             </div>
           </div>
         </div>
@@ -287,6 +294,9 @@ export default function DashboardAdmin() {
             </button>
             <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
               📝 Types de demande
+            </button>
+            <button className="admin-action-btn" onClick={() => navigate('/admin/types-piece')}>
+              📄 Types de pièce
             </button>
             <button className="admin-action-btn" onClick={() => fetchAgents()}>
               🔄 Actualiser

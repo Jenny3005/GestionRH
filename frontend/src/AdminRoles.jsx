@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AdminNav from './AdminNav';
 import './App.css';
 
 export default function AdminRoles() {
@@ -202,11 +203,7 @@ export default function AdminRoles() {
             <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
-        <nav className="nav-central-links">
-          <a href="/admin/dashboard" className="nav-tab-item">Dashboard</a>
-          <a href="/admin/agents" className="nav-tab-item">Agents</a>
-          <a href="/admin/roles" className="nav-tab-item active">Rôles</a>
-        </nav>
+        <AdminNav />
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
