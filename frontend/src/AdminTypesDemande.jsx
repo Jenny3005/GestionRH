@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from 'react-data-table-component';
+import AdminNav from './AdminNav';
 import './App.css';
 
 export default function AdminTypesDemande() {
@@ -263,12 +264,7 @@ export default function AdminTypesDemande() {
             <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
-        <nav className="nav-central-links">
-          <a href="/admin/dashboard" className="nav-tab-item">Dashboard</a>
-          <a href="/admin/agents" className="nav-tab-item">Agents</a>
-          <a href="/admin/roles" className="nav-tab-item">Rôles</a>
-          <a href="/admin/types-demande" className="nav-tab-item active">Types de demande</a>
-        </nav>
+        <AdminNav />
         
         <div className="nav-right">
           <div className="user-menu-container">
@@ -288,7 +284,7 @@ export default function AdminTypesDemande() {
                 </div>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profile')}>👤 Mon profil</button>
+                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>

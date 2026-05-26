@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
 import './App.css';
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
   
     if (lastLogin && (Date.now() - parseInt(lastLogin)) > sessionDuration) {
       localStorage.clear();
+      return;
     }
     
     if (savedMatricule) {
@@ -129,10 +131,7 @@ export default function App() {
         </div>
 
         {/* Navigation sans l'onglet Accueil */}
-        <nav className="nav-central-links">
-          <a href="/demarches" className="nav-tab-item">Démarches RH</a>
-          <a href="/documents" className="nav-tab-item">Documents</a>
-        </nav>
+        <PortalNav />
 
         <div className="nav-right">
           {isLoggedIn ? (
@@ -142,9 +141,7 @@ export default function App() {
               <div className="user-meta">
                 <span className="user-name">{userName}</span>
                 <span className="user-role">
-                  {localStorage.getItem('userRole') === 'admin' ? 'Administrateur' : 
-                  localStorage.getItem('userRole') === 'rh' ? 'Ressources Humaines' :
-                  localStorage.getItem('userRole') === 'chef' ? 'Chef de service' : 'Agent'}
+                  {getRoleLabel()}
                 </span>
               </div>
               <span className="dropdown-arrow">▼</span>
@@ -160,16 +157,12 @@ export default function App() {
                   <button 
                     className="dropdown-item" 
                     onClick={() => {
-                      const role = localStorage.getItem('userRole');
-                      if (role === 'admin') navigate('/admin/dashboard');
-                      else if (role === 'rh') navigate('/rh/dashboard');
-                      else if (role === 'chef') navigate('/chef/dashboard');
-                      else navigate('/dashboard');
+                      navigate(getDashboardPath());
                     }}
                   >
                     📊 Tableau de bord
                   </button>
-                  <button className="dropdown-item" onClick={() => navigate('/profile')}>
+                  <button className="dropdown-item" onClick={() => navigate('/profil')}>
                     👤 Mon profil
                   </button>
                   <div className="dropdown-divider"></div>
