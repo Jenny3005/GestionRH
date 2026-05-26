@@ -6,6 +6,7 @@ export default function DashboardChef() {
   const navigate = useNavigate();
   const [demandes, setDemandes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -33,17 +34,30 @@ export default function DashboardChef() {
   }, [dropdownOpen]);
 
   const fetchDemandes = async () => {
+    setLoading(true);
+    setError('');
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/direction/${matricule}/`);
-      if (response.ok) {
-        const data = await response.json();
+      const response = await fetch(`http://localhost:8000/api/conges/direction/${encodeURIComponent(matricule)}/`);
+      const data = await response.json();
+
+      if (response.ok && Array.isArray(data)) {
         setDemandes(data);
+      } else {
+        setDemandes([]);
+        setError(data?.error || 'Impossible de recuperer les demandes.');
       }
     } catch (error) {
       console.error('Erreur:', error);
+      setDemandes([]);
+      setError('Erreur de connexion au serveur.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    return new Date(value).toLocaleDateString('fr-FR');
   };
 
   const validerDemande = async (demandeId, decision) => {
@@ -130,16 +144,18 @@ export default function DashboardChef() {
               <tbody>
                 {loading ? (
                   <tr><td colSpan="6">Chargement...</td></tr>
+                ) : error ? (
+                  <tr><td colSpan="6">{error}</td></tr>
                 ) : demandes.length === 0 ? (
                   <tr><td colSpan="6">Aucune demande en attente</td></tr>
                 ) : (
                   demandes.map((d) => (
                     <tr key={d.id}>
-                      <td>{d.agent}</td>
-                      <td>{d.matricule}</td>
-                      <td>{d.date_debut} → {d.date_fin}</td>
-                      <td>{d.nombre_jours} jours</td>
-                      <td>{d.date_soumission}</td>
+                      <td>{d.agent || '-'}</td>
+                      <td>{d.matricule || '-'}</td>
+                      <td>{formatDate(d.date_debut)} - {formatDate(d.date_fin)}</td>
+                      <td>{d.nombre_jours ?? '-'} jours</td>
+                      <td>{formatDate(d.date_soumission)}</td>
                       <td>
                         <button className="btn-validate" onClick={() => setSelectedDemande(d)}>
                           📝 Traiter
@@ -159,7 +175,7 @@ export default function DashboardChef() {
         <div className="modal-overlay" onClick={() => setSelectedDemande(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Demande de {selectedDemande.agent}</h3>
-            <p><strong>Période:</strong> {selectedDemande.date_debut} → {selectedDemande.date_fin}</p>
+            <p><strong>Période:</strong> {formatDate(selectedDemande.date_debut)} - {formatDate(selectedDemande.date_fin)}</p>
             <p><strong>Nombre de jours:</strong> {selectedDemande.nombre_jours}</p>
             <div className="form-group">
               <label>Commentaire (optionnel)</label>
