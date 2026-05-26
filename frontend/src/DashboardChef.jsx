@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PortalNav from './PortalNav';
 import './App.css';
 
 export default function DashboardChef() {
@@ -96,9 +97,7 @@ export default function DashboardChef() {
         <div className="nav-left-zone">
           <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
         </div>
-        <nav className="nav-central-links">
-          <a href="/chef/dashboard" className="nav-tab-item active">Demandes</a>
-        </nav>
+        <PortalNav />
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
@@ -111,7 +110,8 @@ export default function DashboardChef() {
             </div>
             {dropdownOpen && (
               <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => navigate('/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/chef/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>
             )}

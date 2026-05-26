@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
 import './App.css';
 
 export default function Documents() {
@@ -60,11 +61,7 @@ export default function Documents() {
           </a>
         </div>
 
-        <nav className="nav-central-links">
-          <a href="/" className="nav-tab-item">Accueil</a>
-          <a href="/demarches" className="nav-tab-item">Démarches RH</a>
-          <a href="/documents" className="nav-tab-item active">Documents</a>
-        </nav>
+        <PortalNav />
 
         <div className="nav-right">
           {isLoggedIn ? (
@@ -74,9 +71,7 @@ export default function Documents() {
                 <div className="user-meta">
                   <span className="user-name">{userName}</span>
                   <span className="user-role">
-                    {userRole === 'admin' ? 'Administrateur' : 
-                     userRole === 'rh' ? 'Ressources Humaines' :
-                     userRole === 'chef' ? 'Chef de service' : 'Agent'}
+                    {getRoleLabel(userRole)}
                   </span>
                 </div>
                 <span className="dropdown-arrow">▼</span>
@@ -92,16 +87,12 @@ export default function Documents() {
                   <button 
                     className="dropdown-item" 
                     onClick={() => {
-                      const role = localStorage.getItem('userRole');
-                      if (role === 'admin') navigate('/admin/dashboard');
-                      else if (role === 'rh') navigate('/rh/dashboard');
-                      else if (role === 'chef') navigate('/chef/dashboard');
-                      else navigate('/dashboard');
+                      navigate(getDashboardPath());
                     }}
                   >
                     📊 Tableau de bord
                   </button>
-                  <button className="dropdown-item" onClick={() => navigate('/profile')}>
+                  <button className="dropdown-item" onClick={() => navigate('/profil')}>
                     👤 Mon profil
                   </button>
                   <div className="dropdown-divider"></div>

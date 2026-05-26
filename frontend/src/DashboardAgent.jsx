@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PortalNav from './PortalNav';
 import './App.css';
 
 export default function DashboardAgent() {
@@ -111,9 +112,11 @@ export default function DashboardAgent() {
 
   const marquerNotificationLue = async (notificationId) => {
     try {
-      await fetch(`http://localhost:8000/api/notifications/${notificationId}/lue/`, {
-        method: 'PUT'
-      });
+      const url = notificationId === 'all'
+        ? `http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/lues/`
+        : `http://localhost:8000/api/notifications/${notificationId}/lue/`;
+
+      await fetch(url, { method: 'PUT' });
       fetchNotifications();
     } catch (error) {
       console.error('Erreur:', error);
@@ -143,12 +146,7 @@ export default function DashboardAgent() {
             <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
-        <nav className="nav-central-links">
-          <a href="/dashboard" className="nav-tab-item active">Accueil</a>
-          <a href="/demarches" className="nav-tab-item">Démarches RH</a>
-          <a href="/documents" className="nav-tab-item">Documents</a>
-          <a href="/profil" className="nav-tab-item">Mon Profil</a>
-        </nav>
+        <PortalNav />
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
@@ -324,23 +322,6 @@ export default function DashboardAgent() {
           </div>
         </div>
 
-        {/* Informations personnelles */}
-        <div className="agent-profile-section">
-          <div className="agent-card">
-            <div className="agent-card-header">
-              <h3>👤 Mes informations</h3>
-              <button className="agent-card-btn" onClick={() => navigate('/profil')}>Modifier →</button>
-            </div>
-            <div className="agent-info-grid">
-              <div className="agent-info-item"><span className="agent-info-label">Matricule</span><span className="agent-info-value">{userInfo.matricule}</span></div>
-              <div className="agent-info-item"><span className="agent-info-label">Nom complet</span><span className="agent-info-value">{userName}</span></div>
-              <div className="agent-info-item"><span className="agent-info-label">Email</span><span className="agent-info-value">{userInfo.email}</span></div>
-              <div className="agent-info-item"><span className="agent-info-label">Téléphone</span><span className="agent-info-value">{userInfo.telephone || 'Non renseigné'}</span></div>
-              <div className="agent-info-item"><span className="agent-info-label">Poste</span><span className="agent-info-value">{userInfo.poste}</span></div>
-              <div className="agent-info-item"><span className="agent-info-label">Direction</span><span className="agent-info-value">{userInfo.direction}</span></div>
-            </div>
-          </div>
-        </div>
       </main>
 
       {/* FOOTER */}
