@@ -10,7 +10,7 @@ from django.conf import settings
 from datetime import datetime, date, timedelta
 from .models import (
     Agent, Role, AgentRole, Typedemande, Demande, 
-    Demandeconge, Notification, Soldeconge
+    Demandeconge, Notification, Soldeconge, Typepiece
 )
 import json
 
@@ -228,6 +228,7 @@ def get_stats(request):
             'agents_actifs': Agent.objects.filter(actif=1).count(),
             'total_roles': Role.objects.count(),
             'total_types_demande': Typedemande.objects.count(),
+            'total_types_piece': Typepiece.objects.count(),
             'total_demandes': Demande.objects.count()
         })
     except Exception as e:
@@ -415,11 +416,32 @@ def update_agent_role(request, agent_id):
 
 
 @csrf_exempt
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "PUT"])
 def get_agent_by_matricule(request, matricule):
     print(f"=== GET_AGENT_BY_MATRICULE called for: {matricule}")
     try:
         agent = Agent.objects.get(matricule=matricule)
+
+        if request.method == "PUT":
+            data = json.loads(request.body)
+            agent.nom = data.get('nom', agent.nom)
+            agent.prenom = data.get('prenom', agent.prenom)
+            agent.email = data.get('email', agent.email)
+            agent.telephone = data.get('telephone', agent.telephone)
+            agent.poste = data.get('poste', agent.poste)
+            agent.direction = data.get('direction', agent.direction)
+
+            typecontrat = data.get('typecontrat')
+            if typecontrat:
+                agent.typecontrat = typecontrat
+
+            date_prise_service = data.get('date_prise_service')
+            if date_prise_service:
+                agent.date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
+
+            agent.save()
+            return JsonResponse({'success': True})
+
         print(f"Agent trouvé: {agent.nom} {agent.prenom}")
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -440,6 +462,7 @@ def get_agent_by_matricule(request, matricule):
             'poste': agent.poste,
             'direction': agent.direction,
             'typecontrat': agent.typecontrat,
+            'date_prise_service': str(agent.date_prise_service) if agent.date_prise_service else '',
             'actif': agent.actif,
             'roles': [r[0] for r in roles]
         })
@@ -808,6 +831,71 @@ def edit_type_demande(request, type_id):
 
 @csrf_exempt
 @require_http_methods(["GET"])
+def get_types_piece(request):
+    """Récupérer tous les types de pièce"""
+    try:
+        types = Typepiece.objects.all()
+        result = [{
+            'id': t.id,
+            'libelle': t.libelle,
+            'obligatoire': t.obligatoire or 0,
+            'duree_validite': t.duree_validite
+        } for t in types]
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_type_piece(request):
+    """Ajouter un type de pièce"""
+    try:
+        data = json.loads(request.body)
+        type_piece = Typepiece.objects.create(
+            libelle=data.get('libelle'),
+            obligatoire=data.get('obligatoire', 0),
+            duree_validite=data.get('duree_validite', '')
+        )
+        return JsonResponse({'success': True, 'id': type_piece.id})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_type_piece(request, type_id):
+    """Supprimer un type de pièce"""
+    try:
+        type_piece = Typepiece.objects.get(id=type_id)
+        type_piece.delete()
+        return JsonResponse({'success': True})
+    except Typepiece.DoesNotExist:
+        return JsonResponse({'error': 'Type de pièce non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def edit_type_piece(request, type_id):
+    """Modifier un type de pièce"""
+    try:
+        data = json.loads(request.body)
+        type_piece = Typepiece.objects.get(id=type_id)
+        type_piece.libelle = data.get('libelle')
+        type_piece.obligatoire = data.get('obligatoire', 0)
+        type_piece.duree_validite = data.get('duree_validite', '')
+        type_piece.save()
+        return JsonResponse({'success': True})
+    except Typepiece.DoesNotExist:
+        return JsonResponse({'error': 'Type de pièce non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
 def solde_conge(request, matricule):
     """Agent consulte son solde de congés"""
     try:
@@ -876,6 +964,19 @@ def marquer_notification_lue(request, notification_id):
         return JsonResponse({'success': True})
     except Notification.DoesNotExist:
         return JsonResponse({'error': 'Notification non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def marquer_toutes_notifications_lues(request, matricule):
+    """Marquer toutes les notifications d'un agent comme lues"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        updated = Notification.objects.filter(agent_id=agent.id, lue=0).update(lue=1)
+        return JsonResponse({'success': True, 'updated': updated})
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
     

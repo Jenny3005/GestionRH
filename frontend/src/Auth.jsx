@@ -94,7 +94,7 @@ export default function Auth({ onLogin }) {
                 navigate('/chef/dashboard');
                 break;
               case 'rh':
-                navigate('/rh/dashboard');
+                navigate('/dashboard');
                 break;
               default:
                 navigate('/dashboard');
