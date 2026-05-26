@@ -1,5 +1,5 @@
 # ia_utils.py
-from datetime import date
+from datetime import date, datetime
 from .models import Agent, Soldeconge, Demandeconge, Demande
 
 def verifier_eligibilite_conge(agent, date_debut, date_fin):
@@ -59,3 +59,43 @@ def verifier_eligibilite_conge(agent, date_debut, date_fin):
         'eligible': len(erreurs) == 0,
         'erreurs': erreurs
     }
+
+def calculer_score_priorite(demande):
+    """
+    Calcule un score de priorité pour une demande de congé.
+    Plus le score est élevé, plus la demande est prioritaire.
+    """
+    score = 0
+    today = datetime.now().date()
+    
+    # Critère 1 : Demande en attente depuis plus de 5 jours → +20
+    jours_attente = (today - demande.date_soumission).days
+    if jours_attente > 5:
+        score += 20
+    elif jours_attente > 3:
+        score += 10
+    
+    # Critère 2 : Congé qui commence dans moins de 7 jours → +25
+    jours_avant_depart = (demande.demandeconge.date_debut - today).days
+    if 0 <= jours_avant_depart <= 3:
+        score += 25
+    elif 4 <= jours_avant_depart <= 7:
+        score += 15
+    
+    # Critère 3 : Congé de plus de 15 jours → +10
+    if demande.demandeconge.nombrejours > 15:
+        score += 10
+    
+    # Critère 4 : Ancienneté de l'agent (>10 ans) → +5
+    if demande.agent.date_prise_service:
+        anciennete = (today - demande.agent.date_prise_service).days / 365
+        if anciennete > 10:
+            score += 5
+        elif anciennete > 5:
+            score += 3
+    
+    # Critère 5 : Demande avec anomalies détectées → +15
+    if getattr(demande, 'anomalies_detectees', False):
+        score += 15
+    
+    return score
