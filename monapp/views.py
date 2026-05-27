@@ -639,7 +639,7 @@ def demande_conge(request):
         annee_courante = datetime.now().year
         nb_demandes_annee = Demande.objects.filter(
             agent=agent,
-            typedemande__libelle='Congé',
+            type_demande__libelle='Congé',
             date_soumission__year=annee_courante
         ).count()
         
@@ -688,7 +688,7 @@ def demande_conge(request):
         
         demande = Demande.objects.create(
             agent=agent,
-            typedemande=type_demande,
+            type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
             numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
@@ -701,9 +701,10 @@ def demande_conge(request):
             nombrejours=nombre_jours
         )
         
-        role_chef = Role.objects.get(libelle='chef')
+        role_chef = Role.objects.get(libelle__iexact='chef')
+        chef_direction = (agent.direction or '').strip()
         chef = Agent.objects.filter(
-            direction=agent.direction,
+            direction__iexact=chef_direction,
             agentrole__role=role_chef,
             actif=1
         ).first()
@@ -778,32 +779,44 @@ def demandes_direction(request, matricule_chef):
         
         chef = Agent.objects.get(matricule=matricule_chef)
         
-        role_chef = Role.objects.get(libelle='chef')
+        role_chef = Role.objects.get(libelle__iexact='chef')
         if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        try:
-            type_demande = TypeDemande.objects.get(libelle='Congé')
-        except TypeDemande.DoesNotExist:
-            return JsonResponse({'error': 'Type Congé non configuré'}, status=500)
-        
+        chef_direction = (chef.direction or '').strip()
         demandes = Demande.objects.filter(
-            agent__direction=chef.direction,
-            typedemande=type_demande,
+            agent__direction__iexact=chef_direction,
             statut='en_attente_chef'
-        ).select_related('agent', 'demandeconge')
+        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence')
         
         result = []
         for d in demandes:
+            date_debut = None
+            date_fin = None
+            nombre_jours = None
+
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                date_debut = str(d.demandeconge.date_debut)
+                date_fin = str(d.demandeconge.date_fin)
+                nombre_jours = d.demandeconge.nombrejours
+            elif hasattr(d, 'demandeabsence') and d.demandeabsence:
+                date_debut = str(d.demandeabsence.date_debut)
+                date_fin = str(d.demandeabsence.date_fin)
+                nombre_jours = d.demandeabsence.nombrejours
+
+            if date_debut is None or date_fin is None:
+                continue
+
             result.append({
                 'id': d.id,
                 'agent': f"{d.agent.prenom} {d.agent.nom}",
                 'matricule': d.agent.matricule,
-                'date_debut': str(d.demandeconge.date_debut),
-                'date_fin': str(d.demandeconge.date_fin),
-                'nombre_jours': d.demandeconge.nombrejours,
+                'type_demande': d.type_demande.libelle,
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'nombre_jours': nombre_jours,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numero_suivi
+                'numero_suivi': d.numerosuivi
             })
         
         return JsonResponse(result, safe=False)
@@ -816,11 +829,10 @@ def demandes_direction(request, matricule_chef):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 def valider_demande_conge(request, demande_id):
-    """Chef valide ou rejette une demande de congé"""
+    """Chef valide ou rejette une demande de congé ou d'absence"""
     try:
         data = json.loads(request.body)
         matricule_chef = data.get('matricule_chef')
@@ -830,21 +842,22 @@ def valider_demande_conge(request, demande_id):
         chef = Agent.objects.get(matricule=matricule_chef)
         demande = Demande.objects.get(id=demande_id)
         
-        if chef.direction != demande.agent.direction:
+        if (chef.direction or '').strip().lower() != (demande.agent.direction or '').strip().lower():
             return JsonResponse({'error': 'Vous ne pouvez pas valider cette demande'}, status=403)
         
         if decision == 'valide':
             demande.statut = 'valide'
             
-            annee = datetime.now().year
-            solde, _ = SoldeConge.objects.get_or_create(
-                agent=demande.agent,
-                annee=annee,
-                defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
-            )
-            solde.jours_pris = (solde.jours_pris or 0) + demande.demandeconge.nombrejours
-            solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
-            solde.save()
+            if hasattr(demande, 'demandeconge') and demande.demandeconge:
+                annee = datetime.now().year
+                solde, _ = SoldeConge.objects.get_or_create(
+                    agent=demande.agent,
+                    annee=annee,
+                    defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
+                )
+                solde.jours_pris = (solde.jours_pris or 0) + demande.demandeconge.nombrejours
+                solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
+                solde.save()
         else:
             demande.statut = 'refuse'
         

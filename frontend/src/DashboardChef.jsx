@@ -135,6 +135,7 @@ export default function DashboardChef() {
                 <tr>
                   <th>Agent</th>
                   <th>Matricule</th>
+                  <th>Type</th>
                   <th>Période</th>
                   <th>Jours</th>
                   <th>Date demande</th>
@@ -153,6 +154,7 @@ export default function DashboardChef() {
                     <tr key={d.id}>
                       <td>{d.agent || '-'}</td>
                       <td>{d.matricule || '-'}</td>
+                      <td>{d.type_demande || '-'}</td>
                       <td>{formatDate(d.date_debut)} - {formatDate(d.date_fin)}</td>
                       <td>{d.nombre_jours ?? '-'} jours</td>
                       <td>{formatDate(d.date_soumission)}</td>
