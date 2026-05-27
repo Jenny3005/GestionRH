@@ -9,14 +9,13 @@ from django.utils.html import strip_tags
 from django.conf import settings
 from datetime import datetime, date, timedelta
 from .models import (
-    Agent, Role, AgentRole, Typedemande, Demande, 
-    Demandeconge, Notification, Soldeconge, Typepiece
+    Agent, Role, AgentRole, TypeDemande, Demande, 
+    DemandeConge, Notification, SoldeConge, TypePiece, Compte
 )
 import json
-
 import random
 
-# ==================== FONCTIONS PRINCIPALES ====================
+# ==================== SYSTÈME D'ACTIVATION 1: NOUVEL AGENT (AVEC EMAIL) ====================
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -61,7 +60,6 @@ def register(request):
             prenom=data.get('prenom'),
             email=data.get('email'),
             telephone=data.get('telephone'),
-            mot_de_passe='',
             date_prise_service=date_prise_service,
             adresse=adresse,
             poste=poste,
@@ -120,6 +118,116 @@ def register(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def activate_account_via_email(request):
+    """Activation de compte via le lien reçu par email (pour les nouveaux inscrits)"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        password = data.get('password')
+        
+        if not matricule or not password:
+            return JsonResponse({'error': 'Matricule et mot de passe requis'}, status=400)
+        
+        if len(password) < 6:
+            return JsonResponse({'error': 'Le mot de passe doit contenir au moins 6 caractères'}, status=400)
+        
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+            
+            if agent.actif == 1:
+                return JsonResponse({'error': 'Compte déjà activé'}, status=400)
+            
+            # Créer le compte dans la table Compte
+            compte, created = Compte.objects.get_or_create(
+                agent=agent,
+                defaults={
+                    'login': matricule,
+                    'mot_de_passe': make_password(password),
+                    'dateactivation': date.today()
+                }
+            )
+            
+            if not created:
+                compte.mot_de_passe = make_password(password)
+                compte.dateactivation = date.today()
+                compte.save()
+            
+            agent.actif = 1
+            agent.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': 'Compte activé avec succès ! Vous pouvez maintenant vous connecter.'
+            })
+            
+        except Agent.DoesNotExist:
+            return JsonResponse({
+                'error': 'Matricule invalide. Veuillez contacter l\'administrateur.'
+            }, status=404)
+            
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+# ==================== SYSTÈME D'ACTIVATION 2: AGENT EXISTANT (IMPORTÉ PAR RH) ====================
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def activate_agent_account(request):
+    """Activer le compte d'un agent existant (importé par RH)"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        password = data.get('password')
+        
+        if not matricule or not password:
+            return JsonResponse({'error': 'Matricule et mot de passe requis'}, status=400)
+        
+        if len(password) < 6:
+            return JsonResponse({'error': 'Le mot de passe doit contenir au moins 6 caractères'}, status=400)
+        
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+            
+            if agent.actif == 1:
+                return JsonResponse({'error': 'Compte déjà activé'}, status=400)
+            
+            # Créer ou mettre à jour le compte dans la table Compte
+            compte, created = Compte.objects.get_or_create(
+                agent=agent,
+                defaults={
+                    'login': matricule,
+                    'mot_de_passe': make_password(password),
+                    'dateactivation': date.today()
+                }
+            )
+            
+            if not created:
+                # Mettre à jour le mot de passe si le compte existe déjà
+                compte.mot_de_passe = make_password(password)
+                compte.dateactivation = date.today()
+                compte.save()
+            
+            # Activer l'agent
+            agent.actif = 1
+            agent.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': 'Compte activé avec succès'
+            })
+            
+        except Agent.DoesNotExist:
+            return JsonResponse({
+                'error': 'Matricule non trouvé dans la base de données. Veuillez contacter les RH.'
+            }, status=404)
+            
+    except Exception as e:
+        print(f"Erreur activate_agent_account: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    
+# ==================== AUTHENTIFICATION ====================
+@csrf_exempt
+@require_http_methods(["POST"])
 def login(request):
     """Connexion d'un agent"""
     try:
@@ -132,27 +240,35 @@ def login(request):
         if not password:
             return JsonResponse({'error': 'Mot de passe requis'}, status=400)
         
+        # Chercher l'agent par matricule
         try:
             agent = Agent.objects.get(matricule=matricule)
         except Agent.DoesNotExist:
             return JsonResponse({'error': 'Matricule incorrect'}, status=401)
         
+        # Vérifier si l'agent est actif
         if not agent.actif:
             return JsonResponse({'error': 'Compte désactivé'}, status=401)
         
-        if not agent.mot_de_passe:
-            return JsonResponse({'error': 'Compte non activé'}, status=401)
+        # Chercher le compte associé à l'agent (c'est là qu'est le mot de passe)
+        try:
+            compte = Compte.objects.get(agent=agent)
+        except Compte.DoesNotExist:
+            return JsonResponse({'error': 'Compte non trouvé. Veuillez contacter l\'administrateur.'}, status=401)
         
-        if check_password(password, agent.mot_de_passe):
+        # Vérifier le mot de passe
+        if check_password(password, compte.mot_de_passe):
+            # Récupérer les rôles de l'agent
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT r.libelle 
                     FROM agent_role ar
                     JOIN role r ON ar.role_id = r.id
                     WHERE ar.agent_id = %s
-                """, [agent.id])
+                """, [agent.matricule])  # Note: agent.matricule est la clé primaire
                 roles = [row[0] for row in cursor.fetchall()]
             
+            # Déterminer le rôle principal
             if 'admin' in roles:
                 user_role = 'admin'
             elif 'chef' in roles:
@@ -164,7 +280,7 @@ def login(request):
             
             return JsonResponse({
                 'success': True,
-                'id': agent.id,
+                'id': agent.matricule,  # Utiliser matricule comme id
                 'matricule': agent.matricule,
                 'nom': agent.nom,
                 'prenom': agent.prenom,
@@ -181,8 +297,10 @@ def login(request):
             return JsonResponse({'error': 'Mot de passe incorrect'}, status=401)
             
     except Exception as e:
+        print(f"Erreur login: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==================== GESTION DES AGENTS ====================
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -192,31 +310,32 @@ def get_all_agents(request):
         agents = Agent.objects.all()
         result = []
         for agent in agents:
+            # Utilisez agent.matricule (clé primaire) au lieu de agent.id
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT r.id, r.libelle 
                     FROM agent_role ar
                     JOIN role r ON ar.role_id = r.id
                     WHERE ar.agent_id = %s
-                """, [agent.id])
+                """, [agent.matricule])  # ✅ Changement important ici
                 roles = cursor.fetchall()
             
             result.append({
-                'id': agent.id,
+                'id': agent.matricule,  # Utilisez matricule comme identifiant
                 'matricule': agent.matricule,
                 'nom': agent.nom,
                 'prenom': agent.prenom,
                 'email': agent.email,
                 'telephone': agent.telephone,
-                'direction': agent.direction or 'À renseigner',  # ← Ajout de la direction
+                'direction': agent.direction or 'À renseigner',
                 'poste': agent.poste,
                 'actif': agent.actif,
                 'roles': [{'id': r[0], 'libelle': r[1]} for r in roles]
             })
         return JsonResponse(result, safe=False)
     except Exception as e:
+        print(f"Erreur get_all_agents: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -227,8 +346,8 @@ def get_stats(request):
             'total_agents': Agent.objects.count(),
             'agents_actifs': Agent.objects.filter(actif=1).count(),
             'total_roles': Role.objects.count(),
-            'total_types_demande': Typedemande.objects.count(),
-            'total_types_piece': Typepiece.objects.count(),
+            'total_types_demande': TypeDemande.objects.count(),
+            'total_types_piece': TypePiece.objects.count(),
             'total_demandes': Demande.objects.count()
         })
     except Exception as e:
@@ -251,6 +370,7 @@ def import_agents(request):
         
         for agent_data in agents_data:
             try:
+                # Vérifier si l'agent existe déjà
                 if Agent.objects.filter(matricule=agent_data.get('matricule')).exists():
                     error_count += 1
                     errors.append(f"{agent_data.get('matricule')}: Matricule existe déjà")
@@ -261,6 +381,29 @@ def import_agents(request):
                     errors.append(f"{agent_data.get('matricule')}: Email existe déjà")
                     continue
                 
+                # Convertir la date de prise de service
+                date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
+                if isinstance(date_prise_service, str):
+                    try:
+                        date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
+                    except ValueError:
+                        date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
+                
+                # Convertir la date de naissance
+                date_naissance = agent_data.get('date_naissance')
+                if date_naissance and isinstance(date_naissance, str):
+                    try:
+                        # Essayer différents formats de date
+                        if '/' in date_naissance:
+                            date_naissance = datetime.strptime(date_naissance, '%d/%m/%Y').date()
+                        else:
+                            date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
+                    except ValueError:
+                        date_naissance = None
+                else:
+                    date_naissance = None
+                
+                # Créer l'agent avec TOUS les champs
                 agent = Agent.objects.create(
                     matricule=agent_data.get('matricule'),
                     nom=agent_data.get('nom'),
@@ -271,17 +414,22 @@ def import_agents(request):
                     direction=agent_data.get('direction', 'À renseigner'),
                     typecontrat=agent_data.get('typecontrat', 'APE'),
                     poste=agent_data.get('poste', 'Agent'),
-                    date_prise_service=agent_data.get('date_prise_service', '2024-01-01'),
-                    mot_de_passe='',
-                    actif=0
+                    date_prise_service=date_prise_service,
+                    date_naissance=date_naissance,  # ✅ Ajouté
+                    corps=agent_data.get('corps', ''),  # ✅ Ajouté
+                    echelon=agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '', # ✅ Ajouté (grade -> echelon)
+                    actif=0  # Désactivé par défaut
                 )
+                print(f"✅ Agent créé: {agent.matricule} - {agent.nom} {agent.prenom}")
                 
+                # Assigner le rôle agent
                 with connection.cursor() as cursor:
                     cursor.execute(
                         "INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
-                        [agent.id, role_agent.id]
+                        [agent.matricule, role_agent.id]
                     )
                 
+                # Envoyer l'email d'activation
                 activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
                 try:
                     context = {
@@ -305,12 +453,14 @@ def import_agents(request):
                     print(f"✅ Email envoyé à {agent.email}")
                 except Exception as email_error:
                     print(f"❌ Erreur email pour {agent.email}: {email_error}")
+                    errors.append(f"{agent.matricule}: Email non envoyé - {str(email_error)}")
                 
                 success_count += 1
                 
             except Exception as e:
                 error_count += 1
                 errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
+                print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
         
         return JsonResponse({
             'success': True,
@@ -320,33 +470,10 @@ def import_agents(request):
         })
         
     except Exception as e:
+        print(f"Erreur import_agents: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def activate_account(request):
-    """Activer le compte avec mot de passe"""
-    try:
-        data = json.loads(request.body)
-        matricule = data.get('matricule')
-        password = data.get('password')
-        
-        agent = Agent.objects.get(matricule=matricule)
-        
-        if agent.actif == 1:
-            return JsonResponse({'error': 'Compte déjà activé'}, status=400)
-        
-        agent.mot_de_passe = make_password(password)
-        agent.actif = 1
-        agent.save()
-        
-        return JsonResponse({'success': True, 'message': 'Compte activé'})
-    except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
+    
+# ==================== GESTION DES RÔLES ====================
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -430,6 +557,9 @@ def get_agent_by_matricule(request, matricule):
             agent.telephone = data.get('telephone', agent.telephone)
             agent.poste = data.get('poste', agent.poste)
             agent.direction = data.get('direction', agent.direction)
+            agent.adresse = data.get('adresse', agent.adresse)
+            agent.corps = data.get('corps', agent.corps)
+            agent.echelon = data.get('echelon', agent.echelon)
 
             typecontrat = data.get('typecontrat')
             if typecontrat:
@@ -438,6 +568,10 @@ def get_agent_by_matricule(request, matricule):
             date_prise_service = data.get('date_prise_service')
             if date_prise_service:
                 agent.date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
+            
+            date_naissance = data.get('date_naissance')
+            if date_naissance:
+                agent.date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
 
             agent.save()
             return JsonResponse({'success': True})
@@ -449,11 +583,10 @@ def get_agent_by_matricule(request, matricule):
                 FROM agent_role ar
                 JOIN role r ON ar.role_id = r.id
                 WHERE ar.agent_id = %s
-            """, [agent.id])
+            """, [agent.matricule])  # ✅ Corrigé: utilise matricule au lieu de id
             roles = cursor.fetchall()
         
         return JsonResponse({
-            'id': agent.id,
             'matricule': agent.matricule,
             'nom': agent.nom,
             'prenom': agent.prenom,
@@ -463,16 +596,20 @@ def get_agent_by_matricule(request, matricule):
             'direction': agent.direction,
             'typecontrat': agent.typecontrat,
             'date_prise_service': str(agent.date_prise_service) if agent.date_prise_service else '',
+            'date_naissance': str(agent.date_naissance) if agent.date_naissance else '',
+            'adresse': agent.adresse or '',
+            'corps': agent.corps or '',
+            'echelon': agent.echelon or '',
             'actif': agent.actif,
             'roles': [r[0] for r in roles]
         })
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
+        print(f"Erreur get_agent_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
-# ==================== M2 - GESTION DES CONGÉS ====================
+# ==================== GESTION DES CONGÉS (M2) ====================
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -484,12 +621,11 @@ def demande_conge(request):
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # Récupérer les dates
         date_debut = datetime.strptime(data.get('date_debut'), '%Y-%m-%d').date()
         date_fin = datetime.strptime(data.get('date_fin'), '%Y-%m-%d').date()
         nombre_jours = (date_fin - date_debut).days + 1
         
-        # ===== VÉRIFICATION 1 : Ancienneté (1 an minimum) =====
+        # Vérification 1 : Ancienneté (1 an minimum)
         if agent.date_prise_service:
             anciennete_jours = (datetime.now().date() - agent.date_prise_service).days
             if anciennete_jours < 365:
@@ -497,7 +633,7 @@ def demande_conge(request):
                     'error': f'Ancienneté insuffisante. Vous devez avoir au moins 1 an de service.'
                 }, status=400)
         
-        # ===== VÉRIFICATION 2 : Maximum 2 demandes par an =====
+        # Vérification 2 : Maximum 2 demandes par an
         annee_courante = datetime.now().year
         nb_demandes_annee = Demande.objects.filter(
             agent=agent,
@@ -510,8 +646,8 @@ def demande_conge(request):
                 'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'
             }, status=400)
         
-        # ===== VÉRIFICATION 3 : Solde suffisant =====
-        solde, _ = Soldeconge.objects.get_or_create(
+        # Vérification 3 : Solde suffisant
+        solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
@@ -522,14 +658,14 @@ def demande_conge(request):
                 'error': f'Solde insuffisant. Vous avez {solde.jours_restants} jours restants, vous demandez {nombre_jours} jours.'
             }, status=400)
         
-        # ===== VÉRIFICATION 4 : Pas plus de 30 jours consécutifs =====
+        # Vérification 4 : Pas plus de 30 jours consécutifs
         if nombre_jours > 30:
             return JsonResponse({
                 'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'
             }, status=400)
         
-        # ===== VÉRIFICATION 5 : Pas de chevauchement avec une demande existante =====
-        chevauchement = Demandeconge.objects.filter(
+        # Vérification 5 : Pas de chevauchement
+        chevauchement = DemandeConge.objects.filter(
             demande__agent=agent,
             date_debut__lte=date_fin,
             date_fin__gte=date_debut,
@@ -541,31 +677,28 @@ def demande_conge(request):
                 'error': 'Vous avez déjà une demande de congé sur cette période.'
             }, status=400)
         
-        # ===== RÉCUPÉRATION DU TYPE "Congé" =====
         try:
-            type_demande = Typedemande.objects.get(libelle='Congé')
-        except Typedemande.DoesNotExist:
+            type_demande = TypeDemande.objects.get(libelle='Congé')
+        except TypeDemande.DoesNotExist:
             return JsonResponse({
                 'error': 'Le type de demande "Congé" n\'a pas été configuré par l\'administrateur.'
             }, status=500)
         
-        # ===== CRÉATION DE LA DEMANDE =====
         demande = Demande.objects.create(
             agent=agent,
             typedemande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.id}"
+            numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         )
         
-        conge = Demandeconge.objects.create(
+        conge = DemandeConge.objects.create(
             demande=demande,
             date_debut=date_debut,
             date_fin=date_fin,
             nombrejours=nombre_jours
         )
         
-        # ===== NOTIFICATION AU CHEF =====
         role_chef = Role.objects.get(libelle='chef')
         chef = Agent.objects.filter(
             direction=agent.direction,
@@ -595,7 +728,7 @@ def demande_conge(request):
         print(f"ERREUR demande_conge: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-        
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def mes_demandes_conge(request, matricule):
@@ -604,8 +737,8 @@ def mes_demandes_conge(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         
         try:
-            type_demande = Typedemande.objects.get(libelle='Congé')
-        except Typedemande.DoesNotExist:
+            type_demande = TypeDemande.objects.get(libelle='Congé')
+        except TypeDemande.DoesNotExist:
             return JsonResponse({
                 'error': 'Le type de demande "Congé" n\'a pas été configuré.'
             }, status=500)
@@ -640,27 +773,21 @@ def demandes_direction(request, matricule_chef):
         print(f"=== demandes_direction called for chef: {matricule_chef}")
         
         chef = Agent.objects.get(matricule=matricule_chef)
-        print(f"Chef trouvé: {chef.nom} {chef.prenom}, direction: {chef.direction}")
         
-        # Vérifier que c'est bien un chef
         role_chef = Role.objects.get(libelle='chef')
         if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # Récupérer le type "Congé"
         try:
-            type_demande = Typedemande.objects.get(libelle='Congé')
-        except Typedemande.DoesNotExist:
+            type_demande = TypeDemande.objects.get(libelle='Congé')
+        except TypeDemande.DoesNotExist:
             return JsonResponse({'error': 'Type Congé non configuré'}, status=500)
         
-        # Récupérer les demandes
         demandes = Demande.objects.filter(
             agent__direction=chef.direction,
             typedemande=type_demande,
             statut='en_attente_chef'
         ).select_related('agent', 'demandeconge')
-        
-        print(f"Nombre de demandes trouvées: {demandes.count()}")
         
         result = []
         for d in demandes:
@@ -685,6 +812,7 @@ def demandes_direction(request, matricule_chef):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def valider_demande_conge(request, demande_id):
@@ -705,7 +833,7 @@ def valider_demande_conge(request, demande_id):
             demande.statut = 'valide'
             
             annee = datetime.now().year
-            solde, _ = Soldeconge.objects.get_or_create(
+            solde, _ = SoldeConge.objects.get_or_create(
                 agent=demande.agent,
                 annee=annee,
                 defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
@@ -733,48 +861,14 @@ def valider_demande_conge(request, demande_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def add_role_to_agent(request, agent_id):
-    """Ajouter un rôle à un agent"""
-    try:
-        data = json.loads(request.body)
-        role_id = data.get('role_id')
-        
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "INSERT IGNORE INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
-                [agent_id, role_id]
-            )
-        return JsonResponse({'success': True})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
-@require_http_methods(["DELETE"])
-def remove_role_from_agent(request, agent_id):
-    """Supprimer un rôle d'un agent"""
-    try:
-        data = json.loads(request.body)
-        role_id = data.get('role_id')
-        
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "DELETE FROM agent_role WHERE agent_id = %s AND role_id = %s",
-                [agent_id, role_id]
-            )
-        return JsonResponse({'success': True})
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
+# ==================== TYPES DE DEMANDE ====================
 
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_types_demande(request):
     """Récupérer tous les types de demande"""
     try:
-        types = Typedemande.objects.all()
+        types = TypeDemande.objects.all()
         result = [{'id': t.id, 'libelle': t.libelle, 'duree_traitement_moyenne': t.duree_traitement_moyenne, 'acte_generable': t.acte_generable} for t in types]
         return JsonResponse(result, safe=False)
     except Exception as e:
@@ -787,7 +881,7 @@ def add_type_demande(request):
     """Ajouter un type de demande"""
     try:
         data = json.loads(request.body)
-        type_demande = Typedemande.objects.create(
+        type_demande = TypeDemande.objects.create(
             libelle=data.get('libelle'),
             duree_traitement_moyenne=data.get('duree_traitement_moyenne'),
             acte_generable=data.get('acte_generable', 0)
@@ -802,10 +896,10 @@ def add_type_demande(request):
 def delete_type_demande(request, type_id):
     """Supprimer un type de demande"""
     try:
-        type_demande = Typedemande.objects.get(id=type_id)
+        type_demande = TypeDemande.objects.get(id=type_id)
         type_demande.delete()
         return JsonResponse({'success': True})
-    except Typedemande.DoesNotExist:
+    except TypeDemande.DoesNotExist:
         return JsonResponse({'error': 'Type non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -817,24 +911,26 @@ def edit_type_demande(request, type_id):
     """Modifier un type de demande"""
     try:
         data = json.loads(request.body)
-        type_demande = Typedemande.objects.get(id=type_id)
+        type_demande = TypeDemande.objects.get(id=type_id)
         type_demande.libelle = data.get('libelle')
         type_demande.duree_traitement_moyenne = data.get('duree_traitement_moyenne')
         type_demande.acte_generable = data.get('acte_generable', 0)
         type_demande.save()
         return JsonResponse({'success': True})
-    except Typedemande.DoesNotExist:
+    except TypeDemande.DoesNotExist:
         return JsonResponse({'error': 'Type non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
+# ==================== TYPES DE PIÈCE ====================
 
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_types_piece(request):
     """Récupérer tous les types de pièce"""
     try:
-        types = Typepiece.objects.all()
+        types = TypePiece.objects.all()
         result = [{
             'id': t.id,
             'libelle': t.libelle,
@@ -852,7 +948,7 @@ def add_type_piece(request):
     """Ajouter un type de pièce"""
     try:
         data = json.loads(request.body)
-        type_piece = Typepiece.objects.create(
+        type_piece = TypePiece.objects.create(
             libelle=data.get('libelle'),
             obligatoire=data.get('obligatoire', 0),
             duree_validite=data.get('duree_validite', '')
@@ -867,10 +963,10 @@ def add_type_piece(request):
 def delete_type_piece(request, type_id):
     """Supprimer un type de pièce"""
     try:
-        type_piece = Typepiece.objects.get(id=type_id)
+        type_piece = TypePiece.objects.get(id=type_id)
         type_piece.delete()
         return JsonResponse({'success': True})
-    except Typepiece.DoesNotExist:
+    except TypePiece.DoesNotExist:
         return JsonResponse({'error': 'Type de pièce non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -882,17 +978,19 @@ def edit_type_piece(request, type_id):
     """Modifier un type de pièce"""
     try:
         data = json.loads(request.body)
-        type_piece = Typepiece.objects.get(id=type_id)
+        type_piece = TypePiece.objects.get(id=type_id)
         type_piece.libelle = data.get('libelle')
         type_piece.obligatoire = data.get('obligatoire', 0)
         type_piece.duree_validite = data.get('duree_validite', '')
         type_piece.save()
         return JsonResponse({'success': True})
-    except Typepiece.DoesNotExist:
+    except TypePiece.DoesNotExist:
         return JsonResponse({'error': 'Type de pièce non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
+# ==================== SOLDE CONGÉ ====================
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -902,14 +1000,14 @@ def solde_conge(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         
         try:
-            type_demande = Typedemande.objects.get(libelle='Congé')
-        except Typedemande.DoesNotExist:
+            type_demande = TypeDemande.objects.get(libelle='Congé')
+        except TypeDemande.DoesNotExist:
             return JsonResponse({
                 'error': 'Le type de demande "Congé" n\'a pas été configuré.'
             }, status=500)
         
         annee = datetime.now().year
-        solde, _ = Soldeconge.objects.get_or_create(
+        solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
@@ -933,6 +1031,9 @@ def solde_conge(request, matricule):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
+# ==================== NOTIFICATIONS ====================
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_notifications(request, matricule):
@@ -953,6 +1054,7 @@ def get_notifications(request, matricule):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def marquer_notification_lue(request, notification_id):
@@ -967,6 +1069,7 @@ def marquer_notification_lue(request, notification_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def marquer_toutes_notifications_lues(request, matricule):
@@ -979,72 +1082,28 @@ def marquer_toutes_notifications_lues(request, matricule):
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
+
 @csrf_exempt
-@require_http_methods(["GET"])
-def demandes_direction(request, matricule_chef):
-    """Chef consulte les demandes de sa direction (triées par priorité)"""
+@require_http_methods(["PUT"])
+def update_agent_role_by_matricule(request, matricule):
+    """Modifier le rôle d'un agent en utilisant son matricule"""
     try:
-        chef = Agent.objects.get(matricule=matricule_chef)
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
         
-        role_chef = Role.objects.get(libelle='chef')
-        if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
-            return JsonResponse({'error': 'Non autorisé'}, status=403)
-        
+        # Récupérer l'agent par son matricule
         try:
-            type_demande = Typedemande.objects.get(libelle='Congé')
-        except Typedemande.DoesNotExist:
-            return JsonResponse({
-                'error': 'Le type de demande "Congé" n\'a pas été configuré.'
-            }, status=500)
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
         
-        demandes = Demande.objects.filter(
-            agent__direction=chef.direction,
-            typedemande=type_demande,
-            statut='en_attente_chef'
-        ).select_related('agent', 'demandeconge')
+        # Mettre à jour le rôle (remplace tous les rôles)
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM agent_role WHERE agent_id = %s", [agent.matricule])
+            cursor.execute("INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)", 
+                          [agent.matricule, role_id])
         
-        from .ia_utils import calculer_score_priorite
-        
-        result = []
-        for d in demandes:
-            # Calculer le score de priorité
-            priorite = calculer_score_priorite(d)
-            
-            # Déterminer le niveau de priorité
-            if priorite >= 40:
-                niveau_priorite = "URGENT"
-                couleur = "#EF4444"
-            elif priorite >= 25:
-                niveau_priorite = "ÉLEVÉE"
-                couleur = "#F59E0B"
-            elif priorite >= 15:
-                niveau_priorite = "NORMALE"
-                couleur = "#3B82F6"
-            else:
-                niveau_priorite = "FAIBLE"
-                couleur = "#10B981"
-            
-            result.append({
-                'id': d.id,
-                'agent': f"{d.agent.prenom} {d.agent.nom}",
-                'matricule': d.agent.matricule,
-                'date_debut': str(d.demandeconge.date_debut),
-                'date_fin': str(d.demandeconge.date_fin),
-                'nombre_jours': d.demandeconge.nombrejours,
-                'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numero_suivi,
-                'priorite': priorite,
-                'niveau_priorite': niveau_priorite,
-                'couleur_priorite': couleur,
-                'jours_attente': (datetime.now().date() - d.date_soumission).days,
-                'jours_avant_depart': (d.demandeconge.date_debut - datetime.now().date()).days
-            })
-        
-        # Trier par score de priorité (du plus élevé au plus bas)
-        result.sort(key=lambda x: x['priorite'], reverse=True)
-        
-        return JsonResponse(result, safe=False)
+        return JsonResponse({'success': True})
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

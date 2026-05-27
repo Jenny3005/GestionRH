@@ -3886,3 +3886,99 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   AUTH - MESSAGE D'INSCRIPTION
+   ========================================================================== */
+
+.auth-info-message {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #EFF6FF;
+  border-left: 4px solid #3B82F6;
+  border-radius: 8px;
+  display: flex;
+  gap: 1rem;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.info-icon {
+  font-size: 1.5rem;
+}
+
+.info-content h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1E40AF;
+  margin-bottom: 0.5rem;
+}
+
+.info-content p {
+  font-size: 0.8rem;
+  color: #1E293B;
+  margin-bottom: 0.3rem;
+  line-height: 1.4;
+}
+
+.info-content strong {
+  color: #1E40AF;
+}
+
+.btn-close-info {
+  margin-top: 0.5rem;
+  background: #3B82F6;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close-info:hover {
+  background: #2563EB;
+}
+
+.auth-help-text {
+  font-size: 0.7rem;
+  color: #64748B;
+  margin-top: 0.5rem;
+}
+
+.auth-help-text strong {
+  color: #0B192C;
+}
+
+/* Modifications du footer */
+.auth-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #E2E8F0;
+}
+
+.auth-link-btn {
+  background: none;
+  border: none;
+  color: #D4AF37;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.auth-link-btn:hover {
+  text-decoration: underline;
+}
+

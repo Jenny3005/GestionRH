@@ -21,10 +21,13 @@ export default function AdminAgents() {
     email: '',
     telephone: '',
     date_prise_service: '',
+    date_naissance: '',
     adresse: '',
     poste: '',
     direction: '',
     typecontrat: '',
+    corps: '',
+    echelon: '',
     role_id: '1'
   });
   const [formErrors, setFormErrors] = useState({});
@@ -118,10 +121,13 @@ export default function AdminAgents() {
           email: formData.email,
           telephone: formData.telephone,
           date_prise_service: formData.date_prise_service || '2024-01-01',
+          date_naissance: formData.date_naissance || null,
           adresse: formData.adresse || 'À renseigner',
           poste: formData.poste || 'Agent',
           direction: formData.direction || 'À renseigner',
-          typecontrat: formData.typecontrat || 'APE'
+          typecontrat: formData.typecontrat || 'APE',
+          corps: formData.corps || '',
+          echelon: formData.echelon || ''
         })
       });
 
@@ -141,7 +147,8 @@ export default function AdminAgents() {
         setShowModal(false);
         setFormData({
           matricule: '', nom: '', prenom: '', email: '', telephone: '',
-          date_prise_service: '', adresse: '', poste: '', direction: '', typecontrat: '', role_id: '1'
+          date_prise_service: '', date_naissance: '', adresse: '', poste: '', 
+          direction: '', typecontrat: '', corps: '', echelon: '', role_id: '1'
         });
         await fetchAgents();
       } else {
@@ -185,41 +192,41 @@ export default function AdminAgents() {
       agent.matricule?.toLowerCase().includes(filterText.toLowerCase())
     );
 
-    const headers = ['Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Rôle(s)', 'Statut'];
+    const headers = [
+      'Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 
+      'Poste', 'Direction', 'Type de contrat', 'Adresse',
+      'Date de naissance', 'Corps', 'Échelon', 'Rôle(s)', 'Statut'
+    ];
+    
     const rows = filteredAgents.map(agent => [
       agent.matricule,
       agent.nom,
       agent.prenom,
       agent.email,
       agent.telephone || '',
+      agent.poste || 'Agent',
+      agent.direction || 'À renseigner',
+      agent.typecontrat || 'APE',
+      agent.adresse || 'À renseigner',
+      agent.date_naissance || '-',
+      agent.corps || '-',
+      agent.echelon || '-',
       agent.roles?.map(r => getRoleLabel(r.libelle)).join(', ') || 'Agent',
       agent.actif ? 'Actif' : 'Inactif'
     ]);
 
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.setAttribute('download', `agents_${new Date().toISOString().slice(0,19)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const getRoleLabel = (role) => {
-    switch(role) {
-      case 'admin': return 'Administrateur';
-      case 'rh': return 'RH';
-      case 'chef': return 'Chef de service';
-      default: return 'Agent';
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/'); 
+    const wsData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Agents');
+    
+    ws['!cols'] = [
+      {wch:15}, {wch:15}, {wch:15}, {wch:25}, {wch:15},
+      {wch:20}, {wch:25}, {wch:15}, {wch:25}, {wch:15},
+      {wch:20}, {wch:12}, {wch:20}, {wch:10}
+    ];
+    
+    XLSX.writeFile(wb, `agents_mnd_${new Date().toISOString().slice(0,19)}.xlsx`);
   };
 
   const handleImportExcel = async (e) => {
@@ -246,41 +253,167 @@ export default function AdminAgents() {
         }
         
         if (headerRowIndex === -1) {
-          alert("Format non reconnu. Colonne 'Matricule' introuvable.");
+          alert("❌ Format non reconnu. Colonne 'Matricule' introuvable.");
           setImporting(false);
           setPending(false);
           return;
         }
         
         const headers = rows[headerRowIndex];
-        const dataRows = rows.slice(headerRowIndex + 1).filter(row => row[headers.indexOf('Matricule')]);
+        const dataRows = rows.slice(headerRowIndex + 1).filter(row => {
+          const matriculeIndex = headers.indexOf('Matricule');
+          return row[matriculeIndex] && String(row[matriculeIndex]).trim() !== '';
+        });
         
         const agentsToImport = [];
+        const warnings = [];
         
-        for (const row of dataRows) {
-          const matricule = String(row[headers.indexOf('Matricule')] || '');
-          const nom = String(row[headers.indexOf('Nom')] || '');
-          const prenom = String(row[headers.indexOf('Prénom')] || '');
-          const email = String(row[headers.indexOf('Email')] || '');
-          const telephone = String(row[headers.indexOf('Téléphone')] || '');
-          const adresse = String(row[headers.indexOf('Adresse')] || 'À renseigner');
-          const direction = String(row[headers.indexOf('Direction')] || 'À renseigner');
-          const typecontrat = String(row[headers.indexOf('Type de contrat')] || 'APE');
-          const poste = String(row[headers.indexOf('Poste')] || 'Agent');
+        for (let idx = 0; idx < dataRows.length; idx++) {
+          const row = dataRows[idx];
+          const lineNum = headerRowIndex + idx + 2;
           
-          if (!matricule || !nom || !prenom || !email) {
-            continue;
+          try {
+            const getCellValue = (colName, defaultValue = '') => {
+              const index = headers.indexOf(colName);
+              if (index === -1 || !row[index]) return defaultValue;
+              const value = String(row[index]).trim();
+              return value || defaultValue;
+            };
+            
+            const matricule = getCellValue('Matricule');
+            const nom = getCellValue('Nom');
+            const prenom = getCellValue('Prénom');
+            const email = getCellValue('Email');
+            const telephone = getCellValue('Téléphone');
+            const poste = getCellValue('Poste', 'Agent');
+            let direction = getCellValue('Direction', 'À renseigner');
+            let typecontrat = getCellValue('Type de contrat', 'APE');
+            const adresse = getCellValue('Adresse', 'À renseigner');
+            const corps = getCellValue('Corps', '');
+            const echelon = getCellValue('Grade', ''); // 'Grade' dans Excel -> 'echelon' dans DB
+            const dateNaissance = getCellValue('Date de Naissance');
+            
+            if (direction && direction.includes('(')) {
+              direction = direction.split('(')[0].trim();
+            }
+            
+            const validTypeContrats = ['APE', 'ACDPE', 'ACE', 'AAE'];
+            if (!validTypeContrats.includes(typecontrat)) {
+              warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Type de contrat "${typecontrat}" invalide, remplacé par APE`);
+              typecontrat = 'APE';
+            }
+            
+            let datePriseService = '2024-01-01';
+            const rawDate = getCellValue('Date de Prise de Service');
+            if (rawDate && rawDate !== '') {
+              try {
+                let dateStr = String(rawDate).trim();
+                if (dateStr.includes('/')) {
+                  const parts = dateStr.split('/');
+                  if (parts.length === 3) {
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    if (year && year.length === 4) {
+                      datePriseService = `${year}-${month}-${day}`;
+                    }
+                  }
+                } else if (dateStr.includes('-')) {
+                  const parts = dateStr.split('-');
+                  if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                      datePriseService = dateStr;
+                    } else {
+                      datePriseService = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                  }
+                }
+              } catch (e) {
+                warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Date prise service invalide`);
+              }
+            }
+            
+            let dateNaissanceFormatted = null;
+            if (dateNaissance && dateNaissance !== '') {
+              try {
+                let dateStr = String(dateNaissance).trim();
+                if (dateStr.includes('/')) {
+                  const parts = dateStr.split('/');
+                  if (parts.length === 3) {
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    if (year && year.length === 4) {
+                      dateNaissanceFormatted = `${year}-${month}-${day}`;
+                    }
+                  }
+                } else if (dateStr.includes('-')) {
+                  const parts = dateStr.split('-');
+                  if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                      dateNaissanceFormatted = dateStr;
+                    } else {
+                      dateNaissanceFormatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                  }
+                }
+              } catch (e) {
+                warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Date naissance invalide`);
+              }
+            }
+            
+            if (!matricule) {
+              warnings.push(`❌ Ligne ${lineNum}: Matricule manquant`);
+              continue;
+            }
+            if (!nom) {
+              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Nom manquant`);
+              continue;
+            }
+            if (!prenom) {
+              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Prénom manquant`);
+              continue;
+            }
+            if (!email) {
+              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Email manquant`);
+              continue;
+            }
+            
+            agentsToImport.push({
+              matricule,
+              nom,
+              prenom,
+              email: email.toLowerCase(),
+              telephone: telephone || '',
+              adresse: adresse,
+              direction: direction,
+              typecontrat: typecontrat,
+              poste: poste,
+              date_prise_service: datePriseService,
+              date_naissance: dateNaissanceFormatted,
+              corps: corps,
+              echelon: echelon
+            });
+            
+          } catch (rowError) {
+            warnings.push(`❌ Ligne ${lineNum}: Erreur - ${rowError.message}`);
           }
-          
-          agentsToImport.push({
-            matricule, nom, prenom, email, telephone,
-            adresse, direction, typecontrat, poste,
-            date_prise_service: '2024-01-01'
-          });
         }
         
         if (agentsToImport.length === 0) {
-          alert("Aucune donnée valide à importer");
+          alert(`❌ Aucune donnée valide à importer.\n\n${warnings.slice(0, 10).join('\n')}`);
+          setImporting(false);
+          setPending(false);
+          return;
+        }
+        
+        const confirmMessage = `📊 RÉSUMÉ DE L'IMPORT\n\n` +
+          `✅ Agents à importer: ${agentsToImport.length}\n` +
+          `⚠️ Avertissements: ${warnings.length}\n\n` +
+          `${warnings.slice(0, 5).join('\n')}${warnings.length > 5 ? `\n... et ${warnings.length - 5} autres` : ''}\n\n` +
+          `Continuer ?`;
+        
+        if (!window.confirm(confirmMessage)) {
           setImporting(false);
           setPending(false);
           return;
@@ -295,16 +428,23 @@ export default function AdminAgents() {
         const result = await response.json();
         
         if (response.ok) {
-          alert(`✅ Import terminé !\n\n✅ Succès: ${result.success_count}\n❌ Échec: ${result.error_count}`);
+          let successMessage = `✅ IMPORT TERMINÉ !\n\n`;
+          successMessage += `📥 Succès: ${result.success_count}\n`;
+          successMessage += `❌ Échecs: ${result.error_count}\n`;
+          
+          if (result.errors && result.errors.length > 0) {
+            successMessage += `\n⚠️ Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
+          }
+          
+          alert(successMessage);
+          await fetchAgents();
         } else {
-          alert(`❌ Erreur: ${result.error}`);
+          alert(`❌ Erreur: ${result.error || 'Erreur inconnue'}`);
         }
-        
-        await fetchAgents();
         
       } catch (error) {
         console.error("Erreur:", error);
-        alert("Erreur lors de l'import: " + error.message);
+        alert("❌ Erreur lors de l'import: " + error.message);
       } finally {
         setImporting(false);
         setPending(false);
@@ -314,7 +454,7 @@ export default function AdminAgents() {
     
     reader.onerror = (error) => {
       console.error("Erreur de lecture:", error);
-      alert("Erreur de lecture du fichier");
+      alert("❌ Erreur de lecture du fichier");
       setImporting(false);
       setPending(false);
     };
@@ -322,40 +462,30 @@ export default function AdminAgents() {
     reader.readAsArrayBuffer(file);
   };
 
-  // Configuration des colonnes du DataTable
+  const getRoleLabel = (role) => {
+    switch(role) {
+      case 'admin': return 'Administrateur';
+      case 'rh': return 'RH';
+      case 'chef': return 'Chef de service';
+      default: return 'Agent';
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/'); 
+  };
+
   const columns = [
-    {
-      name: '#',
-      selector: (row, index) => index + 1,
-      sortable: false,
-      width: '60px',
-    },
-    {
-      name: 'Matricule',
-      selector: row => row.matricule,
-      sortable: true,
-    },
-    {
-      name: 'Nom',
-      selector: row => row.nom,
-      sortable: true,
-    },
-    {
-      name: 'Prénom',
-      selector: row => row.prenom,
-      sortable: true,
-    },
-    {
-      name: 'Email',
-      selector: row => row.email,
-      sortable: true,
-    },
-    {
-      name: 'Téléphone',
-      selector: row => row.telephone || '-',
-    },
-    {
-      name: 'Rôle(s)',
+    { name: '#', selector: (row, index) => index + 1, sortable: false, width: '60px' },
+    { name: 'Matricule', selector: row => row.matricule, sortable: true },
+    { name: 'Nom', selector: row => row.nom, sortable: true },
+    { name: 'Prénom', selector: row => row.prenom, sortable: true },
+    { name: 'Email', selector: row => row.email, sortable: true },
+    { name: 'Téléphone', selector: row => row.telephone || '-' },
+    { name: 'Direction', selector: row => row.direction || '-' },
+    { 
+      name: 'Rôle(s)', 
       cell: row => (
         <div className="roles-multi">
           {row.roles && row.roles.length > 0 ? (
@@ -370,26 +500,19 @@ export default function AdminAgents() {
         </div>
       ),
     },
-    {
-      name: 'Statut',
+    { 
+      name: 'Statut', 
       selector: row => row.actif ? 'Actif' : 'Inactif',
-      sortable: true,
       cell: row => (
         <span className={`status-badge ${row.actif ? 'active' : 'inactive'}`}>
           {row.actif ? 'Actif' : 'Inactif'}
         </span>
       ),
     },
-    {
-      name: 'Actions',
+    { 
+      name: 'Actions', 
       cell: row => (
-        <button
-          className="btn-edit-role"
-          onClick={() => {
-            setSelectedAgent(row);
-            setShowRoleModal(true);
-          }}
-        >
+        <button className="btn-edit-role" onClick={() => { setSelectedAgent(row); setShowRoleModal(true); }}>
           🔄 Gérer rôles
         </button>
       ),
@@ -405,22 +528,8 @@ export default function AdminAgents() {
   );
 
   const customStyles = {
-    headCells: {
-      style: {
-        backgroundColor: '#0B192C',
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: '14px',
-      },
-    },
-    rows: {
-      style: {
-        minHeight: '50px',
-        '&:hover': {
-          backgroundColor: '#F8FAFC',
-        },
-      },
-    },
+    headCells: { style: { backgroundColor: '#0B192C', color: 'white', fontWeight: 'bold', fontSize: '14px' } },
+    rows: { style: { minHeight: '50px', '&:hover': { backgroundColor: '#F8FAFC' } } },
   };
 
   return (
@@ -432,7 +541,6 @@ export default function AdminAgents() {
           </a>
         </div>
         <AdminNav />
-        
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
@@ -464,33 +572,21 @@ export default function AdminAgents() {
         <section className="hero-banner-intranet">
           <div className="banner-content">
             <h2>Gestion des Agents</h2>
-            <p>Consultez, ajoutez, modifiez les rôles et exportez la liste des agents.</p>
+            <p>Consultez, ajoutez, modifiez les rôles, importez et exportez la liste des agents.</p>
           </div>
         </section>
 
         <div className="admin-actions-bar">
           <div className="search-box">
-            <input
-              type="text"
-              placeholder="🔍 Rechercher un agent..."
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              className="search-input"
-            />
+            <input type="text" placeholder="🔍 Rechercher un agent..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="search-input" />
           </div>
           <div className="action-buttons">
             <button className="btn-add" onClick={() => setShowModal(true)} disabled={importing}>➕ Ajouter un agent</button>
-            <button className="btn-export" onClick={exportToExcel}>📊 Exporter Excel</button>
+            <button className="btn-export" onClick={exportToExcel} disabled={importing}>📊 Exporter Excel</button>
             <button className="btn-import" onClick={() => document.getElementById('importFile').click()} disabled={importing}>
               {importing ? '⏳ Import en cours...' : '📥 Importer Excel'}
             </button>
-            <input
-              type="file"
-              id="importFile"
-              accept=".xlsx, .xls, .csv"
-              style={{ display: 'none' }}
-              onChange={handleImportExcel}
-            />
+            <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style={{ display: 'none' }} onChange={handleImportExcel} />
           </div>
         </div>
 
@@ -506,11 +602,7 @@ export default function AdminAgents() {
             responsive
             customStyles={customStyles}
             subHeader
-            subHeaderComponent={
-              <div className="table-info">
-                📊 Total : {filteredAgents.length} agent(s)
-              </div>
-            }
+            subHeaderComponent={<div className="table-info">📊 Total : {filteredAgents.length} agent(s) sur {agents.length}</div>}
           />
         </section>
       </main>
@@ -523,38 +615,39 @@ export default function AdminAgents() {
             <p className="modal-info">📧 Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
             <form onSubmit={handleAddAgent}>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Matricule *</label>
-                  <input type="text" name="matricule" value={formData.matricule} onChange={handleChange} required />
-                </div>
-                <div className="form-group">
-                  <label>Nom *</label>
-                  <input type="text" name="nom" value={formData.nom} onChange={handleChange} required />
+                <div className="form-group"><label>Matricule *</label><input type="text" name="matricule" value={formData.matricule} onChange={handleChange} required /></div>
+                <div className="form-group"><label>Nom *</label><input type="text" name="nom" value={formData.nom} onChange={handleChange} required /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Prénom *</label><input type="text" name="prenom" value={formData.prenom} onChange={handleChange} required /></div>
+                <div className="form-group"><label>Email *</label><input type="email" name="email" value={formData.email} onChange={handleChange} required /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Téléphone *</label><input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} required /></div>
+                <div className="form-group"><label>Direction</label><input type="text" name="direction" value={formData.direction} onChange={handleChange} placeholder="Direction" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Poste</label><input type="text" name="poste" value={formData.poste} onChange={handleChange} placeholder="Poste occupé" /></div>
+                <div className="form-group"><label>Type de contrat</label>
+                  <select name="typecontrat" value={formData.typecontrat} onChange={handleChange}>
+                    <option value="APE">APE</option><option value="ACDPE">ACDPE</option>
+                    <option value="ACE">ACE</option><option value="AAE">AAE</option>
+                  </select>
                 </div>
               </div>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Prénom *</label>
-                  <input type="text" name="prenom" value={formData.prenom} onChange={handleChange} required />
-                </div>
-                <div className="form-group">
-                  <label>Email *</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} required />
-                </div>
+                <div className="form-group"><label>Date de naissance</label><input type="date" name="date_naissance" value={formData.date_naissance} onChange={handleChange} /></div>
+                <div className="form-group"><label>Date de prise de service</label><input type="date" name="date_prise_service" value={formData.date_prise_service} onChange={handleChange} /></div>
               </div>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Téléphone *</label>
-                  <input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} required />
-                </div>
-                <div className="form-group">
-                  <label>Rôle initial</label>
+                <div className="form-group"><label>Corps</label><input type="text" name="corps" value={formData.corps} onChange={handleChange} placeholder="Ex: Ingénieur" /></div>
+                <div className="form-group"><label>Échelon</label><input type="text" name="echelon" value={formData.echelon} onChange={handleChange} placeholder="Ex: A1-6" /></div>
+              </div>
+              <div className="form-group"><label>Adresse</label><input type="text" name="adresse" value={formData.adresse} onChange={handleChange} placeholder="Adresse complète" /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Rôle initial</label>
                   <select name="role_id" value={formData.role_id} onChange={handleChange}>
-                    {roles.map(role => (
-                      <option key={role.id} value={role.id}>
-                        {getRoleLabel(role.libelle)}
-                      </option>
-                    ))}
+                    {roles.map(role => (<option key={role.id} value={role.id}>{getRoleLabel(role.libelle)}</option>))}
                   </select>
                 </div>
               </div>
@@ -567,28 +660,19 @@ export default function AdminAgents() {
         </div>
       )}
 
-      {/* MODAL GÉRER RÔLES - MULTI-SELECTION */}
+      {/* MODAL GÉRER RÔLES */}
       {showRoleModal && selectedAgent && (
         <div className="modal-overlay" onClick={() => setShowRoleModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Gérer les rôles de {selectedAgent.prenom} {selectedAgent.nom}</h3>
             <p className="modal-info">Un agent peut avoir plusieurs rôles (ex: Agent + Chef)</p>
-            
             <div className="roles-checkboxes">
               {roles.map(role => {
-                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
-                                  (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
+                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
                 return (
                   <label key={role.id} className="role-checkbox">
-                    <input
-                      type="checkbox"
-                      value={role.id}
-                      defaultChecked={isChecked}
-                      onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)}
-                    />
-                    <span className={`role-badge ${role.libelle}`}>
-                      {getRoleLabel(role.libelle)}
-                    </span>
+                    <input type="checkbox" value={role.id} defaultChecked={isChecked} onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} />
+                    <span className={`role-badge ${role.libelle}`}>{getRoleLabel(role.libelle)}</span>
                     <span className="role-description">
                       {role.libelle === 'admin' && '👑 Accès total'}
                       {role.libelle === 'rh' && '👥 Gestion des demandes'}
@@ -599,50 +683,22 @@ export default function AdminAgents() {
                 );
               })}
             </div>
-            
-            <div className="modal-buttons">
-              <button onClick={() => setShowRoleModal(false)}>Fermer</button>
-            </div>
+            <div className="modal-buttons"><button onClick={() => setShowRoleModal(false)}>Fermer</button></div>
           </div>
         </div>
       )}
 
-      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
-          <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
-            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
-          </div>
+          <div className="footer-centered-logo-zone"><img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" /><p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p></div>
           <div className="footer-columns-grid">
-            <div className="footer-col">
-              <h4>Navigation Portail</h4>
-              <ul>
-                <li><a href="#carriere">Mon Profil & Carrière</a></li>
-                <li><a href="#demarches">Démarches en Ligne</a></li>
-                <li><a href="#documents">Documents & Notes</a></li>
-              </ul>
-            </div>
-            <div className="footer-col">
-              <h4>Liens Utiles</h4>
-              <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
-              </ul>
-            </div>
-            <div className="footer-col">
-              <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
-            </div>
+            <div className="footer-col"><h4>Navigation Portail</h4><ul><li><a href="#carriere">Mon Profil & Carrière</a></li><li><a href="#demarches">Démarches en Ligne</a></li><li><a href="#documents">Documents & Notes</a></li></ul></div>
+            <div className="footer-col"><h4>Liens Utiles</h4><ul><li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li><li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li><li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li></ul></div>
+            <div className="footer-col"><h4>Contact & Situation</h4><p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p><p>📞 +229 21 30 70 13</p><p>✉️ numerique@gouv.bj</p></div>
           </div>
         </div>
-        <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
-        </div>
+        <div className="footer-bottom-bar"><p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p></div>
       </footer>
     </div>
   );

@@ -6,11 +6,15 @@ import './App.css';
 export default function DashboardAgent() {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const storedNom = localStorage.getItem('userNom') || '';
+  const storedPrenom = localStorage.getItem('userPrenom') || '';
+  const storedEmail = localStorage.getItem('userEmail') || '';
+  const storedMatricule = localStorage.getItem('userMatricule') || '';
   const [userInfo, setUserInfo] = useState({
-    nom: '',
-    prenom: '',
-    matricule: '',
-    email: '',
+    nom: storedNom,
+    prenom: storedPrenom,
+    matricule: storedMatricule,
+    email: storedEmail,
     telephone: '',
     poste: '',
     direction: '',
