@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',  # Pour l'API
     'corsheaders',     # Pour React
+    'django_extensions',
     'monapp',  
 ]
 
