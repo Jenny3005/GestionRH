@@ -19,7 +19,7 @@ export default function App() {
     const lastLogin = localStorage.getItem('lastLogin');
     const sessionDuration = 8 * 60 * 60 * 1000; // 8 heures
   
-    if (lastLogin && (Date.now() - parseInt(lastLogin)) > sessionDuration) {
+    if (!lastLogin || (Date.now() - parseInt(lastLogin, 10)) > sessionDuration) {
       localStorage.clear();
       return;
     }
