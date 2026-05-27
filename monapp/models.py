@@ -98,6 +98,9 @@ class Demande(models.Model):
     statut = models.CharField(max_length=50)
     date_soumission = models.DateField()
     numerosuivi = models.CharField(db_column='numeroSuivi', unique=True, max_length=50)  # Field name made lowercase.
+    jours_consommes = models.IntegerField(blank=True, null=True, default=0)
+    jours_restants = models.IntegerField(blank=True, null=True, default=0)
+    annee = models.IntegerField(blank=True, null=True)
 
     class Meta:
         managed = False
@@ -106,7 +109,7 @@ class Demande(models.Model):
 
 class DemandeAbsence(models.Model):
     demande = models.OneToOneField(Demande, models.DO_NOTHING, db_column='id', primary_key=True)
-    date_debut = models.DateField(db_column='dateDÚbut')
+    date_debut = models.DateField(db_column='dateDebut')
     date_fin = models.DateField(db_column='dateFin')
     nombrejours = models.IntegerField(db_column='nombreJours')
     motif = models.CharField(max_length=255, blank=True, null=True)
@@ -118,7 +121,7 @@ class DemandeAbsence(models.Model):
 
 class DemandeConge(models.Model):
     demande = models.OneToOneField(Demande, models.DO_NOTHING, db_column='id', primary_key=True)
-    date_debut = models.DateField(db_column='dateDÚbut')
+    date_debut = models.DateField(db_column='dateDebut')
     date_fin = models.DateField(db_column='dateFin')
     nombrejours = models.IntegerField(db_column='nombreJours')
 

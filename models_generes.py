@@ -318,7 +318,7 @@ class Typedemande(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'typedemande'
+        db_table = 'type_demande'
 
 
 class Typepiece(models.Model):
