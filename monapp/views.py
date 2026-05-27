@@ -3,13 +3,15 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.db import connection
+from django.db import models  # Ajoutez ceci pour utiliser Sum
+from django.db.models import Sum
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from datetime import datetime, date, timedelta
 from .models import (
-    Agent, Role, AgentRole, TypeDemande, Demande, 
+    Agent, Role, AgentRole, TypeDemande, Demande, DemandeAbsence,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte
 )
 import json
@@ -637,7 +639,7 @@ def demande_conge(request):
         annee_courante = datetime.now().year
         nb_demandes_annee = Demande.objects.filter(
             agent=agent,
-            typedemande__libelle='Congé',
+            type_demande__libelle='Congé',
             date_soumission__year=annee_courante
         ).count()
         
@@ -686,7 +688,7 @@ def demande_conge(request):
         
         demande = Demande.objects.create(
             agent=agent,
-            typedemande=type_demande,
+            type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
             numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
@@ -699,9 +701,10 @@ def demande_conge(request):
             nombrejours=nombre_jours
         )
         
-        role_chef = Role.objects.get(libelle='chef')
+        role_chef = Role.objects.get(libelle__iexact='chef')
+        chef_direction = (agent.direction or '').strip()
         chef = Agent.objects.filter(
-            direction=agent.direction,
+            direction__iexact=chef_direction,
             agentrole__role=role_chef,
             actif=1
         ).first()
@@ -736,35 +739,37 @@ def mes_demandes_conge(request, matricule):
     try:
         agent = Agent.objects.get(matricule=matricule)
         
-        try:
-            type_demande = TypeDemande.objects.get(libelle='Congé')
-        except TypeDemande.DoesNotExist:
-            return JsonResponse({
-                'error': 'Le type de demande "Congé" n\'a pas été configuré.'
-            }, status=500)
-        
+        # Correction : type_demande au lieu de typedemande
         demandes = Demande.objects.filter(
             agent=agent,
-            typedemande=type_demande
+            type_demande__libelle='Congé'  # ← ICI : type_demande, pas typedemande
         ).order_by('-date_soumission')
         
         result = []
         for d in demandes:
-            result.append({
-                'id': d.id,
-                'numero_suivi': d.numero_suivi,
-                'date_debut': d.demandeconge.date_debut,
-                'date_fin': d.demandeconge.date_fin,
-                'nombre_jours': d.demandeconge.nombrejours,
-                'statut': d.statut,
-                'date_soumission': d.date_soumission
-            })
+            try:
+                if hasattr(d, 'demandeconge'):
+                    result.append({
+                        'id': d.id,
+                        'numero_suivi': d.numerosuivi,
+                        'date_debut': str(d.demandeconge.date_debut),
+                        'date_fin': str(d.demandeconge.date_fin),
+                        'nombre_jours': d.demandeconge.nombrejours,
+                        'statut': d.statut,
+                        'date_soumission': str(d.date_soumission)
+                    })
+            except Exception as e:
+                print(f"Erreur sur demande {d.id}: {e}")
+                continue
         
         return JsonResponse(result, safe=False)
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
+        print(f"Erreur mes_demandes_conge: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
+    
 @csrf_exempt
 @require_http_methods(["GET"])
 def demandes_direction(request, matricule_chef):
@@ -774,32 +779,44 @@ def demandes_direction(request, matricule_chef):
         
         chef = Agent.objects.get(matricule=matricule_chef)
         
-        role_chef = Role.objects.get(libelle='chef')
+        role_chef = Role.objects.get(libelle__iexact='chef')
         if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        try:
-            type_demande = TypeDemande.objects.get(libelle='Congé')
-        except TypeDemande.DoesNotExist:
-            return JsonResponse({'error': 'Type Congé non configuré'}, status=500)
-        
+        chef_direction = (chef.direction or '').strip()
         demandes = Demande.objects.filter(
-            agent__direction=chef.direction,
-            typedemande=type_demande,
+            agent__direction__iexact=chef_direction,
             statut='en_attente_chef'
-        ).select_related('agent', 'demandeconge')
+        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence')
         
         result = []
         for d in demandes:
+            date_debut = None
+            date_fin = None
+            nombre_jours = None
+
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                date_debut = str(d.demandeconge.date_debut)
+                date_fin = str(d.demandeconge.date_fin)
+                nombre_jours = d.demandeconge.nombrejours
+            elif hasattr(d, 'demandeabsence') and d.demandeabsence:
+                date_debut = str(d.demandeabsence.date_debut)
+                date_fin = str(d.demandeabsence.date_fin)
+                nombre_jours = d.demandeabsence.nombrejours
+
+            if date_debut is None or date_fin is None:
+                continue
+
             result.append({
                 'id': d.id,
                 'agent': f"{d.agent.prenom} {d.agent.nom}",
                 'matricule': d.agent.matricule,
-                'date_debut': str(d.demandeconge.date_debut),
-                'date_fin': str(d.demandeconge.date_fin),
-                'nombre_jours': d.demandeconge.nombrejours,
+                'type_demande': d.type_demande.libelle,
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'nombre_jours': nombre_jours,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numero_suivi
+                'numero_suivi': d.numerosuivi
             })
         
         return JsonResponse(result, safe=False)
@@ -812,11 +829,10 @@ def demandes_direction(request, matricule_chef):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 def valider_demande_conge(request, demande_id):
-    """Chef valide ou rejette une demande de congé"""
+    """Chef valide ou rejette une demande de congé ou d'absence"""
     try:
         data = json.loads(request.body)
         matricule_chef = data.get('matricule_chef')
@@ -826,21 +842,22 @@ def valider_demande_conge(request, demande_id):
         chef = Agent.objects.get(matricule=matricule_chef)
         demande = Demande.objects.get(id=demande_id)
         
-        if chef.direction != demande.agent.direction:
+        if (chef.direction or '').strip().lower() != (demande.agent.direction or '').strip().lower():
             return JsonResponse({'error': 'Vous ne pouvez pas valider cette demande'}, status=403)
         
         if decision == 'valide':
             demande.statut = 'valide'
             
-            annee = datetime.now().year
-            solde, _ = SoldeConge.objects.get_or_create(
-                agent=demande.agent,
-                annee=annee,
-                defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
-            )
-            solde.jours_pris = (solde.jours_pris or 0) + demande.demandeconge.nombrejours
-            solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
-            solde.save()
+            if hasattr(demande, 'demandeconge') and demande.demandeconge:
+                annee = datetime.now().year
+                solde, _ = SoldeConge.objects.get_or_create(
+                    agent=demande.agent,
+                    annee=annee,
+                    defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
+                )
+                solde.jours_pris = (solde.jours_pris or 0) + demande.demandeconge.nombrejours
+                solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
+                solde.save()
         else:
             demande.statut = 'refuse'
         
@@ -998,40 +1015,47 @@ def solde_conge(request, matricule):
     """Agent consulte son solde de congés"""
     try:
         agent = Agent.objects.get(matricule=matricule)
-        
-        try:
-            type_demande = TypeDemande.objects.get(libelle='Congé')
-        except TypeDemande.DoesNotExist:
-            return JsonResponse({
-                'error': 'Le type de demande "Congé" n\'a pas été configuré.'
-            }, status=500)
-        
         annee = datetime.now().year
-        solde, _ = SoldeConge.objects.get_or_create(
+        
+        # Correction : type_demande au lieu de typedemande
+        demandes_validees = Demande.objects.filter(
+            agent=agent,
+            type_demande__libelle='Congé',  # ← ICI : type_demande
+            statut='valide',
+            date_soumission__year=annee
+        )
+        
+        jours_pris = 0
+        for d in demandes_validees:
+            try:
+                if hasattr(d, 'demandeconge'):
+                    jours_pris += d.demandeconge.nombrejours
+            except:
+                pass
+        
+        # Récupérer ou créer le solde
+        solde, created = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
         )
         
-        demandes_validees = Demande.objects.filter(
-            agent=agent,
-            typedemande=type_demande,
-            statut='valide',
-            date_soumission__year=annee
-        )
-        
-        jours_pris = sum(d.demandeconge.nombrejours for d in demandes_validees if hasattr(d, 'demandeconge'))
+        solde.jours_pris = jours_pris
+        solde.jours_restants = (solde.jours_acquis or 30) - jours_pris
+        solde.save()
         
         return JsonResponse({
             'annee': annee,
             'jours_acquis': solde.jours_acquis or 30,
             'jours_pris': jours_pris,
-            'jours_restants': (solde.jours_acquis or 30) - jours_pris
+            'jours_restants': solde.jours_restants
         })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
+        print(f"Erreur solde_conge: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
 # ==================== NOTIFICATIONS ====================
 
 @csrf_exempt
@@ -1105,5 +1129,138 @@ def update_agent_role_by_matricule(request, matricule):
         
         return JsonResponse({'success': True})
         
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def demande_absence(request):
+    """Agent soumet une demande d'absence exceptionnelle"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        date_debut_str = data.get('date_debut')
+        date_fin_str = data.get('date_fin')
+        motif = data.get('motif', '')
+        
+        if not date_debut_str or not date_fin_str:
+            return JsonResponse({'error': 'Veuillez renseigner les dates'}, status=400)
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
+        date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
+        
+        if date_debut > date_fin:
+            return JsonResponse({'error': 'La date de début doit être antérieure'}, status=400)
+        
+        nombre_jours = (date_fin - date_debut).days + 1
+        annee_courante = datetime.now().year
+        
+        # Calculer le total des jours déjà consommés et validés
+        total_consommes = Demande.objects.filter(
+            agent=agent,
+            annee=annee_courante,
+            type_demande__libelle='Absence',
+            statut='valide'
+        ).aggregate(total=models.Sum('jours_consommes'))['total'] or 0
+        
+        nouveau_total = total_consommes + nombre_jours
+        
+        if nouveau_total > 10:
+            jours_restants = 10 - total_consommes
+            return JsonResponse({
+                'error': f'Maximum 10 jours par an. Il vous reste {jours_restants} jours.'
+            }, status=400)
+        
+        # Récupérer ou créer le type de demande
+        type_demande_obj, _ = TypeDemande.objects.get_or_create(
+            libelle='Absence',
+            defaults={'acte_generable': 0}
+        )
+        
+        # Créer la demande avec les colonnes remplies
+        numero_suivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+        
+        demande = Demande.objects.create(
+            agent=agent,
+            type_demande=type_demande_obj,
+            statut='en_attente_chef',
+            date_soumission=datetime.now().date(),
+            numerosuivi=numero_suivi,
+            # ✅ Remplir les nouvelles colonnes
+            jours_consommes=nombre_jours,
+            jours_restants=10 - nouveau_total,
+            annee=annee_courante
+        )
+        
+        # Créer l'absence
+        absence = DemandeAbsence.objects.create(
+            demande=demande,
+            date_debut=date_debut,
+            date_fin=date_fin,
+            nombrejours=nombre_jours,
+            motif=motif
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'numero_suivi': demande.numerosuivi,
+            'message': f'Demande envoyée',
+            'jours_consommes': demande.jours_consommes,
+            'jours_restants': demande.jours_restants
+        })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR demande_absence: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def total_absences_annee(request, matricule):
+    """Récupérer le total des absences exceptionnelles de l'année"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        annee_courante = datetime.now().year
+        
+        # Récupérer depuis les colonnes jours_consommes
+        total = Demande.objects.filter(
+            agent=agent,
+            annee=annee_courante,
+            type_demande__libelle='Absence',
+            statut='valide'
+        ).aggregate(total=models.Sum('jours_consommes'))['total'] or 0
+        
+        return JsonResponse({'total': total, 'max': 10})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def valider_demande_absence(request, demande_id):
+    """Chef valide ou rejette une demande d'absence"""
+    try:
+        data = json.loads(request.body)
+        decision = data.get('decision')
+        
+        demande = Demande.objects.get(id=demande_id)
+        
+        if decision == 'valide':
+            demande.statut = 'valide'
+            # Les colonnes sont déjà remplies, rien à faire de plus
+        else:
+            demande.statut = 'refuse'
+        
+        demande.save()
+        
+        return JsonResponse({'success': True})
+        
+    except Demande.DoesNotExist:
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
