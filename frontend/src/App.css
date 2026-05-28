@@ -4693,3 +4693,25 @@ body {
     text-align: center;
   }
 }
+/* Badges pour la secrétaire */
+.badge-info { background: #3B82F6; color: white; padding: 4px 8px; border-radius: 20px; font-size: 12px; }
+.badge-warning { background: #F59E0B; color: white; padding: 4px 8px; border-radius: 20px; font-size: 12px; }
+.badge-success { background: #10B981; color: white; padding: 4px 8px; border-radius: 20px; font-size: 12px; }
+.badge-danger { background: #EF4444; color: white; padding: 4px 8px; border-radius: 20px; font-size: 12px; }
+
+/* Filtres */
+.filter-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-tab { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.filter-tab:hover { background: #f1f5f9; }
+.filter-tab.active { background: #0B192C; color: white; border-color: #0B192C; }
+
+/* Boutons actions */
+.btn-transmettre { background: #F59E0B; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-signer { background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-remettre { background: #3B82F6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-modifier { background: #EF4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+
+/* Template acte */
+.acte-preview { margin: 20px 0; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; background: #f8fafc; }
+.acte-template { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; }
+.acte-template hr { margin: 15px 0; border: none; border-top: 1px solid #cbd5e1; }
