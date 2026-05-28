@@ -8,6 +8,7 @@ export default function AdminNav() {
     { href: '/admin/dashboard', label: 'Tableau' },
     { href: '/admin/agents', label: 'Agents' },
     { href: '/admin/roles', label: 'Rôles' },
+    { href: '/admin/permissions', label: 'Permissions' }, 
     { href: '/admin/types-demande', label: 'Types demande' },
     { href: '/admin/types-piece', label: 'Types pièce' }
   ];
