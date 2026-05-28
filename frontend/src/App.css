@@ -4276,3 +4276,420 @@ body {
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* Modal Solde */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e9ecef;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #95a5a6;
+}
+
+.modal-close:hover {
+  color: #e74c3c;
+}
+
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.solde-info-annee {
+  display: flex;
+  justify-content: space-between;
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.solde-detail-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.solde-detail-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.solde-detail-item:last-child {
+  border-bottom: none;
+}
+
+.solde-detail-item.highlight {
+  background: #d4edda;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.solde-detail-icon {
+  font-size: 32px;
+  margin-right: 15px;
+}
+
+.solde-detail-content {
+  flex: 1;
+}
+
+.solde-detail-label {
+  display: block;
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+}
+
+.solde-detail-value {
+  display: block;
+  font-size: 20px;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.solde-detail-value.large {
+  font-size: 32px;
+  color: #27ae60;
+}
+
+.solde-detail-sub {
+  display: block;
+  font-size: 11px;
+  color: #95a5a6;
+  margin-top: 4px;
+}
+
+.solde-progress-detail {
+  margin-bottom: 20px;
+}
+
+.progress-label-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.progress-bar-detail {
+  background: #e9ecef;
+  border-radius: 10px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-fill-detail {
+  background: #27ae60;
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.3s;
+}
+
+.solde-historique {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 15px;
+}
+
+.solde-historique h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.solde-historique ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.solde-historique li {
+  font-size: 12px;
+  color: #7f8c8d;
+  margin-bottom: 5px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e9ecef;
+}
+
+.btn-demander-conge {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-close-modal {
+  background: #95a5a6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-detail-solde {
+  background: none;
+  border: 1px solid #3498db;
+  color: #3498db;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.btn-detail-solde:hover {
+  background: #3498db;
+  color: white;
+}
+
+/* ==================== GESTION DES PERMISSIONS ==================== */
+
+/* Section des permissions */
+.permissions-list {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.permissions-list h3 {
+  margin-bottom: 1rem;
+  color: #1e293b;
+  font-size: 1.1rem;
+}
+
+/* Section rôles et permissions */
+.roles-permissions {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.roles-permissions h3 {
+  margin-bottom: 1.5rem;
+  color: #1e293b;
+  font-size: 1.1rem;
+}
+
+/* Grille des rôles */
+.roles-permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Carte d'un rôle */
+.role-permission-card {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.role-permission-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.role-permission-card h4 {
+  color: #1e293b;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #3b82f6;
+  display: inline-block;
+}
+
+/* Checkboxes des permissions */
+.permissions-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.permissions-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #334155;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.permissions-checkboxes label:hover {
+  background: #e2e8f0;
+  border-color: #3b82f6;
+}
+
+.permissions-checkboxes input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+/* Bouton sauvegarder permissions */
+.btn-save-permissions {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 1rem;
+  width: 100%;
+  transition: background 0.2s;
+}
+
+.btn-save-permissions:hover {
+  background: #2563eb;
+}
+
+/* Bouton supprimer permission */
+.btn-delete {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+}
+
+/* Code dans le tableau */
+.admin-table code {
+  background: #f1f5f9;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #e11d48;
+}
+
+/* Barre d'actions admin */
+.admin-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-add {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-add:hover {
+  background: #059669;
+}
+
+/* État vide */
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  color: #64748b;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .roles-permissions-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .admin-actions-bar {
+    flex-direction: column;
+  }
+  
+  .search-box {
+    width: 100%;
+  }
+  
+  .action-buttons {
+    width: 100%;
+  }
+  
+  .btn-add {
+    width: 100%;
+    text-align: center;
+  }
+}

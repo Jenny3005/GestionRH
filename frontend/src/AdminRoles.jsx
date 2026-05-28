@@ -6,7 +6,6 @@ import './App.css';
 export default function AdminRoles() {
   const navigate = useNavigate();
   const [roles, setRoles] = useState([]);
-  const [customRoles, setCustomRoles] = useState([]); // Rôles personnalisés uniquement
   const [agents, setAgents] = useState([]);
   const [filteredAgents, setFilteredAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +24,7 @@ export default function AdminRoles() {
   const userEmail = localStorage.getItem('userEmail');
   const userName = `${userPrenom} ${userNom}`;
 
-  // Rôles système à ne pas afficher dans la liste des rôles personnalisables
+  // Rôles système à ne pas pouvoir supprimer
   const SYSTEM_ROLES = ['admin', 'agent'];
 
   useEffect(() => {
@@ -67,9 +66,6 @@ export default function AdminRoles() {
       if (response.ok) {
         const data = await response.json();
         setRoles(data);
-        // Filtrer pour ne garder que les rôles personnalisés (non système)
-        const custom = data.filter(role => !SYSTEM_ROLES.includes(role.libelle));
-        setCustomRoles(custom);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -101,7 +97,6 @@ export default function AdminRoles() {
       return;
     }
 
-    // Vérifier si le rôle existe déjà
     if (roles.some(r => r.libelle.toLowerCase() === formData.libelle.toLowerCase())) {
       alert('Ce rôle existe déjà');
       return;
@@ -115,7 +110,7 @@ export default function AdminRoles() {
       });
 
       if (response.ok) {
-        alert('Rôle ajouté avec succès');
+        alert('✅ Rôle ajouté avec succès');
         setShowModal(false);
         setFormData({ libelle: '' });
         fetchRoles();
@@ -128,7 +123,6 @@ export default function AdminRoles() {
     }
   };
 
-  // Modifiez la fonction assignRole
   const assignRole = async (agentMatricule) => {
     try {
       const response = await fetch(`http://localhost:8000/api/agents/${agentMatricule}/role/update/`, {
@@ -139,10 +133,9 @@ export default function AdminRoles() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(result.message || `Rôle attribué avec succès !`);
+        alert(result.message || `✅ Rôle attribué avec succès !`);
         fetchAgents();
         fetchRoles();
-        // Mettre à jour la liste filtrée
         const updatedFiltered = filteredAgents.filter(agent => agent.matricule !== agentMatricule);
         setFilteredAgents(updatedFiltered);
       } else {
@@ -157,18 +150,17 @@ export default function AdminRoles() {
 
   const handleDeleteRole = async (roleId, roleLibelle) => {
     if (SYSTEM_ROLES.includes(roleLibelle)) {
-      alert(`Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
+      alert(`⚠️ Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
       return;
     }
     
-    // Vérifier si des agents ont ce rôle
     const agentsWithRole = agents.filter(agent => {
       const agentRoles = agent.roles?.map(r => r.libelle) || [];
       return agentRoles.includes(roleLibelle);
     });
     
     if (agentsWithRole.length > 0) {
-      alert(`Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
+      alert(`⚠️ Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
       return;
     }
     
@@ -178,7 +170,7 @@ export default function AdminRoles() {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('Rôle supprimé');
+          alert('✅ Rôle supprimé');
           fetchRoles();
         } else {
           const error = await response.json();
@@ -192,10 +184,10 @@ export default function AdminRoles() {
 
   const getRoleLabel = (role) => {
     const labels = {
-      'admin': 'Administrateur',
-      'rh': 'Ressources Humaines',
-      'chef': 'Chef de service',
-      'agent': 'Agent'
+      'admin': '👑 Administrateur',
+      'rh': '📋 Ressources Humaines',
+      'chef': '⭐ Chef de service',
+      'agent': '👤 Agent'
     };
     return labels[role] || role;
   };
@@ -213,7 +205,7 @@ export default function AdminRoles() {
   const getRoleIcon = (role) => {
     const icons = {
       'admin': '👑',
-      'rh': '👥',
+      'rh': '📋',
       'chef': '⭐',
       'agent': '👤'
     };
@@ -230,7 +222,8 @@ export default function AdminRoles() {
     return descriptions[role] || 'Rôle personnalisé créé par l\'administrateur';
   };
 
-  const filteredRoles = customRoles.filter(role =>
+  // Filtrer TOUS les rôles pour la recherche
+  const filteredRoles = roles.filter(role =>
     role.libelle.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -279,8 +272,8 @@ export default function AdminRoles() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Gestion des Rôles</h2>
-            <p>Créez, modifiez et gérez les rôles personnalisés des agents.</p>
+            <h2>⚙️ Gestion des Rôles</h2>
+            <p>Créez, modifiez et gérez tous les rôles des agents (système + personnalisés).</p>
           </div>
         </section>
 
@@ -288,7 +281,7 @@ export default function AdminRoles() {
           <div className="search-box">
             <input
               type="text"
-              placeholder="🔍 Rechercher un rôle personnalisé..."
+              placeholder="🔍 Rechercher un rôle..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -299,14 +292,14 @@ export default function AdminRoles() {
           </div>
         </div>
 
-        {/* CARDS DES RÔLES PERSONNALISÉS */}
+        {/* CARDS DES RÔLES - TOUS LES RÔLES (SYSTÈME + PERSONNALISÉS) */}
         <div className="roles-cards-grid">
           {loading ? (
             <p>Chargement...</p>
           ) : filteredRoles.length === 0 ? (
             <div className="empty-state">
-              <p>📭 Aucun rôle personnalisé trouvé</p>
-              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer votre premier rôle</button>
+              <p>📭 Aucun rôle trouvé</p>
+              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer un rôle</button>
             </div>
           ) : (
             filteredRoles.map((role) => (
@@ -330,45 +323,59 @@ export default function AdminRoles() {
                   >
                     👥 Attribuer
                   </button>
-                  <button 
-                    className="btn-delete-role"
-                    onClick={() => handleDeleteRole(role.id, role.libelle)}
-                  >
-                    🗑️ Supprimer
-                  </button>
+                  {!SYSTEM_ROLES.includes(role.libelle) && (
+                    <button 
+                      className="btn-delete-role"
+                      onClick={() => handleDeleteRole(role.id, role.libelle)}
+                    >
+                      🗑️ Supprimer
+                    </button>
+                  )}
                 </div>
               </div>
             ))
           )}
         </div>
 
-        {/* STATISTIQUES DES RÔLES (inclut aussi les rôles système pour la vue d'ensemble) */}
+        {/* STATISTIQUES DES RÔLES - RÉPARTITION */}
         <section className="roles-stats">
           <h3>📊 Répartition des agents par rôle</h3>
           <div className="stats-roles-grid">
-            {roles.map((role) => {
-              const count = agents.filter(a => {
-                const agentRoles = a.roles?.map(r => r.libelle) || [];
-                return agentRoles.includes(role.libelle);
-              }).length;
-              const percentage = agents.length ? Math.round((count / agents.length) * 100) : 0;
-              const isSystemRole = SYSTEM_ROLES.includes(role.libelle);
-              return (
-                <div key={role.id} className="stat-role-item">
-                  <div className="stat-role-header">
-                    <span className="stat-role-name">
-                      {getRoleLabel(role.libelle)}
-                      {isSystemRole && <span className="system-badge">Système</span>}
-                    </span>
-                    <span className="stat-role-count">{count} agent(s)</span>
+            {roles.length === 0 ? (
+              <p>Aucun rôle trouvé</p>
+            ) : (
+              roles.map((role) => {
+                const count = agents.filter(a => {
+                  const agentRoles = a.roles?.map(r => r.libelle) || [];
+                  return agentRoles.includes(role.libelle);
+                }).length;
+                const percentage = agents.length ? Math.round((count / agents.length) * 100) : 0;
+                const isSystemRole = SYSTEM_ROLES.includes(role.libelle);
+                
+                return (
+                  <div key={role.id} className="stat-role-item">
+                    <div className="stat-role-header">
+                      <span className="stat-role-name">
+                        {getRoleLabel(role.libelle)}
+                        {isSystemRole && <span className="system-badge">Système</span>}
+                        {!isSystemRole && <span className="custom-badge">Personnalisé</span>}
+                      </span>
+                      <span className="stat-role-count">{count} agent(s)</span>
+                    </div>
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ 
+                          width: `${percentage}%`,
+                          background: isSystemRole ? '#3B82F6' : '#10B981'
+                        }} 
+                      ></div>
+                    </div>
+                    <span className="stat-role-percentage">{percentage}%</span>
                   </div>
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${percentage}%` }}></div>
-                  </div>
-                  <span className="stat-role-percentage">{percentage}%</span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </section>
       </main>
@@ -401,12 +408,10 @@ export default function AdminRoles() {
       )}
 
       {/* MODAL ATTRIBUER RÔLE */}
-      {/* MODAL ATTRIBUER RÔLE AVEC BARRE DE RECHERCHE */}
-      {/* MODAL ATTRIBUER RÔLE */}
       {showAssignModal && selectedRole && (
         <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <h3>Attribuer le rôle "{getRoleLabel(selectedRole.libelle)}"</h3>
+            <h3>👥 Attribuer le rôle "{getRoleLabel(selectedRole.libelle)}"</h3>
             <p>Sélectionnez les agents qui auront ce rôle :</p>
             
             <div className="assign-search-box">
@@ -433,7 +438,7 @@ export default function AdminRoles() {
                         value={agent.matricule}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            assignRole(agent.matricule); // Passer le matricule
+                            assignRole(agent.matricule);
                           }
                         }}
                       />

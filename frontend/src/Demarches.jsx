@@ -13,6 +13,7 @@ export default function Demarches() {
   // États pour les formulaires
   const [showCongeForm, setShowCongeForm] = useState(false);
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
+  const [showSoldeModal, setShowSoldeModal] = useState(false);
   const [congeForm, setCongeForm] = useState({
     date_debut: '',
     date_fin: ''
@@ -241,15 +242,8 @@ export default function Demarches() {
 
   const handleConsulterSolde = () => {
     requireLogin("consulter votre solde de congés", () => {
-      const message = `📊 SOLDE DE CONGÉS ${soldeConge?.annee || new Date().getFullYear()}:\n\n` +
-        `📅 Jours acquis: ${soldeConge?.jours_acquis || 30}\n` +
-        `✅ Jours pris: ${soldeConge?.jours_pris || 0}\n` +
-        `🌴 Jours restants: ${soldeConge?.jours_restants || 30}\n\n` +
-        `⚠️ ABSENCES EXCEPTIONNELLES:\n` +
-        `📋 Jours consommés: ${totalAbsences}/10\n` +
-        `📋 Jours restants: ${10 - totalAbsences}/10`;
-      
-      alert(message);
+      fetchSoldeConge(matricule);
+      setShowSoldeModal(true);
     });
   };
 
@@ -587,6 +581,88 @@ export default function Demarches() {
         </section>
       </main>
 
+      {/* MODAL SOLDE CONGÉS */}
+      {showSoldeModal && (
+        <div className="modal-overlay" onClick={() => setShowSoldeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🌴 Détail du solde de congés</h3>
+              <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="solde-info-annee">
+                <span className="label">Année</span>
+                <span className="value">{soldeConge?.annee || new Date().getFullYear()}</span>
+              </div>
+              
+              <div className="solde-detail-card">
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">📅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours acquis</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_acquis || 30} jours</span>
+                    <span className="solde-detail-sub">Base légale</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">✅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours pris</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_pris || 0} jours</span>
+                    <span className="solde-detail-sub">Congés déjà consommés</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item highlight">
+                  <div className="solde-detail-icon">🌟</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours restants</span>
+                    <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
+                    <span className="solde-detail-sub">Encore disponible</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="solde-progress-detail">
+                <div className="progress-label-detail">
+                  <span>Taux d'utilisation</span>
+                  <span>{Math.round(((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100)}%</span>
+                </div>
+                <div className="progress-bar-detail">
+                  <div className="progress-fill-detail" style={{ 
+                    width: `${((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100}%` 
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="solde-historique">
+                <h4>📋 Informations</h4>
+                <ul>
+                  <li>✓ 30 jours de congés par an</li>
+                  <li>✓ Les congés non pris sont perdus en fin d'année</li>
+                  <li>✓ Maximum 2 demandes de congé par an</li>
+                  <li>✓ Maximum 30 jours consécutifs</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-demander-conge" onClick={() => {
+                setShowSoldeModal(false);
+                setShowCongeForm(true);
+              }}>
+                📝 Demander un congé
+              </button>
+              <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL FORMULAIRE CONGÉ */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
@@ -631,12 +707,11 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE - VERSION STYLISÉE */}
+      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             
-            {/* En-tête coloré */}
             <div className="modal-header-absence">
               <h3>
                 <span>⏰</span> Demande d'absence exceptionnelle
@@ -645,14 +720,12 @@ export default function Demarches() {
             
             <div style={{ padding: '0 0.5rem' }}>
               
-              {/* Carte des limites */}
               <div className="limite-card">
                 <div className="limite-title">📋 RÈGLEMENTATION</div>
                 <div className="limite-value">10 jours par an</div>
                 <div className="limite-subtitle">Maximum autorisé par agent et par année civile</div>
               </div>
 
-              {/* Barre de progression */}
               <div className="progress-absence">
                 <div 
                   className="progress-absence-fill" 
@@ -660,7 +733,6 @@ export default function Demarches() {
                 ></div>
               </div>
 
-              {/* Statistiques jours */}
               <div className="jours-stats">
                 <div className="jours-stat-item">
                   <span className="stat-label">Consommés</span>
@@ -679,7 +751,6 @@ export default function Demarches() {
                 </div>
               </div>
 
-              {/* Alerte si proche de la limite */}
               {totalAbsences >= 8 && (
                 <div className="alert-warning">
                   <span className="alert-icon">⚠️</span>
@@ -687,7 +758,6 @@ export default function Demarches() {
                 </div>
               )}
 
-              {/* Formulaire */}
               <div className="form-group">
                 <label>📅 Date de début <span className="required">*</span></label>
                 <input 
@@ -722,7 +792,6 @@ export default function Demarches() {
                 ></textarea>
               </div>
 
-              {/* Informations complémentaires */}
               <div style={{ 
                 background: '#f8fafc', 
                 padding: '0.75rem', 

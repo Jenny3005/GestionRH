@@ -11,7 +11,7 @@ from django.utils.html import strip_tags
 from django.conf import settings
 from datetime import datetime, date, timedelta
 from .models import (
-    Agent, Role, AgentRole, TypeDemande, Demande, DemandeAbsence,
+    Agent, Role, AgentRole,Permission,RolePermission, TypeDemande, Demande, DemandeAbsence,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte
 )
 import json
@@ -1433,5 +1433,97 @@ def valider_demande_absence(request, demande_id):
         
     except Demande.DoesNotExist:
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+        # ==================== GESTION DES PERMISSIONS ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_permissions(request):
+    """Récupérer toutes les permissions"""
+    try:
+        permissions = Permission.objects.all()
+        result = [{'code': p.code, 'description': p.description} for p in permissions]
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_permission(request):
+    """Ajouter une permission"""
+    try:
+        data = json.loads(request.body)
+        code = data.get('code')
+        description = data.get('description')
+        
+        if Permission.objects.filter(code=code).exists():
+            return JsonResponse({'error': 'Cette permission existe déjà'}, status=400)
+        
+        permission = Permission.objects.create(
+            code=code,
+            description=description
+        )
+        return JsonResponse({'success': True, 'code': permission.code})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_permission(request, code):
+    """Supprimer une permission"""
+    try:
+        permission = Permission.objects.get(code=code)
+        permission.delete()
+        return JsonResponse({'success': True})
+    except Permission.DoesNotExist:
+        return JsonResponse({'error': 'Permission non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_role_permissions(request):
+    """Récupérer les permissions par rôle"""
+    try:
+        role_perms = RolePermission.objects.select_related('role', 'permission').all()
+        result = {}
+        for rp in role_perms:
+            role_id = rp.role.id
+            if role_id not in result:
+                result[role_id] = []
+            result[role_id].append(rp.permission.code)
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_role_permission(request):
+    """Ajouter ou retirer une permission à un rôle"""
+    try:
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
+        permission_code = data.get('permission_code')
+        assign = data.get('assign')  # True = ajouter, False = retirer
+        
+        role = Role.objects.get(id=role_id)
+        permission = Permission.objects.get(code=permission_code)
+        
+        if assign:
+            RolePermission.objects.get_or_create(role=role, permission=permission)
+        else:
+            RolePermission.objects.filter(role=role, permission=permission).delete()
+        
+        return JsonResponse({'success': True})
+    except Role.DoesNotExist:
+        return JsonResponse({'error': 'Rôle non trouvé'}, status=404)
+    except Permission.DoesNotExist:
+        return JsonResponse({'error': 'Permission non trouvée'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
