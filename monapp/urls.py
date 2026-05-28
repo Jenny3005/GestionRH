@@ -27,6 +27,8 @@ urlpatterns = [
     path('conges/<int:demande_id>/valider/', views.valider_demande_conge, name='valider_demande_conge'),
     path('absences/demander/', views.demande_absence, name='demande_absence'),
     path('absences/total/<str:matricule>/', views.total_absences_annee, name='total_absences_annee'),
+    path('api/conges/mes-demandes/<str:matricule>/', views.mes_demandes, name='mes_demandes'),
+    
     
     # ==================== TYPES DE DEMANDE ====================
     path('types-demande/', views.get_types_demande, name='get_types_demande'),
