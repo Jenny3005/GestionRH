@@ -11,9 +11,11 @@ export default function DashboardChef() {
   const [commentaire, setCommentaire] = useState('');
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [stats, setStats] = useState({ en_attente_chef: 0, validees: 0, refusees: 0 });
+  const [filter, setFilter] = useState('en_attente_chef'); // en_attente, valide, refuse
   
   const matricule = localStorage.getItem('userMatricule');
-  const userName = `${localStorage.getItem('userPrenom')} ${localStorage.getItem('userNom')}`;
+  const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
   const userEmail = localStorage.getItem('userEmail');
 
   useEffect(() => {
@@ -38,19 +40,27 @@ export default function DashboardChef() {
     setLoading(true);
     setError('');
     try {
+      // Récupérer toutes les demandes de la direction (sans filtre statut)
       const response = await fetch(`http://localhost:8000/api/conges/direction/${encodeURIComponent(matricule)}/`);
       const data = await response.json();
 
       if (response.ok && Array.isArray(data)) {
         setDemandes(data);
+        // Calculer les statistiques
+        const statsCalc = {
+          en_attente_chef: data.filter(d => d.statut === 'en_attente_chef' || !d.statut).length,
+          validees: data.filter(d => d.statut === 'valide').length,
+          refusees: data.filter(d => d.statut === 'refuse').length
+        };
+        setStats(statsCalc);
       } else {
         setDemandes([]);
-        setError(data?.error || 'Impossible de recuperer les demandes.');
+        setError(data?.error || 'Impossible de récupérer les demandes.');
       }
     } catch (error) {
       console.error('Erreur:', error);
       setDemandes([]);
-      setError('Erreur de connexion au serveur.');
+      setError('Erreur de connexion au serveur. Vérifiez que le backend Django est démarré.');
     } finally {
       setLoading(false);
     }
@@ -58,10 +68,31 @@ export default function DashboardChef() {
 
   const formatDate = (value) => {
     if (!value) return '-';
-    return new Date(value).toLocaleDateString('fr-FR');
+    try {
+      return new Date(value).toLocaleDateString('fr-FR');
+    } catch {
+      return '-';
+    }
+  };
+
+  const getStatusBadge = (statut) => {
+    switch(statut) {
+      case 'valide':
+        return <span className="badge-success">✓ Validée</span>;
+      case 'refuse':
+        return <span className="badge-danger">✗ Rejetée</span>;
+      default:
+        return <span className="badge-warning">⏳ En attente</span>;
+    }
   };
 
   const validerDemande = async (demandeId, decision) => {
+    if (!commentaire.trim() && decision === 'refuse') {
+      if (!window.confirm('Aucun commentaire fourni. Voulez-vous vraiment rejeter cette demande ?')) {
+        return;
+      }
+    }
+    
     try {
       const response = await fetch(`http://localhost:8000/api/conges/${demandeId}/valider/`, {
         method: 'PUT',
@@ -73,16 +104,19 @@ export default function DashboardChef() {
         })
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
-        alert(`Demande ${decision === 'valide' ? 'validée' : 'rejetée'} avec succès`);
-        fetchDemandes();
+        alert(`✅ Demande ${decision === 'valide' ? 'validée' : 'rejetée'} avec succès`);
+        fetchDemandes(); // Recharger la liste
         setSelectedDemande(null);
         setCommentaire('');
       } else {
-        alert('Erreur lors de la validation');
+        alert(`❌ Erreur: ${data.error || 'Problème lors de la validation'}`);
       }
     } catch (error) {
-      alert('Erreur de connexion');
+      console.error('Erreur:', error);
+      alert('❌ Erreur de connexion au serveur');
     }
   };
 
@@ -90,6 +124,14 @@ export default function DashboardChef() {
     localStorage.clear();
     navigate('/');
   };
+
+  // Filtrer les demandes selon l'onglet sélectionné
+  const filteredDemandes = demandes.filter(d => {
+    if (filter === 'en_attente_chef') return d.statut === 'en_attente_chef' || d.statut === 'en_attente_chef';
+    if (filter === 'valide') return d.statut === 'valide';
+    if (filter === 'refuse') return d.statut === 'refuse';
+    return true;
+  });
 
   return (
     <div className="intranet-home">
@@ -103,7 +145,7 @@ export default function DashboardChef() {
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
               <div className="avatar-circle">{userName.charAt(0) || 'C'}</div>
               <div className="user-meta">
-                <span className="user-name">{userName}</span>
+                <span className="user-name">{userName || 'Chef de service'}</span>
                 <span className="user-role">Chef de service</span>
               </div>
               <span className="dropdown-arrow">▼</span>
@@ -127,8 +169,31 @@ export default function DashboardChef() {
           </div>
         </section>
 
+        {/* Statistiques */}
+        <div className="stats-container">
+          <div className="stat-card" onClick={() => setFilter('en_attente_chef')}>
+            <div className="stat-number">{stats.en_attente_chef}</div>
+            <div className="stat-label">En attente</div>
+          </div>
+          <div className="stat-card" onClick={() => setFilter('valide')}>
+            <div className="stat-number">{stats.validees}</div>
+            <div className="stat-label">Validées</div>
+          </div>
+          <div className="stat-card" onClick={() => setFilter('refuse')}>
+            <div className="stat-number">{stats.refusees}</div>
+            <div className="stat-label">Rejetées</div>
+          </div>
+        </div>
+
+        {/* Bouton rafraîchir */}
+        <div className="admin-header">
+          <h3>📋 Demandes {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validées' : 'rejetées'}</h3>
+          <button className="btn-refresh" onClick={fetchDemandes} disabled={loading}>
+            🔄 {loading ? 'Chargement...' : 'Rafraîchir'}
+          </button>
+        </div>
+
         <div className="admin-section">
-          <h3>📋 Demandes en attente</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -139,29 +204,37 @@ export default function DashboardChef() {
                   <th>Période</th>
                   <th>Jours</th>
                   <th>Date demande</th>
+                  <th>Statut</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6">Chargement...</td></tr>
+                  <tr><td colSpan="8" className="text-center">⏳ Chargement des demandes...</td></tr>
                 ) : error ? (
-                  <tr><td colSpan="6">{error}</td></tr>
-                ) : demandes.length === 0 ? (
-                  <tr><td colSpan="6">Aucune demande en attente</td></tr>
+                  <tr><td colSpan="8" className="text-center error-text">❌ {error}</td></tr>
+                ) : filteredDemandes.length === 0 ? (
+                  <tr><td colSpan="8" className="text-center">📭 Aucune demande {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validée' : 'rejetée'}</td></tr>
                 ) : (
-                  demandes.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.agent || '-'}</td>
-                      <td>{d.matricule || '-'}</td>
-                      <td>{d.type_demande || '-'}</td>
+                  filteredDemandes.map((d) => (
+                    <tr key={d.id} className={d.statut === 'valide' ? 'row-validated' : d.statut === 'refuse' ? 'row-rejected' : ''}>
+                      <td>{d.agent || d.nom_demandeur || '-'}</td>
+                      <td>{d.matricule || d.matricule_demandeur || '-'}</td>
+                      <td>{d.type_demande || d.type_conge || '-'}</td>
                       <td>{formatDate(d.date_debut)} - {formatDate(d.date_fin)}</td>
-                      <td>{d.nombre_jours ?? '-'} jours</td>
-                      <td>{formatDate(d.date_soumission)}</td>
+                      <td>{d.nombre_jours ?? d.jours_demandes ?? '-'} jours</td>
+                      <td>{formatDate(d.date_soumission || d.created_at)}</td>
+                      <td>{getStatusBadge(d.statut)}</td>
                       <td>
-                        <button className="btn-validate" onClick={() => setSelectedDemande(d)}>
-                          📝 Traiter
-                        </button>
+                        {(!d.statut || d.statut === 'en_attente_chef') ? (
+                          <button className="btn-validate" onClick={() => setSelectedDemande(d)}>
+                            📝 Traiter
+                          </button>
+                        ) : (
+                          <button className="btn-view" onClick={() => setSelectedDemande(d)}>
+                            👁️ Voir
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -174,20 +247,58 @@ export default function DashboardChef() {
 
       {/* Modal de validation */}
       {selectedDemande && (
-        <div className="modal-overlay" onClick={() => setSelectedDemande(null)}>
+        <div className="modal-overlay" onClick={() => {
+          setSelectedDemande(null);
+          setCommentaire('');
+        }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Demande de {selectedDemande.agent}</h3>
-            <p><strong>Période:</strong> {formatDate(selectedDemande.date_debut)} - {formatDate(selectedDemande.date_fin)}</p>
-            <p><strong>Nombre de jours:</strong> {selectedDemande.nombre_jours}</p>
-            <div className="form-group">
-              <label>Commentaire (optionnel)</label>
-              <textarea value={commentaire} onChange={(e) => setCommentaire(e.target.value)} rows="3"></textarea>
+            <h3>📝 Demande de {selectedDemande.agent || selectedDemande.nom_demandeur}</h3>
+            <div className="modal-details">
+              <p><strong>Matricule:</strong> {selectedDemande.matricule || selectedDemande.matricule_demandeur}</p>
+              <p><strong>Type:</strong> {selectedDemande.type_demande || selectedDemande.type_conge}</p>
+              <p><strong>Période:</strong> {formatDate(selectedDemande.date_debut)} - {formatDate(selectedDemande.date_fin)}</p>
+              <p><strong>Nombre de jours:</strong> {selectedDemande.nombre_jours ?? selectedDemande.jours_demandes} jours</p>
+              <p><strong>Statut actuel:</strong> {getStatusBadge(selectedDemande.statut)}</p>
+              {selectedDemande.commentaire && (
+                <div className="existing-comment">
+                  <strong>Commentaire de l'agent:</strong>
+                  <p>{selectedDemande.commentaire}</p>
+                </div>
+              )}
             </div>
-            <div className="modal-buttons">
-              <button onClick={() => setSelectedDemande(null)}>Annuler</button>
-              <button className="btn-reject" onClick={() => validerDemande(selectedDemande.id, 'refuse')}>Rejeter</button>
-              <button className="btn-validate" onClick={() => validerDemande(selectedDemande.id, 'valide')}>Valider</button>
-            </div>
+            
+            {(!selectedDemande.statut || selectedDemande.statut === 'en_attente_chef') ? (
+              <>
+                <div className="form-group">
+                  <label>Votre commentaire {selectedDemande.statut === 'refuse' && <span className="required">*</span>}</label>
+                  <textarea 
+                    value={commentaire} 
+                    onChange={(e) => setCommentaire(e.target.value)} 
+                    rows="3"
+                    placeholder="Ajoutez un commentaire (obligatoire pour un rejet)"
+                  ></textarea>
+                </div>
+                <div className="modal-buttons">
+                  <button className="btn-cancel" onClick={() => {
+                    setSelectedDemande(null);
+                    setCommentaire('');
+                  }}>Annuler</button>
+                  <button className="btn-reject" onClick={() => validerDemande(selectedDemande.id, 'refuse')}>
+                    ❌ Rejeter
+                  </button>
+                  <button className="btn-validate" onClick={() => validerDemande(selectedDemande.id, 'valide')}>
+                    ✅ Valider
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="modal-buttons">
+                <button className="btn-cancel" onClick={() => {
+                  setSelectedDemande(null);
+                  setCommentaire('');
+                }}>Fermer</button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -212,9 +323,9 @@ export default function DashboardChef() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

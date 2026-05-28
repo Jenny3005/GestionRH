@@ -69,13 +69,13 @@ def register(request):
             typecontrat=typecontrat,
             actif=0
         )
-        print(f"Agent créé avec ID: {agent.id}")
+        print(f"Agent créé avec Matricule: {agent.matricule}")
         
         role_agent, _ = Role.objects.get_or_create(libelle='agent')
         with connection.cursor() as cursor:
             cursor.execute(
                 "INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
-                [agent.id, role_agent.id]
+                [agent.matricule, role_agent.id]
             )
         
         activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
@@ -106,7 +106,7 @@ def register(request):
         return JsonResponse({
             'success': True,
             'message': 'Agent ajouté avec succès',
-            'id': agent.id,
+            'id': agent.matricule,
             'matricule': agent.matricule,
             'activation_link': activation_link
         })
@@ -710,8 +710,9 @@ def demande_conge(request):
         ).first()
         
         if chef:
+            # Ligne corrigée :
             Notification.objects.create(
-                agent_id=chef.id,
+                agent_id=chef.matricule,  # ✅ Utilise matricule (la clé primaire)
                 message=f"Nouvelle demande de congé de {agent.prenom} {agent.nom} ({nombre_jours} jours)",
                 type_notification='demande_conge',
                 date_envoi=datetime.now().date(),
@@ -731,45 +732,155 @@ def demande_conge(request):
         print(f"ERREUR demande_conge: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["GET"])
-def mes_demandes_conge(request, matricule):
-    """Agent consulte ses demandes de congé"""
+def mes_demandes(request, matricule):
+    """Agent consulte TOUTES ses demandes (Congé + Absence)"""
     try:
-        agent = Agent.objects.get(matricule=matricule)
+        print("=" * 50)
+        print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
+        print("=" * 50)
         
-        # Correction : type_demande au lieu de typedemande
+        # Vérifier si l'agent existe
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+            print(f"✅ Agent trouvé: {agent.nom} {agent.prenom} (ID: {agent.matricule})")
+        except Agent.DoesNotExist:
+            print(f"❌ Agent non trouvé pour matricule: '{matricule}'")
+            return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        
+        # Compter TOUTES les demandes de l'agent
+        total_demandes = Demande.objects.filter(agent=agent).count()
+        print(f"📊 Nombre total de demandes dans Demande pour cet agent: {total_demandes}")
+        
+        # Afficher toutes les demandes brut
+        all_demands = Demande.objects.filter(agent=agent)
+        for d in all_demands:
+            print(f"   - Demande ID: {d.id}, Type: {d.type_demande_id}, Statut: {d.statut}")
+        
+        # Récupérer avec select_related
         demandes = Demande.objects.filter(
-            agent=agent,
-            type_demande__libelle='Congé'  # ← ICI : type_demande, pas typedemande
-        ).order_by('-date_soumission')
+            agent=agent
+        ).select_related('type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        
+        print(f"📊 Demandes après select_related: {demandes.count()}")
         
         result = []
         for d in demandes:
-            try:
-                if hasattr(d, 'demandeconge'):
-                    result.append({
-                        'id': d.id,
-                        'numero_suivi': d.numerosuivi,
-                        'date_debut': str(d.demandeconge.date_debut),
-                        'date_fin': str(d.demandeconge.date_fin),
-                        'nombre_jours': d.demandeconge.nombrejours,
-                        'statut': d.statut,
-                        'date_soumission': str(d.date_soumission)
-                    })
-            except Exception as e:
-                print(f"Erreur sur demande {d.id}: {e}")
-                continue
+            print(f"\n--- Traitement demande ID: {d.id} ---")
+            print(f"  Type demande ID: {d.type_demande_id}")
+            
+            # Vérifier le type_demande
+            if d.type_demande:
+                print(f"  Type demande libellé: {d.type_demande.libelle}")
+            else:
+                print(f"  ⚠️ Pas de type_demande associé!")
+            
+            date_debut = None
+            date_fin = None
+            nombre_jours = None
+            
+            # Vérifier demandeconge
+            if hasattr(d, 'demandeconge'):
+                conge = d.demandeconge
+                if conge:
+                    print(f"  ✅ Conge trouvé: ID {conge.id}")
+                    date_debut = str(conge.date_debut) if conge.date_debut else None
+                    date_fin = str(conge.date_fin) if conge.date_fin else None
+                    nombre_jours = conge.nombrejours
+                else:
+                    print(f"  demandeconge existe mais est None")
+            else:
+                print(f"  Pas d'attribut demandeconge")
+            
+            # Vérifier demandeabsence
+            if hasattr(d, 'demandeabsence'):
+                absence = d.demandeabsence
+                if absence:
+                    print(f"  ✅ Absence trouvé: ID {absence.id}")
+                    date_debut = str(absence.date_debut) if absence.date_debut else None
+                    date_fin = str(absence.date_fin) if absence.date_fin else None
+                    nombre_jours = absence.nombrejours
+                else:
+                    print(f"  demandeabsence existe mais est None")
+            else:
+                print(f"  Pas d'attribut demandeabsence")
+            
+            result.append({
+                'id': d.id,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'nombre_jours': nombre_jours,
+                'statut': d.statut,
+                'date_soumission': str(d.date_soumission),
+                'numero_suivi': d.numerosuivi
+            })
         
+        print(f"\n✅ FINAL - Demandes retournées: {len(result)}")
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"❌ ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+def mes_demandes_conge(request, matricule):
+    """Agent consulte TOUTES ses demandes (Congé ET Absence)"""
+    try:
+        print(f"=== mes_demandes_conge called for agent: {matricule}")
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        # Récupérer TOUTES les demandes (pas de filtre sur le type)
+        demandes = Demande.objects.filter(
+            agent=agent
+        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        
+        print(f"Nombre total de demandes trouvées: {demandes.count()}")
+        
+        result = []
+        for d in demandes:
+            date_debut = None
+            date_fin = None
+            nombre_jours = None
+            
+            # Récupérer les dates selon le type
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                date_debut = str(d.demandeconge.date_debut) if d.demandeconge.date_debut else None
+                date_fin = str(d.demandeconge.date_fin) if d.demandeconge.date_fin else None
+                nombre_jours = d.demandeconge.nombrejours
+            elif hasattr(d, 'demandeabsence') and d.demandeabsence:
+                date_debut = str(d.demandeabsence.date_debut) if d.demandeabsence.date_debut else None
+                date_fin = str(d.demandeabsence.date_fin) if d.demandeabsence.date_fin else None
+                nombre_jours = d.demandeabsence.nombrejours
+            
+            result.append({
+                'id': d.id,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'nombre_jours': nombre_jours,
+                'statut': d.statut,
+                'date_soumission': str(d.date_soumission),
+                'numero_suivi': d.numerosuivi
+            })
+        
+        print(f"✅ Demandes retournées: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
     except Exception as e:
-        print(f"Erreur mes_demandes_conge: {str(e)}")
+        print(f"ERREUR mes_demandes_conge: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-    
+     
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def demandes_direction(request, matricule_chef):
@@ -777,18 +888,30 @@ def demandes_direction(request, matricule_chef):
     try:
         print(f"=== demandes_direction called for chef: {matricule_chef}")
         
+        # 1. Récupérer le chef
         chef = Agent.objects.get(matricule=matricule_chef)
         
+        # 2. Vérifier que c'est bien un chef
         role_chef = Role.objects.get(libelle__iexact='chef')
         if not AgentRole.objects.filter(agent=chef, role=role_chef).exists():
-            return JsonResponse({'error': 'Non autorisé'}, status=403)
+            return JsonResponse({'error': 'Non autorisé - Vous n\'avez pas le rôle Chef'}, status=403)
         
+        # 3. Récupérer la direction du chef
         chef_direction = (chef.direction or '').strip()
-        demandes = Demande.objects.filter(
-            agent__direction__iexact=chef_direction,
-            statut='en_attente_chef'
-        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence')
+        print(f"Direction du chef: {chef_direction}")
         
+        if not chef_direction:
+            return JsonResponse({'error': 'Ce chef n\'a pas de direction assignée'}, status=400)
+        
+        # 4. Récupérer TOUTES les demandes des agents de cette direction
+        #    (pas seulement en_attente_chef)
+        demandes = Demande.objects.filter(
+            agent__direction__iexact=chef_direction
+        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        
+        print(f"Nombre total de demandes trouvées: {demandes.count()}")
+        
+        # 5. Construire le résultat
         result = []
         for d in demandes:
             date_debut = None
@@ -804,7 +927,9 @@ def demandes_direction(request, matricule_chef):
                 date_fin = str(d.demandeabsence.date_fin)
                 nombre_jours = d.demandeabsence.nombrejours
 
+            # Si pas de date, on continue (mais on peut garder la demande quand même)
             if date_debut is None or date_fin is None:
+                print(f"Demande {d.id} sans date, ignorée")
                 continue
 
             result.append({
@@ -816,13 +941,19 @@ def demandes_direction(request, matricule_chef):
                 'date_fin': date_fin,
                 'nombre_jours': nombre_jours,
                 'date_soumission': str(d.date_soumission),
+                'statut': d.statut,  # ← IMPORTANT: ajouter le statut
+                'commentaire': getattr(d, 'commentaire', ''),  # Commentaire de l'agent si existant
                 'numero_suivi': d.numerosuivi
             })
         
+        print(f"Demandes retournées: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': f'Agent {matricule_chef} non trouvé'}, status=404)
+        print(f"ERREUR: Agent {matricule_chef} non trouvé")
+        return JsonResponse({'error': f'Agent avec matricule {matricule_chef} non trouvé'}, status=404)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': 'Rôle "chef" non trouvé dans la base'}, status=500)
     except Exception as e:
         print(f"ERREUR: {str(e)}")
         import traceback
@@ -839,15 +970,25 @@ def valider_demande_conge(request, demande_id):
         decision = data.get('decision')
         commentaire = data.get('commentaire', '')
         
+        print(f"=== valider_demande_conge - Demande ID: {demande_id}, Décision: {decision}")
+        
+        # Récupérer le chef et la demande
         chef = Agent.objects.get(matricule=matricule_chef)
         demande = Demande.objects.get(id=demande_id)
         
+        print(f"Chef: {chef.matricule} - Direction: {chef.direction}")
+        print(f"Demandeur: {demande.agent.matricule} - Direction: {demande.agent.direction}")
+        
+        # Vérifier que le chef est bien dans la même direction
         if (chef.direction or '').strip().lower() != (demande.agent.direction or '').strip().lower():
             return JsonResponse({'error': 'Vous ne pouvez pas valider cette demande'}, status=403)
         
+        # Traiter la décision
         if decision == 'valide':
             demande.statut = 'valide'
+            print("✅ Demande validée")
             
+            # Mettre à jour le solde de congé si c'est un congé
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 annee = datetime.now().year
                 solde, _ = SoldeConge.objects.get_or_create(
@@ -860,24 +1001,54 @@ def valider_demande_conge(request, demande_id):
                 solde.save()
         else:
             demande.statut = 'refuse'
+            print("❌ Demande rejetée")
         
+        # Sauvegarder le commentaire du chef
         demande.commentaire_chef = commentaire
         demande.save()
         
-        Notification.objects.create(
-            agent_id=demande.agent.id,
-            message=f"Votre demande de congé a été {decision}e",
-            type_notification='validation_conge',
-            date_envoi=datetime.now().date(),
-            lue=0
-        )
+        # ========== CRÉATION DE LA NOTIFICATION - CORRIGÉE ==========
+        try:
+            # Récupérer le libellé du type de demande
+            type_libelle = demande.type_demande.libelle if demande.type_demande else "demande"
+            
+            # Message selon la décision
+            if decision == 'valide':
+                message = f"✅ Votre {type_libelle} a été APPROUVÉE par votre chef"
+            else:
+                message = f"❌ Votre {type_libelle} a été REJETÉE par votre chef"
+                if commentaire:
+                    message += f"\nMotif: {commentaire}"
+            
+            # Créer la notification - Utiliser agent.matricule
+            notification = Notification.objects.create(
+                agent_id=demande.agent.matricule,  # ← IMPORTANT: utiliser matricule
+                message=message,
+                type_notification='validation_conge',
+                date_envoi=datetime.now().date(),
+                lue=0
+            )
+            print(f"✅ Notification créée avec succès - ID: {notification.id} pour l'agent: {demande.agent.matricule}")
+            
+        except Exception as notif_error:
+            print(f"⚠️ ERREUR lors de la création de la notification: {notif_error}")
+            import traceback
+            traceback.print_exc()
+            # On continue même si la notification échoue
         
         return JsonResponse({'success': True, 'message': f'Demande {decision}e'})
         
+    except Agent.DoesNotExist:
+        print(f"❌ Chef non trouvé: {matricule_chef}")
+        return JsonResponse({'error': 'Chef non trouvé'}, status=404)
+    except Demande.DoesNotExist:
+        print(f"❌ Demande non trouvée: {demande_id}")
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
+        print(f"❌ ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
-
 # ==================== TYPES DE DEMANDE ====================
 
 @csrf_exempt
@@ -1064,7 +1235,7 @@ def get_notifications(request, matricule):
     """Récupérer les notifications d'un agent"""
     try:
         agent = Agent.objects.get(matricule=matricule)
-        notifications = Notification.objects.filter(agent_id=agent.id).order_by('-date_envoi')[:10]
+        notifications = Notification.objects.filter(agent_id=agent.matricule).order_by('-date_envoi')[:10]
         result = [{
             'id': n.id,
             'message': n.message,
@@ -1100,7 +1271,7 @@ def marquer_toutes_notifications_lues(request, matricule):
     """Marquer toutes les notifications d'un agent comme lues"""
     try:
         agent = Agent.objects.get(matricule=matricule)
-        updated = Notification.objects.filter(agent_id=agent.id, lue=0).update(lue=1)
+        updated = Notification.objects.filter(agent_id=agent.matricule, lue=0).update(lue=1)
         return JsonResponse({'success': True, 'updated': updated})
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
