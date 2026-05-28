@@ -1527,3 +1527,39 @@ def toggle_role_permission(request):
         return JsonResponse({'error': 'Permission non trouvée'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_user_permissions(request, matricule):
+    """Récupérer les permissions d'un utilisateur"""
+    try:
+        print(f"=== get_user_permissions for: {matricule}")
+        
+        # Récupérer l'agent
+        agent = Agent.objects.get(matricule=matricule)
+        
+        # Récupérer les rôles de l'agent
+        agent_roles = AgentRole.objects.filter(agent=agent).select_related('role')
+        
+        permissions = []
+        for ar in agent_roles:
+            # Récupérer les permissions via role_permission
+            role_perms = RolePermission.objects.filter(role=ar.role).select_related('permission')
+            for rp in role_perms:
+                permissions.append(rp.permission.code)
+        
+        # Enlever les doublons
+        permissions = list(set(permissions))
+        
+        print(f"Permissions trouvées: {permissions}")
+        
+        return JsonResponse({
+            'matricule': matricule,
+            'permissions': permissions
+        })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"Erreur: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from './AdminNav';
+import usePermissions from './hooks/usePermissions';
+import Can from './components/Can';
 import './App.css';
 
 export default function AdminRoles() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [agents, setAgents] = useState([]);
   const [filteredAgents, setFilteredAgents] = useState([]);
@@ -26,6 +29,19 @@ export default function AdminRoles() {
 
   // Rôles système à ne pas pouvoir supprimer
   const SYSTEM_ROLES = ['admin', 'agent'];
+
+  // Vérifier les droits d'accès
+  useEffect(() => {
+    if (!localStorage.getItem('userMatricule')) {
+      navigate('/auth');
+      return;
+    }
+    // Vérifier si l'utilisateur a la permission de gérer les rôles
+    if (!permissionsLoading && !hasPermission('GERER_ROLES') && !isAdmin()) {
+      navigate('/admin/dashboard');
+      return;
+    }
+  }, [permissionsLoading]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -92,6 +108,13 @@ export default function AdminRoles() {
 
   const handleAddRole = async (e) => {
     e.preventDefault();
+    
+    // Vérifier la permission d'ajouter un rôle
+    if (!hasPermission('AJOUTER_ROLE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'ajouter des rôles");
+      return;
+    }
+    
     if (!formData.libelle) {
       alert('Veuillez saisir un libellé');
       return;
@@ -120,10 +143,17 @@ export default function AdminRoles() {
       }
     } catch (error) {
       console.error('Erreur:', error);
+      alert('Erreur de connexion');
     }
   };
 
   const assignRole = async (agentMatricule) => {
+    // Vérifier la permission d'attribuer un rôle
+    if (!hasPermission('ATTRIBUER_ROLE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'attribuer des rôles");
+      return;
+    }
+    
     try {
       const response = await fetch(`http://localhost:8000/api/agents/${agentMatricule}/role/update/`, {
         method: 'PUT',
@@ -149,6 +179,12 @@ export default function AdminRoles() {
   };
 
   const handleDeleteRole = async (roleId, roleLibelle) => {
+    // Vérifier la permission de supprimer un rôle
+    if (!hasPermission('SUPPRIMER_ROLE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de supprimer des rôles");
+      return;
+    }
+    
     if (SYSTEM_ROLES.includes(roleLibelle)) {
       alert(`⚠️ Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
       return;
@@ -178,6 +214,7 @@ export default function AdminRoles() {
         }
       } catch (error) {
         console.error('Erreur:', error);
+        alert('Erreur de connexion');
       }
     }
   };
@@ -232,6 +269,11 @@ export default function AdminRoles() {
     navigate('/'); 
   };
 
+  // Affichage du chargement des permissions
+  if (permissionsLoading) {
+    return <div className="loading-screen">Chargement des permissions...</div>;
+  }
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
@@ -261,6 +303,9 @@ export default function AdminRoles() {
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <Can permission="GERER_PERMISSIONS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
+                </Can>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>
@@ -288,7 +333,9 @@ export default function AdminRoles() {
             />
           </div>
           <div className="action-buttons">
-            <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un rôle personnalisé</button>
+            <Can permission="AJOUTER_ROLE">
+              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un rôle personnalisé</button>
+            </Can>
           </div>
         </div>
 
@@ -299,7 +346,9 @@ export default function AdminRoles() {
           ) : filteredRoles.length === 0 ? (
             <div className="empty-state">
               <p>📭 Aucun rôle trouvé</p>
-              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer un rôle</button>
+              <Can permission="AJOUTER_ROLE">
+                <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer un rôle</button>
+              </Can>
             </div>
           ) : (
             filteredRoles.map((role) => (
@@ -313,24 +362,28 @@ export default function AdminRoles() {
                   </p>
                 </div>
                 <div className="role-card-actions">
-                  <button 
-                    className="btn-assign"
-                    onClick={() => {
-                      setSelectedRole(role);
-                      setAgentSearchTerm('');
-                      setShowAssignModal(true);
-                    }}
-                  >
-                    👥 Attribuer
-                  </button>
-                  {!SYSTEM_ROLES.includes(role.libelle) && (
+                  <Can permission="ATTRIBUER_ROLE">
                     <button 
-                      className="btn-delete-role"
-                      onClick={() => handleDeleteRole(role.id, role.libelle)}
+                      className="btn-assign"
+                      onClick={() => {
+                        setSelectedRole(role);
+                        setAgentSearchTerm('');
+                        setShowAssignModal(true);
+                      }}
                     >
-                      🗑️ Supprimer
+                      👥 Attribuer
                     </button>
-                  )}
+                  </Can>
+                  <Can permission="SUPPRIMER_ROLE">
+                    {!SYSTEM_ROLES.includes(role.libelle) && (
+                      <button 
+                        className="btn-delete-role"
+                        onClick={() => handleDeleteRole(role.id, role.libelle)}
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    )}
+                  </Can>
                 </div>
               </div>
             ))
