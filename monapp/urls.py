@@ -53,4 +53,6 @@ urlpatterns = [
     path('permissions/<str:code>/delete/', views.delete_permission, name='delete_permission'),
     path('role-permissions/', views.get_role_permissions, name='get_role_permissions'),
     path('role-permissions/toggle/', views.toggle_role_permission, name='toggle_role_permission'),
+
+    path('user-permissions/<str:matricule>/', views.get_user_permissions, name='user_permissions'),
 ]

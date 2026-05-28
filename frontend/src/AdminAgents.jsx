@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import DataTable from 'react-data-table-component';
 import AdminNav from './AdminNav';
+import usePermissions from './hooks/usePermissions';
+import Can from './components/Can';
 import './App.css';
 
 export default function AdminAgents() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -39,6 +42,19 @@ export default function AdminAgents() {
   const userPrenom = localStorage.getItem('userPrenom');
   const userEmail = localStorage.getItem('userEmail');
   const userName = `${userPrenom} ${userNom}`;
+
+  // Vérifier les droits d'accès
+  useEffect(() => {
+    if (!localStorage.getItem('userMatricule')) {
+      navigate('/auth');
+      return;
+    }
+    // Vérifier si l'utilisateur a la permission de voir les agents
+    if (!permissionsLoading && !hasPermission('VOIR_AGENTS') && !isAdmin()) {
+      navigate('/dashboard');
+      return;
+    }
+  }, [permissionsLoading]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -107,6 +123,12 @@ export default function AdminAgents() {
 
   const handleAddAgent = async (e) => {
     e.preventDefault();
+    // Vérifier la permission d'ajouter un agent
+    if (!hasPermission('AJOUTER_AGENT') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'ajouter des agents");
+      return;
+    }
+    
     if (!validateForm()) return;
 
     setPending(true);
@@ -163,6 +185,12 @@ export default function AdminAgents() {
   };
 
   const toggleRole = async (agentId, roleId, isChecked) => {
+    // Vérifier la permission de modifier les rôles
+    if (!hasPermission('MODIFIER_ROLE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de modifier les rôles");
+      return;
+    }
+    
     try {
       if (isChecked) {
         await fetch(`http://localhost:8000/api/agents/${agentId}/role/add/`, {
@@ -186,6 +214,12 @@ export default function AdminAgents() {
   };
 
   const exportToExcel = () => {
+    // Vérifier la permission d'exporter
+    if (!hasPermission('EXPORTER_AGENTS') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'exporter la liste des agents");
+      return;
+    }
+    
     const filteredAgents = agents.filter(agent =>
       agent.nom?.toLowerCase().includes(filterText.toLowerCase()) ||
       agent.prenom?.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -230,6 +264,12 @@ export default function AdminAgents() {
   };
 
   const handleImportExcel = async (e) => {
+    // Vérifier la permission d'importer
+    if (!hasPermission('IMPORTER_AGENTS') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'importer des agents");
+      return;
+    }
+    
     const file = e.target.files[0];
     if (!file) return;
 
@@ -290,7 +330,7 @@ export default function AdminAgents() {
             let typecontrat = getCellValue('Type de contrat', 'APE');
             const adresse = getCellValue('Adresse', 'À renseigner');
             const corps = getCellValue('Corps', '');
-            const echelon = getCellValue('Grade', ''); // 'Grade' dans Excel -> 'echelon' dans DB
+            const echelon = getCellValue('Grade', '');
             const dateNaissance = getCellValue('Date de Naissance');
             
             if (direction && direction.includes('(')) {
@@ -512,9 +552,11 @@ export default function AdminAgents() {
     { 
       name: 'Actions', 
       cell: row => (
-        <button className="btn-edit-role" onClick={() => { setSelectedAgent(row); setShowRoleModal(true); }}>
-          🔄 Gérer rôles
-        </button>
+        <Can permission="MODIFIER_ROLE">
+          <button className="btn-edit-role" onClick={() => { setSelectedAgent(row); setShowRoleModal(true); }}>
+            🔄 Gérer rôles
+          </button>
+        </Can>
       ),
       width: '130px',
     },
@@ -531,6 +573,11 @@ export default function AdminAgents() {
     headCells: { style: { backgroundColor: '#0B192C', color: 'white', fontWeight: 'bold', fontSize: '14px' } },
     rows: { style: { minHeight: '50px', '&:hover': { backgroundColor: '#F8FAFC' } } },
   };
+
+  // Affichage du chargement des permissions
+  if (permissionsLoading) {
+    return <div className="loading-screen">Chargement des permissions...</div>;
+  }
 
   return (
     <div className="intranet-home">
@@ -581,11 +628,17 @@ export default function AdminAgents() {
             <input type="text" placeholder="🔍 Rechercher un agent..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="search-input" />
           </div>
           <div className="action-buttons">
-            <button className="btn-add" onClick={() => setShowModal(true)} disabled={importing}>➕ Ajouter un agent</button>
-            <button className="btn-export" onClick={exportToExcel} disabled={importing}>📊 Exporter Excel</button>
-            <button className="btn-import" onClick={() => document.getElementById('importFile').click()} disabled={importing}>
-              {importing ? '⏳ Import en cours...' : '📥 Importer Excel'}
-            </button>
+            <Can permission="AJOUTER_AGENT">
+              <button className="btn-add" onClick={() => setShowModal(true)} disabled={importing}>➕ Ajouter un agent</button>
+            </Can>
+            <Can permission="EXPORTER_AGENTS">
+              <button className="btn-export" onClick={exportToExcel} disabled={importing}>📊 Exporter Excel</button>
+            </Can>
+            <Can permission="IMPORTER_AGENTS">
+              <button className="btn-import" onClick={() => document.getElementById('importFile').click()} disabled={importing}>
+                {importing ? '⏳ Import en cours...' : '📥 Importer Excel'}
+              </button>
+            </Can>
             <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style={{ display: 'none' }} onChange={handleImportExcel} />
           </div>
         </div>
@@ -607,7 +660,7 @@ export default function AdminAgents() {
         </section>
       </main>
 
-      {/* MODAL AJOUT AGENT */}
+      {/* MODAL AJOUT AGENT - Uniquement si permission */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -660,7 +713,7 @@ export default function AdminAgents() {
         </div>
       )}
 
-      {/* MODAL GÉRER RÔLES */}
+      {/* MODAL GÉRER RÔLES - Uniquement si permission */}
       {showRoleModal && selectedAgent && (
         <div className="modal-overlay" onClick={() => setShowRoleModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
