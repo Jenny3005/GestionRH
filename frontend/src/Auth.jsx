@@ -70,19 +70,26 @@ export default function Auth({ onLogin }) {
             
             if (onLogin) onLogin(data.matricule, data.role);
             
-            switch(data.role) {
-              case 'admin':
-                navigate('/admin/dashboard');
-                break;
-              case 'chef':
-                navigate('/chef/dashboard');
-                break;
-              case 'rh':
-                navigate('/dashboard-rh');
-                break;
-              default:
-                navigate('/dashboard');
-            }
+            // Redirection selon le rôle
+          switch(data.role) {
+            case 'admin':
+              navigate('/admin/dashboard');
+              break;
+            case 'chef':
+              navigate('/chef/dashboard');
+              break;
+            case 'rh':
+              navigate('/rh/dashboard');
+              break;
+            case 'rh/secretaire':
+              navigate('/secretaire/dashboard');  // ← ICI : secretaire/dashboard
+              break;
+            case 'secretaire':
+              navigate('/secretaire/dashboard');
+              break;
+            default:
+              navigate('/dashboard');
+          }
           } else {
             alert(data.error || 'Erreur de connexion');
           }
