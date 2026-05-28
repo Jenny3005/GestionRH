@@ -46,4 +46,11 @@ urlpatterns = [
     path('notifications/<str:matricule>/', views.get_notifications, name='get_notifications'),
     path('notifications/<str:matricule>/lues/', views.marquer_toutes_notifications_lues, name='marquer_toutes_notifications_lues'),
     path('notifications/<int:notification_id>/lue/', views.marquer_notification_lue, name='marquer_notification_lue'),
+
+    # ==================== GESTION DES PERMISSIONS ====================
+    path('permissions/', views.get_permissions, name='get_permissions'),
+    path('permissions/add/', views.add_permission, name='add_permission'),
+    path('permissions/<str:code>/delete/', views.delete_permission, name='delete_permission'),
+    path('role-permissions/', views.get_role_permissions, name='get_role_permissions'),
+    path('role-permissions/toggle/', views.toggle_role_permission, name='toggle_role_permission'),
 ]

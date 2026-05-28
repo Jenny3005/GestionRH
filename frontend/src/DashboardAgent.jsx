@@ -24,6 +24,7 @@ export default function DashboardAgent() {
   const [soldeConge, setSoldeConge] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showSoldeModal, setShowSoldeModal] = useState(false);
 
   const matricule = localStorage.getItem('userMatricule');
 
@@ -86,7 +87,7 @@ export default function DashboardAgent() {
             
             return {
               id: d.id,
-              type: d.type_demande,  // Maintenant c'est "Congé" ou "Absence"
+              type: d.type_demande,
               date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : 'Date inconnue',
               statut: statutAffichage
             };
@@ -143,6 +144,11 @@ export default function DashboardAgent() {
     }
   };
 
+  const openSoldeModal = () => {
+    fetchSoldeConge();
+    setShowSoldeModal(true);
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
@@ -150,7 +156,6 @@ export default function DashboardAgent() {
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
 
-  // Statistiques dynamiques
   const stats = [
     { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: "📋", color: "#3B82F6" },
     { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: "🌴", color: "#10B981", unit: "jours" },
@@ -219,7 +224,7 @@ export default function DashboardAgent() {
         {/* GRILLE PRINCIPALE */}
         <div className="agent-dashboard-grid">
           
-          {/* Demandes récentes - DYNAMIQUE */}
+          {/* Demandes récentes */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>📋 Demandes récentes</h3>
@@ -257,7 +262,7 @@ export default function DashboardAgent() {
             </div>
           </div>
 
-          {/* Solde congés - DYNAMIQUE */}
+          {/* Solde congés */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🌴 Solde congés {soldeConge?.annee || new Date().getFullYear()}</h3>
@@ -285,6 +290,9 @@ export default function DashboardAgent() {
                 <span>Pris {soldeConge?.jours_pris || 0}j</span>
                 <span>Restant {soldeConge?.jours_restants || 0}j</span>
               </div>
+              <button className="btn-detail-solde" onClick={openSoldeModal}>
+                📊 Voir détails
+              </button>
             </div>
           </div>
         </div>
@@ -292,7 +300,7 @@ export default function DashboardAgent() {
         {/* DEUXIÈME LIGNE */}
         <div className="agent-dashboard-grid">
           
-          {/* Notifications - DYNAMIQUE */}
+          {/* Notifications */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🔔 Notifications</h3>
@@ -320,7 +328,7 @@ export default function DashboardAgent() {
             </div>
           </div>
 
-          {/* Prochain avancement - statique pour l'instant */}
+          {/* Prochain avancement */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>📈 Prochain avancement</h3>
@@ -344,6 +352,88 @@ export default function DashboardAgent() {
 
       </main>
 
+      {/* MODAL SOLDE CONGÉS */}
+      {showSoldeModal && (
+        <div className="modal-overlay" onClick={() => setShowSoldeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🌴 Détail du solde de congés</h3>
+              <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="solde-info-annee">
+                <span className="label">Année</span>
+                <span className="value">{soldeConge?.annee || new Date().getFullYear()}</span>
+              </div>
+              
+              <div className="solde-detail-card">
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">📅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours acquis</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_acquis || 30} jours</span>
+                    <span className="solde-detail-sub">Base légale</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">✅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours pris</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_pris || 0} jours</span>
+                    <span className="solde-detail-sub">Congés déjà consommés</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item highlight">
+                  <div className="solde-detail-icon">🌟</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours restants</span>
+                    <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
+                    <span className="solde-detail-sub">Encore disponible</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="solde-progress-detail">
+                <div className="progress-label-detail">
+                  <span>Taux d'utilisation</span>
+                  <span>{Math.round(((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100)}%</span>
+                </div>
+                <div className="progress-bar-detail">
+                  <div className="progress-fill-detail" style={{ 
+                    width: `${((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100}%` 
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="solde-historique">
+                <h4>📋 Informations</h4>
+                <ul>
+                  <li>✓ 30 jours de congés par an</li>
+                  <li>✓ Les congés non pris sont perdus en fin d'année</li>
+                  <li>✓ Maximum 2 demandes de congé par an</li>
+                  <li>✓ Maximum 30 jours consécutifs</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-demander-conge" onClick={() => {
+                setShowSoldeModal(false);
+                navigate('/demandes/conge');
+              }}>
+                📝 Demander un congé
+              </button>
+              <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FOOTER */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
@@ -364,9 +454,9 @@ export default function DashboardAgent() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

@@ -14,6 +14,7 @@ import DashboardAgent from './DashboardAgent';
 import DashboardChef from './DashboardChef';
 import AdminTypesDemande from './AdminTypesDemande';
 import AdminTypesPiece from './AdminTypesPiece';
+import AdminPermissions from './AdminPermissions';
 import Profil from './Profil';
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
@@ -40,7 +41,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/chef/dashboard" element={<DashboardChef />} />
       <Route path="/admin/types-demande" element={<AdminTypesDemande />} />
       <Route path="/admin/types-piece" element={<AdminTypesPiece />} />
-      
+      <Route path="/admin/permissions" element={<AdminPermissions />} />
     </Routes>
   </BrowserRouter>
 );
