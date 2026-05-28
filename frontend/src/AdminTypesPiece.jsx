@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from 'react-data-table-component';
 import AdminNav from './AdminNav';
+import usePermissions from './hooks/usePermissions';
+import Can from './components/Can';
 import './App.css';
 
 export default function AdminTypesPiece() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +28,19 @@ export default function AdminTypesPiece() {
   const userPrenom = localStorage.getItem('userPrenom');
   const userEmail = localStorage.getItem('userEmail');
   const userName = `${userPrenom} ${userNom}`;
+
+  // Vérifier les droits d'accès
+  useEffect(() => {
+    if (!localStorage.getItem('userMatricule')) {
+      navigate('/auth');
+      return;
+    }
+    // Vérifier si l'utilisateur a la permission de gérer les types de pièce
+    if (!permissionsLoading && !hasPermission('GERER_TYPES_PIECE') && !isAdmin()) {
+      navigate('/admin/dashboard');
+      return;
+    }
+  }, [permissionsLoading]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -83,6 +99,13 @@ export default function AdminTypesPiece() {
 
   const handleAddType = async (e) => {
     e.preventDefault();
+    
+    // Vérifier la permission d'ajouter
+    if (!hasPermission('AJOUTER_TYPE_PIECE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'ajouter des types de pièce");
+      return;
+    }
+    
     if (!validateForm()) return;
 
     setPending(true);
@@ -94,7 +117,7 @@ export default function AdminTypesPiece() {
       });
 
       if (response.ok) {
-        alert(`Type de pièce "${formData.libelle}" ajouté avec succès !`);
+        alert(`✅ Type de pièce "${formData.libelle}" ajouté avec succès !`);
         setShowModal(false);
         resetForm();
         fetchTypes();
@@ -111,6 +134,11 @@ export default function AdminTypesPiece() {
   };
 
   const handleEditClick = (type) => {
+    // Vérifier la permission de modifier
+    if (!hasPermission('MODIFIER_TYPE_PIECE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de modifier des types de pièce");
+      return;
+    }
     setSelectedType(type);
     setFormData({
       libelle: type.libelle,
@@ -122,6 +150,7 @@ export default function AdminTypesPiece() {
 
   const handleEditType = async (e) => {
     e.preventDefault();
+    
     if (!validateForm()) return;
 
     setPending(true);
@@ -133,7 +162,7 @@ export default function AdminTypesPiece() {
       });
 
       if (response.ok) {
-        alert('Type de pièce modifié avec succès !');
+        alert('✅ Type de pièce modifié avec succès !');
         setShowEditModal(false);
         resetForm();
         fetchTypes();
@@ -150,6 +179,12 @@ export default function AdminTypesPiece() {
   };
 
   const handleDeleteType = async (id, libelle) => {
+    // Vérifier la permission de supprimer
+    if (!hasPermission('SUPPRIMER_TYPE_PIECE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de supprimer des types de pièce");
+      return;
+    }
+    
     if (!window.confirm(`Supprimer le type de pièce "${libelle}" ?`)) return;
 
     try {
@@ -157,7 +192,7 @@ export default function AdminTypesPiece() {
         method: 'DELETE'
       });
       if (response.ok) {
-        alert('Type de pièce supprimé avec succès');
+        alert('✅ Type de pièce supprimé avec succès');
         fetchTypes();
       } else {
         alert('Erreur lors de la suppression');
@@ -172,7 +207,7 @@ export default function AdminTypesPiece() {
     navigate('/');
   };
 
-  const getRequiredLabel = (value) => (value === 1 ? 'Oui' : 'Non');
+  const getRequiredLabel = (value) => (value === 1 ? '✅ Oui' : '❌ Non');
 
   const columns = [
     {
@@ -206,15 +241,19 @@ export default function AdminTypesPiece() {
       name: 'Actions',
       cell: row => (
         <div className="action-buttons-cell">
-          <button className="btn-edit-type" onClick={() => handleEditClick(row)}>
-            Modifier
-          </button>
-          <button className="btn-delete-type" onClick={() => handleDeleteType(row.id, row.libelle)}>
-            Supprimer
-          </button>
+          <Can permission="MODIFIER_TYPE_PIECE">
+            <button className="btn-edit-type" onClick={() => handleEditClick(row)}>
+              ✏️ Modifier
+            </button>
+          </Can>
+          <Can permission="SUPPRIMER_TYPE_PIECE">
+            <button className="btn-delete-type" onClick={() => handleDeleteType(row.id, row.libelle)}>
+              🗑️ Supprimer
+            </button>
+          </Can>
         </div>
       ),
-      width: '160px',
+      width: '180px',
     },
   ];
 
@@ -297,6 +336,11 @@ export default function AdminTypesPiece() {
     </form>
   );
 
+  // Affichage du chargement des permissions
+  if (permissionsLoading) {
+    return <div className="loading-screen">Chargement des permissions...</div>;
+  }
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
@@ -324,10 +368,16 @@ export default function AdminTypesPiece() {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>Mon profil</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <Can permission="GERER_PERMISSIONS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
+                </Can>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>📝 Types demande</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>📄 Types pièce</button>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>Se déconnecter</button>
+                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>
             )}
           </div>
@@ -337,7 +387,7 @@ export default function AdminTypesPiece() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Gestion des Types de Pièce</h2>
+            <h2>📄 Gestion des Types de Pièce</h2>
             <p>Créez, modifiez et gérez les pièces attendues dans les dossiers des agents.</p>
           </div>
         </section>
@@ -346,14 +396,16 @@ export default function AdminTypesPiece() {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Rechercher un type de pièce..."
+              placeholder="🔍 Rechercher un type de pièce..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               className="search-input"
             />
           </div>
           <div className="action-buttons">
-            <button className="btn-add" onClick={() => setShowModal(true)}>Ajouter un type</button>
+            <Can permission="AJOUTER_TYPE_PIECE">
+              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un type</button>
+            </Can>
           </div>
         </div>
 
@@ -371,7 +423,7 @@ export default function AdminTypesPiece() {
             subHeader
             subHeaderComponent={
               <div className="table-info">
-                Total : {filteredTypes.length} type(s) de pièce
+                📊 Total : {filteredTypes.length} type(s) de pièce
               </div>
             }
           />
@@ -381,7 +433,7 @@ export default function AdminTypesPiece() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Ajouter un type de pièce</h3>
+            <h3>➕ Ajouter un type de pièce</h3>
             {renderForm(handleAddType, 'Ajouter un type de pièce', 'Ajouter')}
           </div>
         </div>
@@ -390,11 +442,49 @@ export default function AdminTypesPiece() {
       {showEditModal && selectedType && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Modifier le type de pièce</h3>
+            <h3>✏️ Modifier le type de pièce</h3>
             {renderForm(handleEditType, 'Modifier le type de pièce', 'Modifier')}
           </div>
         </div>
       )}
+
+      {/* FOOTER INSTITUTIONNEL */}
+      <footer className="mnd-grand-footer">
+        <div className="benin-national-tricolor-line"></div>
+        <div className="footer-main-content">
+          <div className="footer-centered-logo-zone">
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
+          </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
+        </div>
+        <div className="footer-bottom-bar">
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
+        </div>
+      </footer>
     </div>
   );
 }

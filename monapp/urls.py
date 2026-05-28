@@ -55,4 +55,8 @@ urlpatterns = [
     path('role-permissions/toggle/', views.toggle_role_permission, name='toggle_role_permission'),
 
     path('user-permissions/<str:matricule>/', views.get_user_permissions, name='user_permissions'),
+
+    # Demandes validées pour secrétaire
+    path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
+    path('secretaire/transmettre-dpaf/<int:demande_id>/', views.transmettre_demande_dpaf, name='transmettre_demande_dpaf'),
 ]

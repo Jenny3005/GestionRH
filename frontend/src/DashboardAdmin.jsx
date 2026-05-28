@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from './AdminNav';
+import usePermissions from './hooks/usePermissions';
+import Can from './components/Can';
 import './App.css';
 
 export default function DashboardAdmin() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
   const [agents, setAgents] = useState([]);
   const [stats, setStats] = useState({
     total_agents: 0,
@@ -23,22 +26,22 @@ export default function DashboardAdmin() {
   const userRole = localStorage.getItem('userRole');
   const userName = `${userPrenom} ${userNom}`;
 
+  // Vérifier les droits d'accès
   useEffect(() => {
-    // Vérifier si l'utilisateur est connecté et a le rôle admin
     if (!localStorage.getItem('userMatricule')) {
       navigate('/auth');
       return;
     }
-    if (userRole !== 'admin') {
+    // Vérifier si l'utilisateur a le rôle admin ou la permission de voir le dashboard
+    if (!permissionsLoading && !isAdmin() && !hasPermission('VOIR_DASHBOARD_ADMIN')) {
       navigate('/dashboard');
       return;
     }
     
     fetchAgents();
     fetchStats();
-  }, []);
+  }, [permissionsLoading]);
 
-  // Fermer le dropdown en cliquant ailleurs
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownOpen && !event.target.closest('.user-menu-container')) {
@@ -76,6 +79,12 @@ export default function DashboardAdmin() {
   };
 
   const toggleAgentStatus = async (agentId, currentStatus) => {
+    // Vérifier la permission d'activer/désactiver un agent
+    if (!hasPermission('ACTIVER_AGENT') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'activer/désactiver des agents");
+      return;
+    }
+    
     try {
       const response = await fetch(`http://localhost:8000/api/agents/${agentId}/toggle/`, {
         method: 'PUT',
@@ -85,10 +94,14 @@ export default function DashboardAdmin() {
       if (response.ok) {
         fetchAgents();
         fetchStats();
-        alert('Statut modifié avec succès');
+        alert(`✅ Agent ${currentStatus ? 'désactivé' : 'activé'} avec succès`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la modification');
       }
     } catch (error) {
       console.error('Erreur:', error);
+      alert('Erreur de connexion');
     }
   };
 
@@ -97,15 +110,30 @@ export default function DashboardAdmin() {
     navigate('/'); 
   };
 
-  // Fonction pour afficher le libellé du rôle
   const getRoleLabel = (role) => {
     switch(role) {
-      case 'admin': return 'Administrateur';
-      case 'rh': return 'RH';
-      case 'chef': return 'Chef de service';
-      default: return 'Agent';
+      case 'admin': return '👑 Administrateur';
+      case 'rh': return '📋 RH';
+      case 'chef': return '⭐ Chef de service';
+      case 'secretaire': return '📝 Secrétaire DPAF';
+      default: return '👤 Agent';
     }
   };
+
+  const getRoleBadgeClass = (role) => {
+    switch(role) {
+      case 'admin': return 'role-badge admin';
+      case 'rh': return 'role-badge rh';
+      case 'chef': return 'role-badge chef';
+      case 'secretaire': return 'role-badge secretaire';
+      default: return 'role-badge agent';
+    }
+  };
+
+  // Affichage du chargement des permissions
+  if (permissionsLoading) {
+    return <div className="loading-screen">Chargement des permissions...</div>;
+  }
 
   return (
     <div className="intranet-home">
@@ -141,18 +169,31 @@ export default function DashboardAdmin() {
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
                   📊 Tableau de bord
                 </button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
-                  👥 Agents
-                </button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
-                  ⚙️ Rôles
-                </button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
-                  📝 Types de demande
-                </button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
-                  📄 Types de pièce
-                </button>
+                <Can permission="VOIR_AGENTS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
+                    👥 Agents
+                  </button>
+                </Can>
+                <Can permission="GERER_ROLES">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
+                    ⚙️ Rôles
+                  </button>
+                </Can>
+                <Can permission="GERER_PERMISSIONS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>
+                    🔐 Permissions
+                  </button>
+                </Can>
+                <Can permission="GERER_TYPES_DEMANDE">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
+                    📝 Types de demande
+                  </button>
+                </Can>
+                <Can permission="GERER_TYPES_PIECE">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
+                    📄 Types de pièce
+                  </button>
+                </Can>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
                   🔓 Se déconnecter
@@ -167,12 +208,12 @@ export default function DashboardAdmin() {
         {/* BANDEAU HERO */}
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Tableau de bord Administrateur</h2>
+            <h2>📊 Tableau de bord Administrateur</h2>
             <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les types de demande depuis cet espace.</p>
           </div>
         </section>
 
-        {/* STATISTIQUES - 5 CARDS */}
+        {/* STATISTIQUES */}
         <div className="admin-stats-grid">
           <div className="admin-stat-card">
             <div className="admin-stat-icon">👥</div>
@@ -237,9 +278,9 @@ export default function DashboardAdmin() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="8">Chargement...</td></tr>
+                  <tr><td colSpan="8" className="text-center">⏳ Chargement...</td></tr>
                 ) : agents.length === 0 ? (
-                  <tr><td colSpan="8">Aucun agent trouvé</td></tr>
+                  <tr><td colSpan="8" className="text-center">📭 Aucun agent trouvé</td></tr>
                 ) : (
                   agents.map((agent) => (
                     <tr key={agent.id}>
@@ -252,28 +293,30 @@ export default function DashboardAdmin() {
                         <div className="roles-multi">
                           {agent.roles && agent.roles.length > 0 ? (
                             agent.roles.map((role, idx) => (
-                              <span key={idx} className={`role-badge ${role.libelle}`}>
+                              <span key={idx} className={getRoleBadgeClass(role.libelle)}>
                                 {getRoleLabel(role.libelle)}
                               </span>
                             ))
                           ) : (
-                            <span className="role-badge agent">Agent</span>
+                            <span className="role-badge agent">👤 Agent</span>
                           )}
                         </div>
-                      </td>
+                       </td>
                       <td>
                         <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
-                          {agent.actif ? 'Actif' : 'Inactif'}
+                          {agent.actif ? '✅ Actif' : '❌ Inactif'}
                         </span>
-                      </td>
+                       </td>
                       <td>
-                        <button 
-                          className="btn-table-toggle"
-                          onClick={() => toggleAgentStatus(agent.id, agent.actif)}
-                        >
-                          {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
-                        </button>
-                      </td>
+                        <Can permission="ACTIVER_AGENT">
+                          <button 
+                            className="btn-table-toggle"
+                            onClick={() => toggleAgentStatus(agent.id, agent.actif)}
+                          >
+                            {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
+                          </button>
+                        </Can>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -286,18 +329,26 @@ export default function DashboardAdmin() {
         <section className="admin-actions">
           <h3>⚡ Actions rapides</h3>
           <div className="admin-actions-grid">
-            <button className="admin-action-btn" onClick={() => navigate('/admin/agents')}>
-              ➕ Gérer les agents
-            </button>
-            <button className="admin-action-btn" onClick={() => navigate('/admin/roles')}>
-              ⚙️ Gérer les rôles
-            </button>
-            <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
-              📝 Types de demande
-            </button>
-            <button className="admin-action-btn" onClick={() => navigate('/admin/types-piece')}>
-              📄 Types de pièce
-            </button>
+            <Can permission="VOIR_AGENTS">
+              <button className="admin-action-btn" onClick={() => navigate('/admin/agents')}>
+                ➕ Gérer les agents
+              </button>
+            </Can>
+            <Can permission="GERER_ROLES">
+              <button className="admin-action-btn" onClick={() => navigate('/admin/roles')}>
+                ⚙️ Gérer les rôles
+              </button>
+            </Can>
+            <Can permission="GERER_TYPES_DEMANDE">
+              <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
+                📝 Types de demande
+              </button>
+            </Can>
+            <Can permission="GERER_TYPES_PIECE">
+              <button className="admin-action-btn" onClick={() => navigate('/admin/types-piece')}>
+                📄 Types de pièce
+              </button>
+            </Can>
             <button className="admin-action-btn" onClick={() => fetchAgents()}>
               🔄 Actualiser
             </button>
@@ -325,9 +376,9 @@ export default function DashboardAdmin() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

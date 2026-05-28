@@ -267,22 +267,30 @@ def login(request):
                     FROM agent_role ar
                     JOIN role r ON ar.role_id = r.id
                     WHERE ar.agent_id = %s
-                """, [agent.matricule])  # Note: agent.matricule est la clé primaire
+                """, [agent.matricule])
                 roles = [row[0] for row in cursor.fetchall()]
+            
+            print(f"Rôles trouvés pour {matricule}: {roles}")  # Debug
             
             # Déterminer le rôle principal
             if 'admin' in roles:
                 user_role = 'admin'
+            elif 'rh/secretaire' in roles or 'rh/secrétaire' in roles:
+                user_role = 'rh/secretaire'  # ← AJOUTÉ
             elif 'chef' in roles:
                 user_role = 'chef'
             elif 'rh' in roles:
                 user_role = 'rh'
+            elif 'secretaire' in roles or 'secrétaire' in roles:
+                user_role = 'secretaire'
             else:
                 user_role = 'agent'
             
+            print(f"Rôle principal déterminé: {user_role}")  # Debug
+            
             return JsonResponse({
                 'success': True,
-                'id': agent.matricule,  # Utiliser matricule comme id
+                'id': agent.matricule,
                 'matricule': agent.matricule,
                 'nom': agent.nom,
                 'prenom': agent.prenom,
@@ -301,7 +309,6 @@ def login(request):
     except Exception as e:
         print(f"Erreur login: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 # ==================== GESTION DES AGENTS ====================
 
 @csrf_exempt
@@ -1562,4 +1569,109 @@ def get_user_permissions(request, matricule):
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"Erreur: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_demandes_validees_secretaire(request, matricule_secretaire):
+    """Récupérer les demandes validées à transmettre au DPAF"""
+    try:
+        print(f"=== get_demandes_validees_secretaire for: {matricule_secretaire}")
+        
+        # Vérifier que l'utilisateur est bien secrétaire
+        try:
+            secretaire = Agent.objects.get(matricule=matricule_secretaire)
+            print(f"Secrétaire trouvé: {secretaire.nom} {secretaire.prenom}")
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Secrétaire non trouvé'}, status=404)
+        
+        # Récupérer les demandes avec statut 'valide' (sans champ transmise_dpaf)
+        demandes = Demande.objects.filter(
+            statut='valide'  # ← Seulement ce filtre
+        ).select_related('agent', 'type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        
+        print(f"Demandes avec statut 'valide': {demandes.count()}")
+        
+        result = []
+        for d in demandes:
+            date_debut = None
+            date_fin = None
+            nombre_jours = None
+            
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                date_debut = str(d.demandeconge.date_debut)
+                date_fin = str(d.demandeconge.date_fin)
+                nombre_jours = d.demandeconge.nombrejours
+            elif hasattr(d, 'demandeabsence') and d.demandeabsence:
+                date_debut = str(d.demandeabsence.date_debut)
+                date_fin = str(d.demandeabsence.date_fin)
+                nombre_jours = d.demandeabsence.nombrejours
+            
+            result.append({
+                'id': d.id,
+                'agent_nom': d.agent.nom,
+                'agent_prenom': d.agent.prenom,
+                'agent_matricule': d.agent.matricule,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'nombre_jours': nombre_jours,
+                'date_validation': str(d.date_soumission),
+                'statut': d.statut,
+                'numero_suivi': d.numerosuivi
+            })
+        
+        print(f"✅ Demandes retournées: {len(result)}")
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"ERREUR: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    
+@csrf_exempt
+@require_http_methods(["PUT"])
+def transmettre_demande_dpaf(request, demande_id):
+    """Secrétaire transmet une demande validée au DPAF"""
+    try:
+        data = json.loads(request.body)
+        matricule_secretaire = data.get('secretaire_matricule')
+        commentaire = data.get('commentaire', '')
+        
+        demande = Demande.objects.get(id=demande_id)
+        
+        # Changer le statut pour indiquer que c'est transmis
+        # ou créer une trace dans une table de suivi
+        demande.statut = 'transmise_dpaf'  # ← Change le statut
+        demande.save()
+        
+        print(f"✅ Demande {demande_id} transmise au DPAF par {matricule_secretaire}")
+        
+        return JsonResponse({'success': True, 'message': 'Demande transmise au DPAF'})
+        
+    except Demande.DoesNotExist:
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    """Secrétaire transmet une demande validée au DPAF"""
+    try:
+        data = json.loads(request.body)
+        matricule_secretaire = data.get('secretaire_matricule')
+        commentaire = data.get('commentaire', '')
+        
+        demande = Demande.objects.get(id=demande_id)
+        
+        # Marquer la demande comme transmise
+        demande.transmise_dpaf = True
+        demande.date_transmission_dpaf = datetime.now().date()
+        demande.commentaire_transmission = commentaire
+        demande.save()
+        
+        # Optionnel: Créer une notification pour le DPAF
+        # Notification.objects.create(...)
+        
+        return JsonResponse({'success': True, 'message': 'Demande transmise au DPAF'})
+        
+    except Demande.DoesNotExist:
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

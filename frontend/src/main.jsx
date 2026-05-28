@@ -13,6 +13,7 @@ import ActivateAccount from './ActivateAccount';
 import DashboardAgent from './DashboardAgent';
 import DashboardChef from './DashboardChef';
 import AdminTypesDemande from './AdminTypesDemande';
+import DashboardSecretaireDPAF from './DashboardSecretaireDPAF';
 import AdminTypesPiece from './AdminTypesPiece';
 import AdminPermissions from './AdminPermissions';
 import Profil from './Profil';
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/admin/types-demande" element={<AdminTypesDemande />} />
       <Route path="/admin/types-piece" element={<AdminTypesPiece />} />
       <Route path="/admin/permissions" element={<AdminPermissions />} />
+      <Route path="/secretaire/dashboard" element={<DashboardSecretaireDPAF />} />
     </Routes>
   </BrowserRouter>
 );
