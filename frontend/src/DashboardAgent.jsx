@@ -71,20 +71,36 @@ export default function DashboardAgent() {
 
   const fetchDemandesRecentes = async () => {
     try {
+      console.log("Récupération des demandes pour:", matricule);
       const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
+      
       if (response.ok) {
         const data = await response.json();
-        // Formater les demandes pour l'affichage
-        const formatted = data.slice(0, 4).map(d => ({
-          id: d.id,
-          type: "Demande de congé",
-          date: d.date_soumission,
-          statut: d.statut === 'valide' ? 'Approuvée' : d.statut === 'refuse' ? 'Rejetée' : 'En attente'
-        }));
-        setDemandesRecentes(formatted);
+        console.log("Demandes reçues:", data);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          const formatted = data.slice(0, 4).map(d => {
+            let statutAffichage = 'En attente';
+            if (d.statut === 'valide') statutAffichage = 'Approuvée';
+            else if (d.statut === 'refuse') statutAffichage = 'Rejetée';
+            
+            return {
+              id: d.id,
+              type: d.type_demande,  // Maintenant c'est "Congé" ou "Absence"
+              date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : 'Date inconnue',
+              statut: statutAffichage
+            };
+          });
+          console.log("Demandes formatées:", formatted);
+          setDemandesRecentes(formatted);
+        } else {
+          console.log("Aucune demande trouvée");
+          setDemandesRecentes([]);
+        }
       }
     } catch (error) {
       console.error('Erreur demandes:', error);
+      setDemandesRecentes([]);
     }
   };
 

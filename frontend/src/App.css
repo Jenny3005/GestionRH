@@ -4139,3 +4139,140 @@ body {
   color: #ef4444;
   font-size: 0.8rem;
 }
+
+/* Statistiques */
+.stats-container {
+  display: flex;
+  gap: 20px;
+  margin: 20px 0;
+  justify-content: center;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  min-width: 150px;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.stat-label {
+  margin-top: 8px;
+  color: #7f8c8d;
+}
+
+/* Badges */
+.badge-success {
+  background: #d4edda;
+  color: #155724;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.badge-danger {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.badge-warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+/* Admin header */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.btn-refresh {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-view {
+  background: #95a5a6;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Lignes du tableau */
+.row-validated {
+  background-color: rgba(46, 204, 113, 0.05);
+}
+
+.row-rejected {
+  background-color: rgba(231, 76, 60, 0.05);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.error-text {
+  color: #e74c3c;
+}
+
+/* Modal details */
+.modal-details {
+  margin-bottom: 20px;
+}
+
+.modal-details p {
+  margin: 8px 0;
+}
+
+.existing-comment {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+.required {
+  color: #e74c3c;
+}
+
+.btn-cancel {
+  background: #95a5a6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+}
