@@ -7,11 +7,13 @@ import Auth from './Auth';
 import Demarches from './Demarches';
 import Documents from './Documents';
 import DashboardAdmin from './DashboardAdmin';
+import DashboardRH from './DashboardRH';
 import AdminAgents from './AdminAgents';
 import AdminRoles from './AdminRoles';
 import ActivateAccount from './ActivateAccount';
 import DashboardAgent from './DashboardAgent';
 import DashboardChef from './DashboardChef';
+import DashboardDPAF from './DashboardDPAF';
 import AdminTypesDemande from './AdminTypesDemande';
 import DashboardSecretaireDPAF from './DashboardSecretaireDPAF';
 import AdminTypesPiece from './AdminTypesPiece';
@@ -44,6 +46,8 @@ createRoot(document.getElementById('root')).render(
       <Route path="/admin/types-piece" element={<AdminTypesPiece />} />
       <Route path="/admin/permissions" element={<AdminPermissions />} />
       <Route path="/secretaire/dashboard" element={<DashboardSecretaireDPAF />} />
+      <Route path="/rh/dashboard" element={<DashboardRH />} />
+      <Route path="/dpaf/dashboard" element={<DashboardDPAF />} />
     </Routes>
   </BrowserRouter>
 );

@@ -59,4 +59,18 @@ urlpatterns = [
     # Demandes validées pour secrétaire
     path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
     path('secretaire/transmettre-dpaf/<int:demande_id>/', views.transmettre_demande_dpaf, name='transmettre_demande_dpaf'),
+
+    # DPAF
+    path('dpaf/demandes-transmises/<str:matricule_dpaf>/', views.get_demandes_transmises_dpaf, name='demandes_transmises_dpaf'),
+    path('dpaf/demandes-assignees/<str:matricule_dpaf>/', views.get_demandes_assignees_dpaf, name='demandes_assignees_dpaf'),
+    path('agents/rh/', views.get_agents_rh, name='agents_rh'),
+    path('dpaf/assigner-rh/<int:demande_id>/', views.assigner_demande_rh, name='assigner_demande_rh'),
+    
+    # RH
+    path('rh/demandes-assignees/<str:matricule_rh>/', views.get_demandes_assignees_rh, name='demandes_assignees_rh'),
+    path('rh/demandes-cours/<str:matricule_rh>/', views.get_demandes_cours_rh, name='demandes_cours_rh'),
+    path('rh/demandes-terminees/<str:matricule_rh>/', views.get_demandes_terminees_rh, name='demandes_terminees_rh'),
+    path('rh/actes-a-envoyer/<str:matricule_rh>/', views.get_actes_a_envoyer_rh, name='actes_a_envoyer_rh'),
+    path('rh/commencer-traitement/<int:demande_id>/', views.commencer_traitement_rh, name='commencer_traitement_rh'),
+    path('rh/generer-acte/<int:demande_id>/', views.generer_acte_rh, name='generer_acte_rh'),
 ]
