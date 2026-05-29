@@ -5,7 +5,9 @@ export function getDashboardPath(role = localStorage.getItem('userRole')) {
   if (role === 'admin') return '/admin/dashboard';
   if (role === 'chef') return '/chef/dashboard';
   if (role === 'rh') return '/rh/dashboard';
-  if (role === 'rh/secrétaire') return '/secretaire/dashboard';  // ← Nouveau
+  if (role === 'secretaire') return '/secretaire/dashboard';
+  if (role === 'rh/secretaire') return '/secretaire/dashboard';
+  if (role === 'dpaf') return '/dpaf/dashboard';  // ← AJOUTÉ
   return '/dashboard';
 }
 
@@ -14,7 +16,9 @@ export function getRoleLabel(role = localStorage.getItem('userRole')) {
     case 'admin': return '👑 Administrateur';
     case 'rh': return '📋 Ressources Humaines';
     case 'chef': return '⭐ Chef de service';
-    case 'rh/secrétaire': return '📋📝 RH / Secrétaire DPAF';
+    case 'secretaire': return '📝 Secrétaire DPAF';
+    case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
+    case 'dpaf': return '🏢 DPAF';  // ← AJOUTÉ
     default: return '👤 Agent';
   }
 }

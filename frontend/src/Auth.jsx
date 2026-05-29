@@ -71,6 +71,7 @@ export default function Auth({ onLogin }) {
             if (onLogin) onLogin(data.matricule, data.role);
             
             // Redirection selon le rôle
+          // Dans la fonction handleSubmit, après la connexion
           switch(data.role) {
             case 'admin':
               navigate('/admin/dashboard');
@@ -81,11 +82,14 @@ export default function Auth({ onLogin }) {
             case 'rh':
               navigate('/rh/dashboard');
               break;
-            case 'rh/secretaire':
-              navigate('/secretaire/dashboard');  // ← ICI : secretaire/dashboard
-              break;
             case 'secretaire':
               navigate('/secretaire/dashboard');
+              break;
+            case 'rh/secretaire':
+              navigate('/secretaire/dashboard');
+              break;
+            case 'dpaf':  // ← AJOUTÉ
+              navigate('/dpaf/dashboard');
               break;
             default:
               navigate('/dashboard');
