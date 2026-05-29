@@ -102,8 +102,13 @@ export default function App() {
 
   const handleAppRH = (appName) => {
     requireLogin(() => {
-      alert(`Accès à ${appName}`);
-      navigate('/dashboard');
+      const routes = {
+        "Dossier Numérique": '/documents',
+        "Demandes d'Actes": '/demarches',
+        "Espace Congés": '/demarches',
+        "Suivi Avancement": '/dashboard',
+      };
+      navigate(routes[appName] || '/dashboard');
     });
   };
 
