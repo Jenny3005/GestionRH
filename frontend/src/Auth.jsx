@@ -70,19 +70,30 @@ export default function Auth({ onLogin }) {
             
             if (onLogin) onLogin(data.matricule, data.role);
             
-            switch(data.role) {
-              case 'admin':
-                navigate('/admin/dashboard');
-                break;
-              case 'chef':
-                navigate('/chef/dashboard');
-                break;
-              case 'rh':
-                navigate('/dashboard-rh');
-                break;
-              default:
-                navigate('/dashboard');
-            }
+            // Redirection selon le rôle
+          // Dans la fonction handleSubmit, après la connexion
+          switch(data.role) {
+            case 'admin':
+              navigate('/admin/dashboard');
+              break;
+            case 'chef':
+              navigate('/chef/dashboard');
+              break;
+            case 'rh':
+              navigate('/rh/dashboard');
+              break;
+            case 'secretaire':
+              navigate('/secretaire/dashboard');
+              break;
+            case 'rh/secretaire':
+              navigate('/secretaire/dashboard');
+              break;
+            case 'dpaf':  // ← AJOUTÉ
+              navigate('/dpaf/dashboard');
+              break;
+            default:
+              navigate('/dashboard');
+          }
           } else {
             alert(data.error || 'Erreur de connexion');
           }
