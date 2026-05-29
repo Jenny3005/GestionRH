@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from 'react-data-table-component';
 import AdminNav from './AdminNav';
+import usePermissions from './hooks/usePermissions';
+import Can from './components/Can';
 import './App.css';
 
 export default function AdminTypesDemande() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +28,19 @@ export default function AdminTypesDemande() {
   const userPrenom = localStorage.getItem('userPrenom');
   const userEmail = localStorage.getItem('userEmail');
   const userName = `${userPrenom} ${userNom}`;
+
+  // Vérifier les droits d'accès
+  useEffect(() => {
+    if (!localStorage.getItem('userMatricule')) {
+      navigate('/auth');
+      return;
+    }
+    // Vérifier si l'utilisateur a la permission de gérer les types de demande
+    if (!permissionsLoading && !hasPermission('GERER_TYPES_DEMANDE') && !isAdmin()) {
+      navigate('/admin/dashboard');
+      return;
+    }
+  }, [permissionsLoading]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -80,6 +96,13 @@ export default function AdminTypesDemande() {
 
   const handleAddType = async (e) => {
     e.preventDefault();
+    
+    // Vérifier la permission d'ajouter
+    if (!hasPermission('AJOUTER_TYPE_DEMANDE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission d'ajouter des types de demande");
+      return;
+    }
+    
     if (!validateForm()) return;
 
     setPending(true);
@@ -112,6 +135,11 @@ export default function AdminTypesDemande() {
   };
 
   const handleEditClick = (type) => {
+    // Vérifier la permission de modifier
+    if (!hasPermission('MODIFIER_TYPE_DEMANDE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de modifier les types de demande");
+      return;
+    }
     setSelectedType(type);
     setFormData({
       libelle: type.libelle,
@@ -123,6 +151,7 @@ export default function AdminTypesDemande() {
 
   const handleEditType = async (e) => {
     e.preventDefault();
+    
     if (!validateForm()) return;
 
     setPending(true);
@@ -156,13 +185,19 @@ export default function AdminTypesDemande() {
   };
 
   const handleDeleteType = async (id, libelle) => {
+    // Vérifier la permission de supprimer
+    if (!hasPermission('SUPPRIMER_TYPE_DEMANDE') && !isAdmin()) {
+      alert("Vous n'avez pas la permission de supprimer des types de demande");
+      return;
+    }
+    
     if (window.confirm(`Supprimer le type "${libelle}" ?`)) {
       try {
         const response = await fetch(`http://localhost:8000/api/types-demande/${id}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('Type supprimé avec succès');
+          alert('✅ Type supprimé avec succès');
           fetchTypes();
         } else {
           alert('Erreur lors de la suppression');
@@ -215,18 +250,22 @@ export default function AdminTypesDemande() {
       name: 'Actions',
       cell: row => (
         <div className="action-buttons-cell">
-          <button
-            className="btn-edit-type"
-            onClick={() => handleEditClick(row)}
-          >
-            ✏️ Modifier
-          </button>
-          <button
-            className="btn-delete-type"
-            onClick={() => handleDeleteType(row.id, row.libelle)}
-          >
-            🗑️ Supprimer
-          </button>
+          <Can permission="MODIFIER_TYPE_DEMANDE">
+            <button
+              className="btn-edit-type"
+              onClick={() => handleEditClick(row)}
+            >
+              ✏️ Modifier
+            </button>
+          </Can>
+          <Can permission="SUPPRIMER_TYPE_DEMANDE">
+            <button
+              className="btn-delete-type"
+              onClick={() => handleDeleteType(row.id, row.libelle)}
+            >
+              🗑️ Supprimer
+            </button>
+          </Can>
         </div>
       ),
       width: '160px',
@@ -256,6 +295,11 @@ export default function AdminTypesDemande() {
     },
   };
 
+  // Affichage du chargement des permissions
+  if (permissionsLoading) {
+    return <div className="loading-screen">Chargement des permissions...</div>;
+  }
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
@@ -284,7 +328,13 @@ export default function AdminTypesDemande() {
                 </div>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <Can permission="GERER_PERMISSIONS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
+                </Can>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>📝 Types demande</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>📄 Types pièce</button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>
@@ -296,7 +346,7 @@ export default function AdminTypesDemande() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Gestion des Types de Demande</h2>
+            <h2>📝 Gestion des Types de Demande</h2>
             <p>Créez, modifiez et gérez les types de demande (Congé, Attestation, Absence, etc.)</p>
           </div>
         </section>
@@ -312,7 +362,9 @@ export default function AdminTypesDemande() {
             />
           </div>
           <div className="action-buttons">
-            <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un type</button>
+            <Can permission="AJOUTER_TYPE_DEMANDE">
+              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un type</button>
+            </Can>
           </div>
         </div>
 
@@ -453,7 +505,7 @@ export default function AdminTypesDemande() {
         </div>
       )}
 
-            {/* FOOTER INSTITUTIONNEL */}
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -473,9 +525,9 @@ export default function AdminTypesDemande() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
