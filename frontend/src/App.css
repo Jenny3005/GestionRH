@@ -4715,3 +4715,173 @@ body {
 .acte-preview { margin: 20px 0; max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; background: #f8fafc; }
 .acte-template { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; }
 .acte-template hr { margin: 15px 0; border: none; border-top: 1px solid #cbd5e1; }
+
+/* Dropdown administration */
+.admin-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle {
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 14px;
+  padding: 8px 16px;
+  font-family: inherit;
+}
+
+.admin-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  min-width: 220px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.admin-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.admin-dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.admin-dropdown-item:not(:last-child) {
+  border-bottom: 1px solid #eee;
+}
+
+/* Boutons RH */
+.btn-traiter { background: #3B82F6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-generer { background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+.btn-envoyer { background: #8B5CF6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+
+/* Modal Suivi */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e9ecef;
+  margin-bottom: 20px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #95a5a6;
+}
+
+.modal-close:hover {
+  color: #e74c3c;
+}
+
+/* Timeline */
+.suivi-timeline {
+  margin: 20px 0;
+}
+
+.timeline-step {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.timeline-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 40px;
+  width: 2px;
+  height: calc(100% - 20px);
+  background: #e9ecef;
+}
+
+.timeline-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  font-size: 18px;
+  z-index: 1;
+}
+
+.timeline-icon.completed {
+  background: #10b981;
+  border-color: #10b981;
+  color: white;
+}
+
+.timeline-icon.current {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.timeline-icon.pending {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+  color: #6c757d;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-content strong {
+  display: block;
+  color: #1e293b;
+  margin-bottom: 5px;
+}
+
+.timeline-date {
+  font-size: 12px;
+  color: #64748b;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.timeline-content p {
+  font-size: 13px;
+  color: #475569;
+  margin: 0;
+}
+
+.suivi-info-agent, .suivi-info-demande, .suivi-commentaire {
+  background: #f8fafc;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.suivi-info-agent h4, .suivi-info-demande h4, .suivi-commentaire h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.suivi-info-agent p, .suivi-info-demande p {
+  margin: 5px 0;
+  font-size: 14px;
+}

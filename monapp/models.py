@@ -168,7 +168,7 @@ class Piece(models.Model):
     date_expiration = models.DateField(blank=True, null=True)
     date_upload = models.DateField()
     valide = models.IntegerField(blank=True, null=True)
-    cheminfichier = models.CharField(db_column='cheminFichier', max_length=255)  # Field name made lowercase.
+    cheminfichier=models.TextField()
 
     class Meta:
         managed = False

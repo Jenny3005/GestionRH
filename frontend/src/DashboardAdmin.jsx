@@ -184,7 +184,7 @@ export default function DashboardAdmin() {
                     🔐 Permissions
                   </button>
                 </Can>
-                <Can permission="GERER_TYPES_DEMANDE">
+                <Can permission="GERE_TYPE_DEMANDE">
                   <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
                     📝 Types de demande
                   </button>
@@ -339,7 +339,7 @@ export default function DashboardAdmin() {
                 ⚙️ Gérer les rôles
               </button>
             </Can>
-            <Can permission="GERER_TYPES_DEMANDE">
+            <Can permission="GERE_TYPE_DEMANDE">
               <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
                 📝 Types de demande
               </button>
