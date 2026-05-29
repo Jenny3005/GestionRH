@@ -1,62 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import usePermissions from './hooks/usePermissions';
 import './App.css';
 
-export default function DashboardAgentRH() {
+export default function DashboardRH() {
   const navigate = useNavigate();
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, dossiers, annonces, rapports
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+  
   const [userInfo, setUserInfo] = useState({
     nom: localStorage.getItem('userNom') || '',
     prenom: localStorage.getItem('userPrenom') || '',
     matricule: localStorage.getItem('userMatricule') || '',
     email: localStorage.getItem('userEmail') || '',
-    role: 'Agent RH'
+    role: 'Ressources Humaines'
   });
 
-  // Données statiques pour la démo
-  const [stats] = useState({
-    totalAgents: 245,
-    demandesEnAttente: 18,
-    documentsExpires: 7,
-    annoncesActives: 4,
-    dossiersIncomplets: 12,
-    facturesATraiter: 5
+  // Données dynamiques
+  const [stats, setStats] = useState({
+    totalAgents: 0,
+    demandesEnAttente: 0,
+    documentsExpires: 0,
+    annoncesActives: 0,
+    dossiersIncomplets: 0,
+    facturesATraiter: 0
   });
 
-  const [demandesRecentes] = useState([
-    { id: 1, agent: 'Jean KOUASSI', type: 'Demande de congé', date: '2026-05-20', statut: 'En attente' },
-    { id: 2, agent: 'Marie ADJOVI', type: 'Attestation de travail', date: '2026-05-19', statut: 'En cours' },
-    { id: 3, agent: 'Paul DOSSOU', type: 'Demande de formation', date: '2026-05-18', statut: 'Validé' },
-    { id: 4, agent: 'Sylvie HOUNDO', type: 'Renouvellement contrat', date: '2026-05-17', statut: 'En attente' }
-  ]);
-
-  const [agentsRecents] = useState([
-    { id: 1, matricule: 'AG001', nom: 'KOUASSI Jean', poste: 'Assistant RH', direction: 'DRH', statut: 'Actif' },
-    { id: 2, matricule: 'AG002', nom: 'ADJOVI Marie', poste: 'Comptable', direction: 'DAF', statut: 'Actif' },
-    { id: 3, matricule: 'AG003', nom: 'DOSSOU Paul', poste: 'Chef de service', direction: 'DSI', statut: 'En congé' }
-  ]);
-
-  const [annonces] = useState([
-    { id: 1, titre: 'Recrutement Assistant RH', datePublication: '2026-05-15', dateCloture: '2026-06-15', statut: 'Active', candidatures: 12 },
-    { id: 2, titre: 'Appel à candidature - Chef projet', datePublication: '2026-05-10', dateCloture: '2026-05-30', statut: 'Active', candidatures: 8 },
-    { id: 3, titre: 'Formation Excel avancé', datePublication: '2026-05-01', dateCloture: '2026-05-20', statut: 'Clôturée', candidatures: 25 }
-  ]);
-
-  const [documentsExpirant] = useState([
-    { id: 1, agent: 'KOUASSI Jean', document: 'CNI', dateExpiration: '2026-05-30', statut: 'Urgent' },
-    { id: 2, agent: 'ADJOVI Marie', document: 'Diplôme', dateExpiration: '2026-06-15', statut: 'Attention' },
-    { id: 3, agent: 'DOSSOU Paul', document: 'Visite médicale', dateExpiration: '2026-05-25', statut: 'Urgent' }
-  ]);
+  const [demandesRecentes, setDemandesRecentes] = useState([]);
+  const [agentsRecents, setAgentsRecents] = useState([]);
+  const [vraisAgents, setVraisAgents] = useState([]);
+  const [documentsExpirant, setDocumentsExpirant] = useState([]);
+  const [annonces, setAnnonces] = useState([]);
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`.trim();
+  const matricule = localStorage.getItem('userMatricule');
 
   useEffect(() => {
-    const matricule = localStorage.getItem('userMatricule');
     if (!matricule) {
       navigate('/auth');
       return;
     }
+    
+    const role = localStorage.getItem('userRole');
+    if (role !== 'rh') {
+      navigate('/dashboard');
+      return;
+    }
+    
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -69,18 +62,56 @@ export default function DashboardAgentRH() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // 1. Récupérer les statistiques
+      const statsRes = await fetch('http://localhost:8000/api/stats/');
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(prev => ({
+          ...prev,
+          totalAgents: data.total_agents || 0,
+          demandesEnAttente: data.demandes_en_attente || 0
+        }));
+      }
+
+      // 2. Récupérer les agents
+      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      if (agentsRes.ok) {
+        const data = await agentsRes.json();
+        setVraisAgents(data);
+        setAgentsRecents(data.slice(0, 5));
+      }
+
+      // 3. Récupérer les demandes assignées à ce RH
+      const demandesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matricule}/`);
+      if (demandesRes.ok) {
+        const data = await demandesRes.json();
+        setDemandesRecentes(data.slice(0, 5));
+        setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
+      }
+
+    } catch (error) {
+      console.error('Erreur chargement:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatutBadge = (statut) => {
     const statusMap = {
+      'en_attente_chef': { class: 'status-pending', text: 'En attente chef' },
+      'assignee_rh': { class: 'status-pending', text: 'À traiter' },
+      'en_cours_traitement': { class: 'status-progress', text: 'En cours' },
+      'valide': { class: 'status-approved', text: 'Validé' },
+      'refuse': { class: 'status-rejected', text: 'Rejeté' },
+      'actif': { class: 'status-active', text: 'Actif' },
+      'inactif': { class: 'status-inactive', text: 'Inactif' },
+      'en_conge': { class: 'status-away', text: 'En congé' },
       'En attente': { class: 'status-pending', text: 'En attente' },
       'En cours': { class: 'status-progress', text: 'En cours' },
       'Validé': { class: 'status-approved', text: 'Validé' },
-      'Actif': { class: 'status-active', text: 'Actif' },
-      'En congé': { class: 'status-away', text: 'En congé' },
       'Active': { class: 'status-active', text: 'Active' },
       'Clôturée': { class: 'status-closed', text: 'Clôturée' },
       'Urgent': { class: 'status-urgent', text: '⚠️ Urgent' },
@@ -89,6 +120,15 @@ export default function DashboardAgentRH() {
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
     return <span className={`status-badge ${status.class}`}>{status.text}</span>;
   };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
+  if (permissionsLoading || loading) {
+    return <div className="loading-screen">Chargement...</div>;
+  }
 
   return (
     <div className="intranet-home">
@@ -99,18 +139,26 @@ export default function DashboardAgentRH() {
           </a>
         </div>
         <nav className="nav-central-links">
-          <a href="#" className={`nav-tab-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>Tableau de bord</a>
-          <a href="#" className={`nav-tab-item ${activeTab === 'dossiers' ? 'active' : ''}`} onClick={() => setActiveTab('dossiers')}>Gestion des dossiers</a>
-          <a href="#" className={`nav-tab-item ${activeTab === 'annonces' ? 'active' : ''}`} onClick={() => setActiveTab('annonces')}>Annonces & candidatures</a>
-          <a href="#" className={`nav-tab-item ${activeTab === 'rapports' ? 'active' : ''}`} onClick={() => setActiveTab('rapports')}>Rapports & export</a>
+          <a href="#" className={`nav-tab-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            📊 Tableau de bord
+          </a>
+          <a href="#" className={`nav-tab-item ${activeTab === 'dossiers' ? 'active' : ''}`} onClick={() => setActiveTab('dossiers')}>
+            📁 Gestion des dossiers
+          </a>
+          <a href="#" className={`nav-tab-item ${activeTab === 'annonces' ? 'active' : ''}`} onClick={() => setActiveTab('annonces')}>
+            📢 Annonces & candidatures
+          </a>
+          <a href="#" className={`nav-tab-item ${activeTab === 'rapports' ? 'active' : ''}`} onClick={() => setActiveTab('rapports')}>
+            📊 Rapports & export
+          </a>
         </nav>
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'A'}</div>
+              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'R'}</div>
               <div className="user-meta">
                 <span className="user-name">{userName || 'Agent RH'}</span>
-                <span className="user-role">Agent RH</span>
+                <span className="user-role">Ressources Humaines</span>
               </div>
               <span className="dropdown-arrow">▼</span>
             </div>
@@ -121,7 +169,7 @@ export default function DashboardAgentRH() {
                   <small>{userInfo.email}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/dashboard-rh')}>📊 Tableau de bord RH</button>
+                <button className="dropdown-item" onClick={() => navigate('/rh/dashboard')}>📊 Tableau de bord RH</button>
                 <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
@@ -134,12 +182,12 @@ export default function DashboardAgentRH() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Gestion des Ressources Humaines</h2>
+            <h2>📋 Gestion des Ressources Humaines</h2>
             <p>Bienvenue {userInfo.prenom} ! Gérez les dossiers, traitez les demandes et pilotez les ressources humaines.</p>
           </div>
         </section>
 
-        {/* Contenu selon l'onglet sélectionné */}
+        {/* ==================== ONGLET DASHBOARD ==================== */}
         {activeTab === 'dashboard' && (
           <>
             {/* Statistiques */}
@@ -155,7 +203,7 @@ export default function DashboardAgentRH() {
                 <div className="rh-stat-icon">📋</div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnAttente}</span>
-                  <span className="rh-stat-label">Demandes en attente</span>
+                  <span className="rh-stat-label">Demandes à traiter</span>
                 </div>
               </div>
               <div className="rh-stat-card">
@@ -188,60 +236,47 @@ export default function DashboardAgentRH() {
               </div>
             </div>
 
-            {/* Demandes récentes et documents expirants */}
-            <div className="rh-dashboard-grid">
-              <div className="rh-card">
-                <div className="rh-card-header">
-                  <h3>📝 Demandes récentes</h3>
-                  <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tout →</button>
-                </div>
-                <div className="rh-table-container">
-                  <table className="rh-table">
-                    <thead>
-                      <tr>
-                        <th>Agent</th>
-                        <th>Type</th>
-                        <th>Date</th>
-                        <th>Statut</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demandesRecentes.map((demande) => (
-                        <tr key={demande.id}>
-                          <td>{demande.agent}</td>
-                          <td>{demande.type}</td>
-                          <td>{demande.date}</td>
-                          <td>{getStatutBadge(demande.statut)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {/* Demandes récentes */}
+            <div className="rh-card full-width">
+              <div className="rh-card-header">
+                <h3>📝 Demandes assignées à traiter</h3>
+                <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tout →</button>
               </div>
-
-              <div className="rh-card">
-                <div className="rh-card-header">
-                  <h3>⚠️ Documents expirant bientôt</h3>
-                  <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Gérer →</button>
-                </div>
-                <div className="rh-list">
-                  {documentsExpirant.map((doc) => (
-                    <div key={doc.id} className="rh-list-item">
-                      <div className="rh-list-info">
-                        <strong>{doc.agent}</strong>
-                        <span>{doc.document}</span>
-                        <small>Expire le {doc.dateExpiration}</small>
-                      </div>
-                      <div className="rh-list-action">
-                        {getStatutBadge(doc.statut)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="rh-table-container">
+                <table className="rh-table">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Type</th>
+                      <th>Date assignation</th>
+                      <th>Statut</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandesRecentes.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">📭 Aucune demande assignée</td></tr>
+                    ) : (
+                      demandesRecentes.map((demande) => (
+                        <tr key={demande.id}>
+                          <td>{demande.agent_nom} {demande.agent_prenom}</td>
+                          <td>{demande.type_demande}</td>
+                          <td>{demande.date_assignation ? new Date(demande.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>{getStatutBadge(demande.statut)}</td>
+                          <td>
+                            <button className="btn-traiter" onClick={() => alert(`Traiter la demande ${demande.id}`)}>
+                              ▶️ Traiter
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Agents récents */}
+            {/* Derniers agents inscrits */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>👥 Derniers agents inscrits</h3>
@@ -260,20 +295,24 @@ export default function DashboardAgentRH() {
                     </tr>
                   </thead>
                   <tbody>
-                    {agentsRecents.map((agent) => (
-                      <tr key={agent.id}>
-                        <td>{agent.matricule}</td>
-                        <td>{agent.nom}</td>
-                        <td>{agent.poste}</td>
-                        <td>{agent.direction}</td>
-                        <td>{getStatutBadge(agent.statut)}</td>
-                        <td>
-                          <button className="btn-icon" title="Voir dossier">👁️</button>
-                          <button className="btn-icon" title="Modifier">✏️</button>
-                          <button className="btn-icon" title="Documents">📄</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {agentsRecents.length === 0 ? (
+                      <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
+                    ) : (
+                      agentsRecents.map((agent) => (
+                        <tr key={agent.matricule}>
+                          <td>{agent.matricule}</td>
+                          <td>{agent.nom} {agent.prenom}</td>
+                          <td>{agent.poste || 'Agent'}</td>
+                          <td>{agent.direction || 'À renseigner'}</td>
+                          <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
+                          <td>
+                            <button className="btn-icon" title="Voir dossier">👁️</button>
+                            <button className="btn-icon" title="Modifier">✏️</button>
+                            <button className="btn-icon" title="Documents">📄</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -281,9 +320,9 @@ export default function DashboardAgentRH() {
           </>
         )}
 
+        {/* ==================== ONGLET GESTION DES DOSSIERS ==================== */}
         {activeTab === 'dossiers' && (
           <div className="rh-section">
-            {/* Actions rapides */}
             <div className="rh-actions-bar">
               <div className="rh-search-box">
                 <input type="text" placeholder="Rechercher un agent (matricule, nom, prénom)..." className="rh-search-input" />
@@ -295,7 +334,6 @@ export default function DashboardAgentRH() {
               </div>
             </div>
 
-            {/* Filtres */}
             <div className="rh-filters">
               <button className="filter-btn active">Tous</button>
               <button className="filter-btn">Dossiers complets</button>
@@ -304,7 +342,6 @@ export default function DashboardAgentRH() {
               <button className="filter-btn">En congé</button>
             </div>
 
-            {/* Tableau des agents */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>📋 Gestion des dossiers agents</h3>
@@ -325,44 +362,27 @@ export default function DashboardAgentRH() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td><input type="checkbox" /></td>
-                      <td>AG001</td>
-                      <td>KOUASSI Jean</td>
-                      <td>Assistant RH</td>
-                      <td>DRH</td>
-                      <td>
-                        <div className="document-progress">
-                          <div className="progress-bar" style={{ width: '85%' }}></div>
-                          <span>85%</span>
-                        </div>
-                      </td>
-                      <td>2026-05-15</td>
-                      <td className="rh-actions-cell">
-                        <button className="btn-icon" title="Consulter">👁️</button>
-                        <button className="btn-icon" title="Ajouter pièce">📎</button>
-                        <button className="btn-icon" title="Modifier">✏️</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><input type="checkbox" /></td>
-                      <td>AG002</td>
-                      <td>ADJOVI Marie</td>
-                      <td>Comptable</td>
-                      <td>DAF</td>
-                      <td>
-                        <div className="document-progress">
-                          <div className="progress-bar warning" style={{ width: '45%' }}></div>
-                          <span>45%</span>
-                        </div>
-                      </td>
-                      <td>2026-05-10</td>
-                      <td className="rh-actions-cell">
-                        <button className="btn-icon" title="Consulter">👁️</button>
-                        <button className="btn-icon" title="Ajouter pièce">📎</button>
-                        <button className="btn-icon" title="Modifier">✏️</button>
-                      </td>
-                    </tr>
+                    {vraisAgents.slice(0, 10).map((agent) => (
+                      <tr key={agent.matricule}>
+                        <td><input type="checkbox" /></td>
+                        <td>{agent.matricule}</td>
+                        <td>{agent.nom} {agent.prenom}</td>
+                        <td>{agent.poste || 'Agent'}</td>
+                        <td>{agent.direction || 'À renseigner'}</td>
+                        <td>
+                          <div className="document-progress">
+                            <div className="progress-bar" style={{ width: '65%' }}></div>
+                            <span>65%</span>
+                          </div>
+                        </td>
+                        <td>{new Date().toLocaleDateString('fr-FR')}</td>
+                        <td className="rh-actions-cell">
+                          <button className="btn-icon" title="Consulter">👁️</button>
+                          <button className="btn-icon" title="Ajouter pièce">📎</button>
+                          <button className="btn-icon" title="Modifier">✏️</button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -370,6 +390,7 @@ export default function DashboardAgentRH() {
           </div>
         )}
 
+        {/* ==================== ONGLET ANNONCES & CANDIDATURES ==================== */}
         {activeTab === 'annonces' && (
           <div className="rh-section">
             <div className="rh-actions-bar">
@@ -396,20 +417,39 @@ export default function DashboardAgentRH() {
                     </tr>
                   </thead>
                   <tbody>
-                    {annonces.map((annonce) => (
-                      <tr key={annonce.id}>
-                        <td>{annonce.titre}</td>
-                        <td>{annonce.datePublication}</td>
-                        <td>{annonce.dateCloture}</td>
-                        <td>{getStatutBadge(annonce.statut)}</td>
-                        <td>{annonce.candidatures}</td>
-                        <td className="rh-actions-cell">
-                          <button className="btn-icon" title="Voir candidatures">👥</button>
-                          <button className="btn-icon" title="Modifier">✏️</button>
-                          <button className="btn-icon" title="Clôturer">🔒</button>
-                        </td>
-                      </tr>
-                    ))}
+                    <tr>
+                      <td>Recrutement Assistant RH</td>
+                      <td>2026-05-15</td>
+                      <td>2026-06-15</td>
+                      <td>{getStatutBadge('Active')}</td>
+                      <td>12</td>
+                      <td className="rh-actions-cell">
+                        <button className="btn-icon" title="Voir candidatures">👥</button>
+                        <button className="btn-icon" title="Modifier">✏️</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>Appel à candidature - Chef projet</td>
+                      <td>2026-05-10</td>
+                      <td>2026-05-30</td>
+                      <td>{getStatutBadge('Active')}</td>
+                      <td>8</td>
+                      <td className="rh-actions-cell">
+                        <button className="btn-icon" title="Voir candidatures">👥</button>
+                        <button className="btn-icon" title="Modifier">✏️</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>Formation Excel avancé</td>
+                      <td>2026-05-01</td>
+                      <td>2026-05-20</td>
+                      <td>{getStatutBadge('Clôturée')}</td>
+                      <td>25</td>
+                      <td className="rh-actions-cell">
+                        <button className="btn-icon" title="Voir candidatures">👥</button>
+                        <button className="btn-icon" title="Dupliquer">📋</button>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -450,6 +490,7 @@ export default function DashboardAgentRH() {
           </div>
         )}
 
+        {/* ==================== ONGLET RAPPORTS & EXPORT ==================== */}
         {activeTab === 'rapports' && (
           <div className="rh-section">
             <div className="rh-stats-grid">

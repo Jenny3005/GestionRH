@@ -10,15 +10,25 @@ export default function Demarches() {
   const [userEmail, setUserEmail] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   
-  // État pour le formulaire de congé
+  // États pour les formulaires
   const [showCongeForm, setShowCongeForm] = useState(false);
+  const [showAbsenceForm, setShowAbsenceForm] = useState(false);
+  const [showSoldeModal, setShowSoldeModal] = useState(false);
   const [congeForm, setCongeForm] = useState({
     date_debut: '',
     date_fin: ''
   });
+  const [absenceForm, setAbsenceForm] = useState({
+    date_debut: '',
+    date_fin: '',
+    motif: ''
+  });
   const [loading, setLoading] = useState(false);
   const [soldeConge, setSoldeConge] = useState(null);
   const [mesDemandes, setMesDemandes] = useState([]);
+  const [totalAbsences, setTotalAbsences] = useState(0);
+
+  const matricule = localStorage.getItem('userMatricule');
 
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
@@ -33,6 +43,7 @@ export default function Demarches() {
       setUserEmail(savedEmail);
       fetchSoldeConge(savedMatricule);
       fetchMesDemandes(savedMatricule);
+      fetchTotalAbsences(savedMatricule);
     }
   }, []);
 
@@ -81,6 +92,19 @@ export default function Demarches() {
     }
   };
 
+  // Récupérer le total des absences exceptionnelles
+  const fetchTotalAbsences = async (matricule) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/absences/total/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setTotalAbsences(data.total || 0);
+      }
+    } catch (error) {
+      console.error('Erreur absences:', error);
+    }
+  };
+
   // Gestionnaires d'actions protégés
   const requireLogin = (actionName, action) => {
     if (!isLoggedIn) {
@@ -96,8 +120,11 @@ export default function Demarches() {
     setCongeForm({ ...congeForm, [e.target.name]: e.target.value });
   };
 
+  const handleAbsenceChange = (e) => {
+    setAbsenceForm({ ...absenceForm, [e.target.name]: e.target.value });
+  };
+
   const soumettreDemandeConge = async () => {
-    const matricule = localStorage.getItem('userMatricule');
     if (!matricule) {
       alert('Veuillez vous connecter');
       return;
@@ -105,6 +132,14 @@ export default function Demarches() {
     
     if (!congeForm.date_debut || !congeForm.date_fin) {
       alert('Veuillez remplir toutes les dates');
+      return;
+    }
+    
+    const debut = new Date(congeForm.date_debut);
+    const fin = new Date(congeForm.date_fin);
+    
+    if (debut > fin) {
+      alert('La date de début doit être antérieure à la date de fin');
       return;
     }
     
@@ -123,10 +158,65 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande envoyée ! Numéro de suivi: ${data.numero_suivi}`);
+        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numero_suivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
         setShowCongeForm(false);
         setCongeForm({ date_debut: '', date_fin: '' });
         fetchSoldeConge(matricule);
+        fetchMesDemandes(matricule);
+      } else {
+        alert(data.error || 'Erreur lors de la demande');
+      }
+    } catch (error) {
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const soumettreDemandeAbsence = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    if (!absenceForm.date_debut || !absenceForm.date_fin) {
+      alert('Veuillez remplir toutes les dates');
+      return;
+    }
+    
+    if (!absenceForm.motif) {
+      alert('Veuillez fournir un motif pour l\'absence exceptionnelle');
+      return;
+    }
+    
+    const debut = new Date(absenceForm.date_debut);
+    const fin = new Date(absenceForm.date_fin);
+    
+    if (debut > fin) {
+      alert('La date de début doit être antérieure à la date de fin');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/absences/demander/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matricule: matricule,
+          date_debut: absenceForm.date_debut,
+          date_fin: absenceForm.date_fin,
+          motif: absenceForm.motif
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numero_suivi}\nJours restants: ${data.jours_restants || '?'}/10`);
+        setShowAbsenceForm(false);
+        setAbsenceForm({ date_debut: '', date_fin: '', motif: '' });
+        fetchTotalAbsences(matricule);
         fetchMesDemandes(matricule);
       } else {
         alert(data.error || 'Erreur lors de la demande');
@@ -142,6 +232,8 @@ export default function Demarches() {
     requireLogin(`faire une ${titre}`, () => {
       if (titre.includes("Demande de congé")) {
         setShowCongeForm(true);
+      } else if (titre.includes("Autorisation d'absence")) {
+        setShowAbsenceForm(true);
       } else {
         alert(`Demande de ${titre} en cours de traitement...`);
       }
@@ -150,7 +242,8 @@ export default function Demarches() {
 
   const handleConsulterSolde = () => {
     requireLogin("consulter votre solde de congés", () => {
-      alert(`Solde de congés ${soldeConge?.annee}: ${soldeConge?.jours_restants || 0} jours restants`);
+      fetchSoldeConge(matricule);
+      setShowSoldeModal(true);
     });
   };
 
@@ -293,7 +386,7 @@ export default function Demarches() {
           {isLoggedIn ? (
             <div className="user-menu-container">
               <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-                <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
+                <div className="avatar-circle">{userName?.charAt(0) || 'U'}</div>
                 <div className="user-meta">
                   <span className="user-name">{userName}</span>
                   <span className="user-role">
@@ -488,7 +581,89 @@ export default function Demarches() {
         </section>
       </main>
 
-      {/* MODAL FORMULAIRE CONGÉ - SANS MOTIF */}
+      {/* MODAL SOLDE CONGÉS */}
+      {showSoldeModal && (
+        <div className="modal-overlay" onClick={() => setShowSoldeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🌴 Détail du solde de congés</h3>
+              <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="solde-info-annee">
+                <span className="label">Année</span>
+                <span className="value">{soldeConge?.annee || new Date().getFullYear()}</span>
+              </div>
+              
+              <div className="solde-detail-card">
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">📅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours acquis</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_acquis || 30} jours</span>
+                    <span className="solde-detail-sub">Base légale</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item">
+                  <div className="solde-detail-icon">✅</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours pris</span>
+                    <span className="solde-detail-value">{soldeConge?.jours_pris || 0} jours</span>
+                    <span className="solde-detail-sub">Congés déjà consommés</span>
+                  </div>
+                </div>
+                
+                <div className="solde-detail-item highlight">
+                  <div className="solde-detail-icon">🌟</div>
+                  <div className="solde-detail-content">
+                    <span className="solde-detail-label">Jours restants</span>
+                    <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
+                    <span className="solde-detail-sub">Encore disponible</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="solde-progress-detail">
+                <div className="progress-label-detail">
+                  <span>Taux d'utilisation</span>
+                  <span>{Math.round(((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100)}%</span>
+                </div>
+                <div className="progress-bar-detail">
+                  <div className="progress-fill-detail" style={{ 
+                    width: `${((soldeConge?.jours_pris || 0) / (soldeConge?.jours_acquis || 30)) * 100}%` 
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="solde-historique">
+                <h4>📋 Informations</h4>
+                <ul>
+                  <li>✓ 30 jours de congés par an</li>
+                  <li>✓ Les congés non pris sont perdus en fin d'année</li>
+                  <li>✓ Maximum 2 demandes de congé par an</li>
+                  <li>✓ Maximum 30 jours consécutifs</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-demander-conge" onClick={() => {
+                setShowSoldeModal(false);
+                setShowCongeForm(true);
+              }}>
+                📝 Demander un congé
+              </button>
+              <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL FORMULAIRE CONGÉ */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -532,7 +707,127 @@ export default function Demarches() {
         </div>
       )}
 
-            {/* FOOTER INSTITUTIONNEL */}
+      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
+      {showAbsenceForm && (
+        <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            
+            <div className="modal-header-absence">
+              <h3>
+                <span>⏰</span> Demande d'absence exceptionnelle
+              </h3>
+            </div>
+            
+            <div style={{ padding: '0 0.5rem' }}>
+              
+              <div className="limite-card">
+                <div className="limite-title">📋 RÈGLEMENTATION</div>
+                <div className="limite-value">10 jours par an</div>
+                <div className="limite-subtitle">Maximum autorisé par agent et par année civile</div>
+              </div>
+
+              <div className="progress-absence">
+                <div 
+                  className="progress-absence-fill" 
+                  style={{ width: `${(totalAbsences / 10) * 100}%` }}
+                ></div>
+              </div>
+
+              <div className="jours-stats">
+                <div className="jours-stat-item">
+                  <span className="stat-label">Consommés</span>
+                  <span className="stat-value consumed">{totalAbsences}</span>
+                  <span className="stat-unit">jours</span>
+                </div>
+                <div className="jours-stat-item">
+                  <span className="stat-label">Restants</span>
+                  <span className="stat-value remaining">{10 - totalAbsences}</span>
+                  <span className="stat-unit">jours</span>
+                </div>
+                <div className="jours-stat-item">
+                  <span className="stat-label">Maximum</span>
+                  <span className="stat-value">10</span>
+                  <span className="stat-unit">jours/an</span>
+                </div>
+              </div>
+
+              {totalAbsences >= 8 && (
+                <div className="alert-warning">
+                  <span className="alert-icon">⚠️</span>
+                  <span>Vous avez consommé {totalAbsences} jours sur 10. Il vous reste {10 - totalAbsences} jour(s).</span>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>📅 Date de début <span className="required">*</span></label>
+                <input 
+                  type="date" 
+                  name="date_debut" 
+                  value={absenceForm.date_debut} 
+                  onChange={handleAbsenceChange} 
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>📅 Date de fin <span className="required">*</span></label>
+                <input 
+                  type="date" 
+                  name="date_fin" 
+                  value={absenceForm.date_fin} 
+                  onChange={handleAbsenceChange} 
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>✏️ Motif de l'absence <span className="required">*</span></label>
+                <textarea 
+                  name="motif" 
+                  rows="3" 
+                  value={absenceForm.motif} 
+                  onChange={handleAbsenceChange} 
+                  placeholder="Ex: Rendez-vous médical, obligation familiale, formation, etc."
+                  required
+                ></textarea>
+              </div>
+
+              <div style={{ 
+                background: '#f8fafc', 
+                padding: '0.75rem', 
+                borderRadius: '8px', 
+                margin: '1rem 0',
+                fontSize: '0.75rem',
+                color: '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span>ℹ️</span>
+                <span>Cette demande sera soumise à la validation de votre supérieur hiérarchique. Vous serez notifié de la décision.</span>
+              </div>
+              
+              <div className="modal-buttons" style={{ marginTop: '1rem' }}>
+                <button 
+                  onClick={() => setShowAbsenceForm(false)} 
+                  style={{ background: '#e2e8f0', color: '#334155' }}
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={soumettreDemandeAbsence} 
+                  disabled={loading}
+                  style={{ background: '#f59e0b', color: 'white' }}
+                >
+                  {loading ? 'Envoi en cours...' : '📤 Envoyer la demande'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
@@ -552,9 +847,9 @@ export default function Demarches() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

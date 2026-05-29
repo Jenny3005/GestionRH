@@ -1,15 +1,13 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function AdminNav() {
   const location = useLocation();
+  const navigate = useNavigate();
 
+  // Garder seulement le tableau de bord dans la navbar
   const links = [
-    { href: '/admin/dashboard', label: 'Tableau' },
-    { href: '/admin/agents', label: 'Agents' },
-    { href: '/admin/roles', label: 'Rôles' },
-    { href: '/admin/types-demande', label: 'Types demande' },
-    { href: '/admin/types-piece', label: 'Types pièce' }
+    { href: '/admin/dashboard', label: '📊 Tableau de bord' }
   ];
 
   return (
@@ -19,6 +17,10 @@ export default function AdminNav() {
           key={link.href}
           href={link.href}
           className={`nav-tab-item ${location.pathname === link.href ? 'active' : ''}`}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(link.href);
+          }}
         >
           {link.label}
         </a>

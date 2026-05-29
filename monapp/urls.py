@@ -25,6 +25,10 @@ urlpatterns = [
     path('conges/solde/<str:matricule>/', views.solde_conge, name='solde_conge'),
     path('conges/direction/<str:matricule_chef>/', views.demandes_direction, name='demandes_direction'),
     path('conges/<int:demande_id>/valider/', views.valider_demande_conge, name='valider_demande_conge'),
+    path('absences/demander/', views.demande_absence, name='demande_absence'),
+    path('absences/total/<str:matricule>/', views.total_absences_annee, name='total_absences_annee'),
+    path('api/conges/mes-demandes/<str:matricule>/', views.mes_demandes, name='mes_demandes'),
+    
     
     # ==================== TYPES DE DEMANDE ====================
     path('types-demande/', views.get_types_demande, name='get_types_demande'),
@@ -48,4 +52,31 @@ urlpatterns = [
     path('documents/upload/', views.upload_document, name='upload_document'),
     path('documents/download/<int:piece_id>/', views.download_document, name='download_document'),
     path('documents/delete/<int:piece_id>/', views.delete_document, name='delete_document'),
+
+    # ==================== GESTION DES PERMISSIONS ====================
+    path('permissions/', views.get_permissions, name='get_permissions'),
+    path('permissions/add/', views.add_permission, name='add_permission'),
+    path('permissions/<str:code>/delete/', views.delete_permission, name='delete_permission'),
+    path('role-permissions/', views.get_role_permissions, name='get_role_permissions'),
+    path('role-permissions/toggle/', views.toggle_role_permission, name='toggle_role_permission'),
+
+    path('user-permissions/<str:matricule>/', views.get_user_permissions, name='user_permissions'),
+
+    # Demandes validées pour secrétaire
+    path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
+    path('secretaire/transmettre-dpaf/<int:demande_id>/', views.transmettre_demande_dpaf, name='transmettre_demande_dpaf'),
+
+    # DPAF
+    path('dpaf/demandes-transmises/<str:matricule_dpaf>/', views.get_demandes_transmises_dpaf, name='demandes_transmises_dpaf'),
+    path('dpaf/demandes-assignees/<str:matricule_dpaf>/', views.get_demandes_assignees_dpaf, name='demandes_assignees_dpaf'),
+    path('agents/rh/', views.get_agents_rh, name='agents_rh'),
+    path('dpaf/assigner-rh/<int:demande_id>/', views.assigner_demande_rh, name='assigner_demande_rh'),
+    
+    # RH
+    path('rh/demandes-assignees/<str:matricule_rh>/', views.get_demandes_assignees_rh, name='demandes_assignees_rh'),
+    path('rh/demandes-cours/<str:matricule_rh>/', views.get_demandes_cours_rh, name='demandes_cours_rh'),
+    path('rh/demandes-terminees/<str:matricule_rh>/', views.get_demandes_terminees_rh, name='demandes_terminees_rh'),
+    path('rh/actes-a-envoyer/<str:matricule_rh>/', views.get_actes_a_envoyer_rh, name='actes_a_envoyer_rh'),
+    path('rh/commencer-traitement/<int:demande_id>/', views.commencer_traitement_rh, name='commencer_traitement_rh'),
+    path('rh/generer-acte/<int:demande_id>/', views.generer_acte_rh, name='generer_acte_rh'),
 ] 
