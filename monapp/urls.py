@@ -42,4 +42,10 @@ urlpatterns = [
     path('notifications/<str:matricule>/', views.get_notifications, name='get_notifications'),
     path('notifications/<str:matricule>/lues/', views.marquer_toutes_notifications_lues, name='marquer_toutes_notifications_lues'),
     path('notifications/<int:notification_id>/lue/', views.marquer_notification_lue, name='marquer_notification_lue'),
-]
+
+    # ==================== GESTION DES DOCUMENTS ====================
+    path('documents/', views.get_documents, name='get_documents'),
+    path('documents/upload/', views.upload_document, name='upload_document'),
+    path('documents/download/<int:piece_id>/', views.download_document, name='download_document'),
+    path('documents/delete/<int:piece_id>/', views.delete_document, name='delete_document'),
+] 

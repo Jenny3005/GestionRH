@@ -3982,3 +3982,128 @@ body {
   text-decoration: underline;
 }
 
+.doc-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.doc-card-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.2s;
+  color: #333; /* Garde la couleur du texte */
+}
+
+.doc-card-btn:hover {
+  background: #f8f9fa; /* Fond gris très clair au survol */
+  color: #333; /* Garde la couleur du texte */
+}
+
+.doc-card-btn:active {
+  background: #e9ecef; /* Fond légèrement plus foncé au clic */
+  color: #333;
+}
+
+/* Empêche le style par défaut du navigateur */
+.doc-card-btn:focus {
+  outline: none;
+  background: #f8f9fa;
+}
+
+/* ============ SECTION DOCUMENTS MANQUANTS (SOBRE) ============ */
+
+.missing-reminder-section {
+  margin: 20px 0;
+}
+
+.missing-reminder-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #ff9800;
+  border-radius: 8px;
+  padding: 20px 25px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.missing-reminder-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 15px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.missing-icon {
+  font-size: 22px;
+}
+
+.missing-reminder-header strong {
+  font-size: 15px;
+  color: #333;
+  display: block;
+}
+
+.missing-count {
+  font-size: 13px;
+  color: #999;
+  margin-left: 4px;
+}
+
+.missing-docs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.missing-doc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #fafafa;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.missing-doc-row:hover {
+  background: #f5f5f5;
+}
+
+.missing-doc-icon {
+  font-size: 20px;
+  min-width: 28px;
+  text-align: center;
+}
+
+.missing-doc-name {
+  flex: 1;
+  font-size: 14px;
+  color: #555;
+}
+
+.missing-doc-upload {
+  background: none;
+  border: 1px solid #ff9800;
+  color: #ff9800;
+  padding: 6px 14px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.missing-doc-upload:hover {
+  background: #ff9800;
+  color: white;
+}

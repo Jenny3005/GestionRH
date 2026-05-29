@@ -10,10 +10,12 @@ from django.conf import settings
 from datetime import datetime, date, timedelta
 from .models import (
     Agent, Role, AgentRole, TypeDemande, Demande, 
-    DemandeConge, Notification, SoldeConge, TypePiece, Compte
+    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece
 )
 import json
 import random
+import base64
+import re
 
 # ==================== SYSTÈME D'ACTIVATION 1: NOUVEL AGENT (AVEC EMAIL) ====================
 
@@ -1106,4 +1108,332 @@ def update_agent_role_by_matricule(request, matricule):
         return JsonResponse({'success': True})
         
     except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+# ==================== GESTION DES DOCUMENTS (PIÈCES) - STOCKAGE EN BASE DE DONNÉES ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_documents(request):
+    """Récupérer tous les documents d'un agent avec son dossier"""
+    try:
+        matricule = request.GET.get('matricule') or request.headers.get('X-User-Matricule')
+        
+        if not matricule:
+            return JsonResponse({'error': 'Matricule requis'}, status=400)
+        
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        
+        # Récupérer ou créer le dossier de l'agent
+        dossier, created = DossierAgent.objects.get_or_create(
+            agent=agent,
+            defaults={
+                'datecreation': date.today(),
+                'taux_completude': 0
+            }
+        )
+        
+        # Récupérer toutes les pièces du dossier
+        pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
+        
+        # Récupérer tous les types de pièces
+        types_pieces = TypePiece.objects.all()
+        
+        # Construire la liste des documents
+        documents = []
+        for piece in pieces:
+            est_expire = False
+            jours_avant_expiration = None
+            
+            if piece.date_expiration:
+                jours_restants = (piece.date_expiration - date.today()).days
+                if jours_restants < 0:
+                    est_expire = True
+                jours_avant_expiration = jours_restants
+            
+            documents.append({
+                'id': piece.id,
+                'type_piece_id': piece.type_piece.id,
+                'type_piece_libelle': piece.type_piece.libelle,
+                'nom_fichier': piece.nom_fichier,
+                'date_upload': str(piece.date_upload),
+                'date_expiration': str(piece.date_expiration) if piece.date_expiration else None,
+                'est_expire': est_expire,
+                'jours_avant_expiration': jours_avant_expiration,
+                'valide': piece.valide
+            })
+        
+        # Identifier les documents manquants (obligatoires non uploadés)
+        documents_uploades_ids = [d['type_piece_id'] for d in documents]
+        missing_documents = []
+        
+        for type_piece in types_pieces:
+            if type_piece.obligatoire == 1 and type_piece.id not in documents_uploades_ids:
+                missing_documents.append({
+                    'id': type_piece.id,
+                    'libelle': type_piece.libelle,
+                    'obligatoire': True
+                })
+        
+        # Calculer le taux de complétude
+        total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
+        documents_obligatoires_uploades = len([d for d in documents if d['type_piece_id'] in 
+            [tp.id for tp in types_pieces if tp.obligatoire == 1]])
+        
+        if total_obligatoire > 0:
+            taux_completude = round((documents_obligatoires_uploades / total_obligatoire) * 100)
+        else:
+            taux_completude = 100
+        
+        # Mettre à jour le taux de complétude dans la base
+        dossier.taux_completude = taux_completude
+        dossier.save()
+        
+        return JsonResponse({
+            'success': True,
+            'dossier': {
+                'id': dossier.id,
+                'date_creation': str(dossier.datecreation),
+                'taux_completude': taux_completude
+            },
+            'documents': documents,
+            'missing_documents': missing_documents,
+            'total_obligatoire': total_obligatoire,
+            'total_uploades': len(documents)
+        })
+        
+    except Exception as e:
+        print(f"Erreur get_documents: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_document(request):
+    """Uploader un document et le stocker en base de données"""
+    try:
+        matricule = request.POST.get('matricule') or request.headers.get('X-User-Matricule')
+        type_piece_id = request.POST.get('type_piece_id')
+        file_base64 = request.POST.get('file_base64')
+        file_name = request.POST.get('file_name')
+        
+        print(f"Upload demandé - matricule: {matricule}, type_piece: {type_piece_id}, fichier: {file_name}")
+        
+        if not all([matricule, type_piece_id, file_base64, file_name]):
+            return JsonResponse({
+                'error': 'Tous les champs sont requis (matricule, type_piece_id, file_base64, file_name)'
+            }, status=400)
+        
+        # Vérifier que l'agent existe
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        
+        # Vérifier que le type de pièce existe
+        try:
+            type_piece = TypePiece.objects.get(id=type_piece_id)
+        except TypePiece.DoesNotExist:
+            return JsonResponse({'error': f'Type de pièce {type_piece_id} non trouvé'}, status=404)
+        
+        # Récupérer ou créer le dossier de l'agent
+        dossier, created = DossierAgent.objects.get_or_create(
+            agent=agent,
+            defaults={
+                'datecreation': date.today(),
+                'taux_completude': 0
+            }
+        )
+        
+        if created:
+            print(f"Nouveau dossier créé pour l'agent {matricule}")
+        
+        # Nettoyer le base64 (enlever le préfixe "data:application/pdf;base64," si présent)
+        cleaned_base64 = file_base64
+        if 'base64,' in file_base64:
+            cleaned_base64 = file_base64.split('base64,')[1]
+        
+        # Calculer la date d'expiration si le type de pièce a une durée de validité
+        date_expiration = None
+        if type_piece.duree_validite:
+            try:
+                # Extraire le nombre d'années (ex: "5 ans" -> 5)
+                import re
+                match = re.search(r'(\d+)', type_piece.duree_validite)
+                if match:
+                    duree_annees = int(match.group(1))
+                    date_expiration = date.today() + timedelta(days=duree_annees * 365)
+                    print(f"Date d'expiration calculée: {date_expiration} ({duree_annees} ans)")
+            except Exception as e:
+                print(f"Impossible de calculer la date d'expiration: {e}")
+                # Pas de date d'expiration si le format n'est pas reconnu
+        
+        # Supprimer l'ancienne pièce du même type si elle existe (remplacement)
+        anciennes_pieces = Piece.objects.filter(
+            dossier_agent=dossier,
+            type_piece=type_piece
+        )
+        if anciennes_pieces.exists():
+            anciennes_pieces.delete()
+            print(f"Ancienne pièce de type {type_piece.libelle} supprimée")
+        
+        # Créer la nouvelle pièce avec le contenu stocké dans cheminfichier
+        piece = Piece.objects.create(
+            dossier_agent=dossier,
+            type_piece=type_piece,
+            nom_fichier=file_name,
+            date_expiration=date_expiration,
+            date_upload=date.today(),
+            valide=1,
+            cheminfichier=cleaned_base64  # Stockage direct du contenu en base64
+        )
+        
+        print(f"Pièce créée - ID: {piece.id}, Type: {type_piece.libelle}")
+        
+        # Recalculer le taux de complétude
+        total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
+        pieces_obligatoires = Piece.objects.filter(
+            dossier_agent=dossier,
+            type_piece__obligatoire=1
+        ).count()
+        
+        if total_obligatoire > 0:
+            taux = round((pieces_obligatoires / total_obligatoire) * 100)
+        else:
+            taux = 100
+        
+        dossier.taux_completude = taux
+        dossier.save()
+        print(f"Taux de complétude mis à jour: {taux}%")
+        
+        # Créer une notification pour l'agent
+        try:
+            Notification.objects.create(
+                agent=agent,
+                message=f"✅ Document '{type_piece.libelle}' importé avec succès",
+                type_notification='document',
+                date_envoi=date.today(),
+                lue=0
+            )
+        except Exception as e:
+            print(f"Erreur création notification: {e}")
+            # On continue même si la notification échoue
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Document "{file_name}" importé avec succès',
+            'piece_id': piece.id,
+            'taux_completude': taux,
+            'date_expiration': str(date_expiration) if date_expiration else None,
+            'type_piece': type_piece.libelle
+        })
+        
+    except Exception as e:
+        print(f"❌ Erreur upload_document: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def download_document(request, piece_id):
+    """Télécharger un document stocké en base de données"""
+    try:
+        matricule = request.GET.get('matricule') or request.headers.get('X-User-Matricule')
+        
+        if not matricule:
+            return JsonResponse({'error': 'Matricule requis'}, status=400)
+        
+        # Récupérer la pièce
+        try:
+            piece = Piece.objects.select_related('dossier_agent__agent', 'type_piece').get(id=piece_id)
+        except Piece.DoesNotExist:
+            return JsonResponse({'error': 'Document non trouvé'}, status=404)
+        
+        # Vérifier les droits d'accès
+        agent_demandeur = piece.dossier_agent.agent
+        
+        if agent_demandeur.matricule != matricule:
+            # Vérifier si c'est un RH ou admin qui fait la demande
+            try:
+                agent = Agent.objects.get(matricule=matricule)
+                roles = AgentRole.objects.filter(agent=agent).values_list('role__libelle', flat=True)
+                if 'rh' not in roles and 'admin' not in roles:
+                    return JsonResponse({'error': 'Non autorisé'}, status=403)
+            except:
+                return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        # Vérifier que le contenu existe
+        if not piece.cheminfichier:
+            return JsonResponse({'error': 'Document vide ou corrompu'}, status=404)
+        
+        print(f"Téléchargement du document {piece.id} - {piece.nom_fichier}")
+        
+        # Déterminer le type MIME
+        mime_type = 'application/pdf'
+        if piece.nom_fichier.lower().endswith(('.jpg', '.jpeg')):
+            mime_type = 'image/jpeg'
+        elif piece.nom_fichier.lower().endswith('.png'):
+            mime_type = 'image/png'
+        
+        # Le contenu est déjà en base64 dans la base de données
+        return JsonResponse({
+            'success': True,
+            'file_name': piece.nom_fichier,
+            'file_base64': piece.cheminfichier,
+            'mime_type': mime_type,
+            'type_piece': piece.type_piece.libelle
+        })
+        
+    except Exception as e:
+        print(f"❌ Erreur download_document: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_document(request, piece_id):
+    """Supprimer un document"""
+    try:
+        matricule = request.headers.get('X-User-Matricule')
+        
+        if not matricule:
+            return JsonResponse({'error': 'Non autorisé'}, status=401)
+        
+        try:
+            piece = Piece.objects.select_related('dossier_agent__agent').get(id=piece_id)
+        except Piece.DoesNotExist:
+            return JsonResponse({'error': 'Document non trouvé'}, status=404)
+        
+        # Vérifier que l'agent est propriétaire du document
+        if piece.dossier_agent.agent.matricule != matricule:
+            return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        # Supprimer le document
+        piece.delete()
+        
+        # Recalculer le taux de complétude
+        dossier = piece.dossier_agent
+        total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
+        pieces_obligatoires = Piece.objects.filter(
+            dossier_agent=dossier,
+            type_piece__obligatoire=1
+        ).count()
+        
+        taux = round((pieces_obligatoires / total_obligatoire) * 100) if total_obligatoire > 0 else 100
+        dossier.taux_completude = taux
+        dossier.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Document supprimé avec succès',
+            'taux_completude': taux
+        })
+        
+    except Exception as e:
+        print(f"Erreur delete_document: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
