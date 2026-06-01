@@ -101,6 +101,14 @@ class Demande(models.Model):
     jours_consommes = models.IntegerField(blank=True, null=True, default=0)
     jours_restants = models.IntegerField(blank=True, null=True, default=0)
     annee = models.IntegerField(blank=True, null=True)
+    agent_rh = models.ForeignKey(
+        'Agent',
+        models.DO_NOTHING,
+        db_column='agent_rh_matricule',
+        related_name='demandes_assignees',
+        blank=True,
+        null=True
+    )
 
     class Meta:
         managed = False
@@ -143,7 +151,7 @@ class DossierAgent(models.Model):
 class Notification(models.Model):
     agent = models.ForeignKey(Agent, models.DO_NOTHING)
     message = models.TextField()
-    type_notification = models.CharField(max_length=12)
+    type_notification = models.CharField(max_length=50)
     date_envoi = models.DateField()
     lue = models.IntegerField(blank=True, null=True)
 

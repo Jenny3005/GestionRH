@@ -25,6 +25,7 @@ export default function DashboardAgent() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showSoldeModal, setShowSoldeModal] = useState(false);
+  const [tauxCompletude, setTauxCompletude] = useState(0);
 
   const matricule = localStorage.getItem('userMatricule');
 
@@ -36,8 +37,29 @@ export default function DashboardAgent() {
     fetchUserInfo();
     fetchDemandesRecentes();
     fetchSoldeConge();
-    fetchNotifications();
+    fetchAllNotifications();
+    fetchTauxCompletude();
   }, []);
+
+  const fetchTauxCompletude = async () => {
+    try {
+      const response = await fetch(`/api/documents/?matricule=${matricule}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Matricule': matricule
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.dossier) {
+          setTauxCompletude(data.dossier.taux_completude);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur taux complétude:', error);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -48,6 +70,30 @@ export default function DashboardAgent() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
+
+  // Fusionner notifications BD + alertes documents expirés
+  const fetchAllNotifications = async () => {
+    setLoading(true);
+    try {
+      // ✅ 1. D'abord, appeler check-expiry pour créer les notifications dans la BD
+      await fetch(`http://localhost:8000/api/check-expiry/`);
+      
+      // ✅ 2. Ensuite, récupérer les notifications de la base
+      const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
+      let notifs = [];
+      if (notifResponse.ok) {
+        notifs = await notifResponse.json();
+      }
+
+      // ✅ 3. Afficher les notifications telles quelles (elles viennent de la BD)
+      setNotifications(notifs.slice(0, 10));
+      
+    } catch (error) {
+      console.error('Erreur chargement notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchUserInfo = async () => {
     try {
@@ -72,12 +118,10 @@ export default function DashboardAgent() {
 
   const fetchDemandesRecentes = async () => {
     try {
-      console.log("Récupération des demandes pour:", matricule);
       const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("Demandes reçues:", data);
         
         if (Array.isArray(data) && data.length > 0) {
           const formatted = data.slice(0, 4).map(d => {
@@ -87,15 +131,13 @@ export default function DashboardAgent() {
             
             return {
               id: d.id,
-              type: d.type_demande,
+              type: d.type_demande || 'Congé',
               date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : 'Date inconnue',
               statut: statutAffichage
             };
           });
-          console.log("Demandes formatées:", formatted);
           setDemandesRecentes(formatted);
         } else {
-          console.log("Aucune demande trouvée");
           setDemandesRecentes([]);
         }
       }
@@ -117,30 +159,25 @@ export default function DashboardAgent() {
     }
   };
 
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.slice(0, 3));
-      }
-    } catch (error) {
-      console.error('Erreur notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const marquerNotificationLue = async (notificationId) => {
-    try {
-      const url = notificationId === 'all'
-        ? `http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/lues/`
-        : `http://localhost:8000/api/notifications/${notificationId}/lue/`;
-
-      await fetch(url, { method: 'PUT' });
-      fetchNotifications();
-    } catch (error) {
-      console.error('Erreur:', error);
+    if (notificationId === 'all') {
+      try {
+        await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/lues/`, { 
+          method: 'PUT' 
+        });
+        fetchAllNotifications();
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
+    } else if (typeof notificationId === 'number') {
+      try {
+        await fetch(`http://localhost:8000/api/notifications/${notificationId}/lue/`, { 
+          method: 'PUT' 
+        });
+        fetchAllNotifications();
+      } catch (error) {
+        console.error('Erreur:', error);
+      }
     }
   };
 
@@ -156,11 +193,13 @@ export default function DashboardAgent() {
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
 
+  const unreadCount = notifications.filter(n => !n.lue).length;
+
   const stats = [
     { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: "📋", color: "#3B82F6" },
     { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: "🌴", color: "#10B981", unit: "jours" },
-    { label: "Notifications", value: notifications.filter(n => !n.lue).length.toString(), icon: "🔔", color: "#F59E0B" },
-    { label: "Complétude dossier", value: "76%", icon: "📊", color: "#8B5CF6" }
+    { label: "Notifications", value: unreadCount.toString(), icon: "🔔", color: "#F59E0B" },
+    { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: "📊", color: "#8B5CF6" }  // ✅ Utilise la vraie valeur
   ];
 
   return (
@@ -191,6 +230,7 @@ export default function DashboardAgent() {
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate('/dashboard')}>📊 Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
+                <button className="dropdown-item" onClick={() => navigate('/documents')}>📁 Mes documents</button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
               </div>
@@ -207,7 +247,7 @@ export default function DashboardAgent() {
           </div>
         </section>
 
-        {/* STATISTIQUES DYNAMIQUES */}
+        {/* STATISTIQUES */}
         <div className="agent-stats-grid">
           {stats.map((stat, index) => (
             <div key={index} className="agent-stat-card" style={{ borderLeftColor: stat.color }}>
@@ -300,7 +340,7 @@ export default function DashboardAgent() {
         {/* DEUXIÈME LIGNE */}
         <div className="agent-dashboard-grid">
           
-          {/* Notifications */}
+          {/* Notifications avec alertes documents expirés */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🔔 Notifications</h3>
@@ -311,17 +351,31 @@ export default function DashboardAgent() {
                 <p className="no-notifications">Aucune notification</p>
               ) : (
                 notifications.map((notif) => (
-                  <div key={notif.id} className={`notification-item ${!notif.lue ? 'unread' : ''}`}>
+                  <div 
+                    key={notif.id} 
+                    className={`notification-item ${!notif.lue ? 'unread' : ''}`}
+                    onClick={() => notif.isDocAlert && navigate('/documents')}
+                    style={notif.isDocAlert ? { cursor: 'pointer' } : {}}
+                  >
                     <div className="notification-icon">
                       {notif.type === 'success' && '✅'}
                       {notif.type === 'info' && 'ℹ️'}
-                      {notif.type === 'warning' && '⚠️'}
+                      {notif.type === 'warning' && '⏰'}
+                      {notif.type === 'danger' && '⚠️'}
+                      {notif.type === 'document' && '📄'}
                     </div>
                     <div className="notification-content">
                       <div className="notification-message">{notif.message}</div>
-                      <div className="notification-date">{notif.date_envoi}</div>
+                      <div className="notification-date">
+                        {notif.isDocAlert ? 'Alerte document' : notif.date_envoi}
+                      </div>
                     </div>
-                    {!notif.lue && <div className="notification-badge" onClick={() => marquerNotificationLue(notif.id)}></div>}
+                    {!notif.lue && !notif.isDocAlert && (
+                      <div className="notification-badge" onClick={(e) => {
+                        e.stopPropagation();
+                        marquerNotificationLue(notif.id);
+                      }}></div>
+                    )}
                   </div>
                 ))
               )}

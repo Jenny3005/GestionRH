@@ -3,116 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
 import './App.css';
 
-// Configuration des types de documents (correspond à votre table type_piece)
-const DOCUMENT_TYPES = {
-  1: { 
-    id: 1,
-    label: 'Carte Nationale d\'Identité', 
-    category: 'identity', 
-    required: true,
-    hasExpiry: true,
-    icon: '🆔'
-  },
-  2: { 
-    id: 2,
-    label: 'Acte de naissance sécurisé ANIP', 
-    category: 'identity', 
-    required: true,
-    hasExpiry: false,
-    icon: '📄'
-  },
-  3: { 
-    id: 3,
-    label: 'Certificat de nationalité', 
-    category: 'identity', 
-    required: true,
-    hasExpiry: false,
-    icon: '📄'
-  },
-  4: { 
-    id: 4,
-    label: 'Diplômes et attestations de formation', 
-    category: 'academic', 
-    required: true,
-    hasExpiry: false,
-    icon: '🎓'
-  },
-  5: { 
-    id: 5,
-    label: 'Décision de nomination', 
-    category: 'career', 
-    required: false,
-    hasExpiry: false,
-    icon: '📜'
-  },
-  6: { 
-    id: 6,
-    label: 'Certificat de prise de service', 
-    category: 'career', 
-    required: false,
-    hasExpiry: false,
-    icon: '📋'
-  },
-  7: { 
-    id: 7,
-    label: 'Acte d\'avancement', 
-    category: 'career', 
-    required: false,
-    hasExpiry: false,
-    icon: '⭐'
-  },
-  8: { 
-    id: 8,
-    label: 'Certificat médical', 
-    category: 'medical', 
-    required: true,
-    hasExpiry: true,
-    icon: '🏥'
-  },
-  9: { 
-    id: 9,
-    label: 'Autorisation d\'absence', 
-    category: 'leave', 
-    required: false,
-    hasExpiry: false,
-    icon: '✈️'
-  },
-  10: { 
-    id: 10,
-    label: 'Titre de congé', 
-    category: 'leave', 
-    required: false,
-    hasExpiry: false,
-    icon: '🏖️'
-  },
-  11: { 
-    id: 11,
-    label: 'Attestation de travail', 
-    category: 'attestations', 
-    required: false,
-    hasExpiry: false,
-    icon: '📑'
-  },
-  12: { 
-    id: 12,
-    label: 'Attestation de présence au poste', 
-    category: 'attestations', 
-    required: false,
-    hasExpiry: false,
-    icon: '📑'
-  }
-};
-
-// Mapping catégorie -> nom de catégorie
-const CATEGORY_NAMES = {
-  identity: { title: "Pièces d'identité & État civil", description: "Documents officiels prouvant votre identité" },
-  academic: { title: "Diplômes & Formation", description: "Diplômes et attestations de formation" },
-  career: { title: "Documents de carrière", description: "Nominations, prises de service et avancements" },
-  medical: { title: "Documents médicaux", description: "Certificats et justificatifs médicaux" },
-  leave: { title: "Congés & Absences", description: "Autorisations d'absence et titres de congé" },
-  attestations: { title: "Attestations", description: "Attestations diverses" }
-};
-
 export default function Documents() {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -126,6 +16,20 @@ export default function Documents() {
   const [missingDocs, setMissingDocs] = useState([]);
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ Types de pièces chargés dynamiquement
+  const [documentTypes, setDocumentTypes] = useState({});
+  const [categoryNames, setCategoryNames] = useState({});
+
+  // ✅ Icônes par défaut par catégorie
+  const categoryIcons = {
+    identity: '🆔',
+    academic: '🎓',
+    career: '💼',
+    medical: '🏥',
+    leave: '✈️',
+    attestations: '📑'
+  };
 
   // Vérifier connexion
   useEffect(() => {
@@ -141,11 +45,104 @@ export default function Documents() {
       setUserEmail(savedEmail);
       setUserRole(savedRole);
       setUserMatricule(savedMatricule);
+      loadDocumentTypes(); // ✅ Charger les types d'abord
       loadDocumentsFromAPI(savedMatricule);
     } else {
       navigate('/auth');
     }
   }, [navigate]);
+
+  // ✅ Charger les types de pièces depuis la base de données
+  const loadDocumentTypes = async () => {
+    try {
+      const response = await fetch('/api/types-piece/');
+      if (response.ok) {
+        const types = await response.json();
+        
+        const typesMap = {};
+        const categoriesMap = {};
+        
+        types.forEach(type => {
+          // Déterminer la catégorie et l'icône selon le libellé
+          let category = 'identity';
+          let icon = '📄';
+          const libelle = type.libelle.toLowerCase();
+          
+          if (libelle.includes('identité') || libelle.includes('identite')) {
+            category = 'identity'; icon = '🆔';
+          } else if (libelle.includes('naissance')) {
+            category = 'identity'; icon = '📄';
+          } else if (libelle.includes('nationalité') || libelle.includes('nationalite')) {
+            category = 'identity'; icon = '📄';
+          } else if (libelle.includes('diplôme') || libelle.includes('diplome') || libelle.includes('formation')) {
+            category = 'academic'; icon = '🎓';
+          } else if (libelle.includes('nomination')) {
+            category = 'career'; icon = '📜';
+          } else if (libelle.includes('prise de service')) {
+            category = 'career'; icon = '📋';
+          } else if (libelle.includes('avancement')) {
+            category = 'career'; icon = '⭐';
+          } else if (libelle.includes('médical') || libelle.includes('medical')) {
+            category = 'medical'; icon = '🏥';
+          } else if (libelle.includes('absence')) {
+            category = 'leave'; icon = '✈️';
+          } else if (libelle.includes('congé') || libelle.includes('conge')) {
+            category = 'leave'; icon = '🏖️';
+          } else if (libelle.includes('travail')) {
+            category = 'attestations'; icon = '📑';
+          } else if (libelle.includes('présence') || libelle.includes('presence')) {
+            category = 'attestations'; icon = '📑';
+          }
+          
+          typesMap[type.id] = {
+            id: type.id,
+            label: type.libelle,
+            category: category,
+            required: type.obligatoire === 1,
+            hasExpiry: type.duree_validite ? true : false,
+            icon: icon
+          };
+          
+          // Construire les catégories
+          if (!categoriesMap[category]) {
+            categoriesMap[category] = { title: '', description: '', docs: [] };
+          }
+          categoriesMap[category].docs.push(type.id);
+        });
+        
+        // Nommer les catégories
+        if (categoriesMap['identity']) {
+          categoriesMap['identity'].title = "Pièces d'identité & État civil";
+          categoriesMap['identity'].description = "Documents officiels prouvant votre identité";
+        }
+        if (categoriesMap['academic']) {
+          categoriesMap['academic'].title = "Diplômes & Formation";
+          categoriesMap['academic'].description = "Diplômes et attestations de formation";
+        }
+        if (categoriesMap['career']) {
+          categoriesMap['career'].title = "Documents de carrière";
+          categoriesMap['career'].description = "Nominations, prises de service et avancements";
+        }
+        if (categoriesMap['medical']) {
+          categoriesMap['medical'].title = "Documents médicaux";
+          categoriesMap['medical'].description = "Certificats et justificatifs médicaux";
+        }
+        if (categoriesMap['leave']) {
+          categoriesMap['leave'].title = "Congés & Absences";
+          categoriesMap['leave'].description = "Autorisations d'absence et titres de congé";
+        }
+        if (categoriesMap['attestations']) {
+          categoriesMap['attestations'].title = "Attestations";
+          categoriesMap['attestations'].description = "Attestations diverses";
+        }
+        
+        setDocumentTypes(typesMap);
+        setCategoryNames(categoriesMap);
+      }
+    } catch (error) {
+      console.error('Erreur chargement types:', error);
+    }
+  };
 
   // Charger les documents depuis l'API
   const loadDocumentsFromAPI = async (matricule) => {
@@ -162,7 +159,6 @@ export default function Documents() {
       if (response.ok) {
         const data = await response.json();
         
-        // Transformer les données
         const docsMap = {};
         if (data.documents) {
           data.documents.forEach(doc => {
@@ -178,17 +174,8 @@ export default function Documents() {
         }
         
         setDocuments(docsMap);
-        
-        if (data.dossier) {
-          setDossierData(data.dossier);
-        }
-        
-        if (data.missing_documents) {
-          setMissingDocs(data.missing_documents);
-        }
-      } else {
-        const error = await response.json();
-        showNotification('Erreur lors du chargement des documents', 'error');
+        if (data.dossier) setDossierData(data.dossier);
+        if (data.missing_documents) setMissingDocs(data.missing_documents);
       }
     } catch (error) {
       showNotification('Erreur de connexion au serveur', 'error');
@@ -208,19 +195,12 @@ export default function Documents() {
     try {
       const response = await fetch('/api/documents/upload/', {
         method: 'POST',
-        headers: {
-          'X-User-Matricule': userMatricule
-        },
+        headers: { 'X-User-Matricule': userMatricule },
         body: formData
       });
-      
       const data = await response.json();
-      
-      if (response.ok) {
-        return { success: true, data };
-      } else {
-        return { success: false, message: data.error || data.message || 'Erreur inconnue' };
-      }
+      if (response.ok) return { success: true, data };
+      else return { success: false, message: data.error || data.message || 'Erreur inconnue' };
     } catch (error) {
       return { success: false, message: error.message || 'Erreur de connexion' };
     }
@@ -229,129 +209,68 @@ export default function Documents() {
   // Gérer l'upload de fichier
   const handleFileUpload = async (documentKey, file) => {
     if (!file) return;
-    
-    const typePieceId = documentKey;
-    const docDef = DOCUMENT_TYPES[typePieceId];
-    
-    if (!docDef) {
-      showNotification('Type de document invalide', 'error');
-      return;
-    }
+    const docDef = documentTypes[documentKey];
+    if (!docDef) { showNotification('Type de document invalide', 'error'); return; }
     
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      showNotification('Format non supporté (PDF, JPG, PNG uniquement)', 'error');
-      return;
-    }
-    
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification('Fichier trop volumineux (max 5MB)', 'error');
-      return;
-    }
+    if (!allowedTypes.includes(file.type)) { showNotification('Format non supporté (PDF, JPG, PNG uniquement)', 'error'); return; }
+    if (file.size > 5 * 1024 * 1024) { showNotification('Fichier trop volumineux (max 5MB)', 'error'); return; }
     
     showNotification('Upload en cours...', 'info');
-    
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = await uploadDocumentToAPI(typePieceId, e.target.result, file.name);
-        
-        if (result.success) {
-          showNotification(`"${file.name}" importé avec succès`, 'success');
-          await loadDocumentsFromAPI(userMatricule);
-        } else {
-          showNotification(`Erreur: ${result.message}`, 'error');
-        }
-      } catch (error) {
-        showNotification('Erreur lors de l\'upload', 'error');
-      }
+        const result = await uploadDocumentToAPI(documentKey, e.target.result, file.name);
+        if (result.success) { showNotification(`"${file.name}" importé avec succès`, 'success'); await loadDocumentsFromAPI(userMatricule); }
+        else { showNotification(`Erreur: ${result.message}`, 'error'); }
+      } catch (error) { showNotification('Erreur lors de l\'upload', 'error'); }
     };
-    
-    reader.onerror = () => {
-      showNotification('Erreur de lecture du fichier', 'error');
-    };
-    
+    reader.onerror = () => showNotification('Erreur de lecture du fichier', 'error');
     reader.readAsDataURL(file);
   };
 
   // Télécharger un document
   const downloadDocument = async (documentKey) => {
     const doc = documents[documentKey];
-    if (!doc || !doc.fileName) {
-      showNotification('Document non disponible', 'error');
-      return;
-    }
+    if (!doc || !doc.fileName) { showNotification('Document non disponible', 'error'); return; }
     
     try {
       const response = await fetch(`/api/documents/download/${doc.id}/?matricule=${userMatricule}`, {
-        method: 'GET',
-        headers: {
-          'X-User-Matricule': userMatricule
-        }
+        method: 'GET', headers: { 'X-User-Matricule': userMatricule }
       });
-      
       if (response.ok) {
         const data = await response.json();
-        
-        if (!data.file_base64 || data.file_base64.length === 0) {
-          showNotification('Document vide ou corrompu', 'error');
-          return;
-        }
-        
+        if (!data.file_base64 || data.file_base64.length === 0) { showNotification('Document vide ou corrompu', 'error'); return; }
         const link = document.createElement('a');
         const mimeType = data.mime_type || 'application/pdf';
-        const base64Data = data.file_base64.startsWith('data:') 
-          ? data.file_base64 
-          : `data:${mimeType};base64,${data.file_base64}`;
-        
+        const base64Data = data.file_base64.startsWith('data:') ? data.file_base64 : `data:${mimeType};base64,${data.file_base64}`;
         link.href = base64Data;
         link.download = data.file_name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
         showNotification(`"${doc.fileName}" téléchargé`, 'success');
       } else {
         const error = await response.json();
         showNotification(`Erreur: ${error.error}`, 'error');
       }
-    } catch (error) {
-      showNotification('Erreur lors du téléchargement', 'error');
-    }
+    } catch (error) { showNotification('Erreur lors du téléchargement', 'error'); }
   };
 
   // Supprimer un document
   const handleDelete = async (pieceId) => {
     const doc = documents[pieceId];
-    if (!doc || !doc.id) {
-      showNotification('Document non trouvé', 'error');
-      return;
-    }
-
-    const docType = DOCUMENT_TYPES[pieceId];
+    if (!doc || !doc.id) return;
+    const docType = documentTypes[pieceId];
     const docLabel = docType?.label || doc.fileName;
-
-    if (!window.confirm(`Voulez-vous vraiment supprimer "${docLabel}" ?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Voulez-vous vraiment supprimer "${docLabel}" ?`)) return;
+    
     try {
       const response = await fetch(`/api/documents/delete/${doc.id}/`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Matricule': userMatricule
-        }
+        method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-User-Matricule': userMatricule }
       });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        await loadDocumentsFromAPI(userMatricule);
-      } 
-    } catch (error) {
-      
-    }
+      if (response.ok) await loadDocumentsFromAPI(userMatricule);
+    } catch (error) {}
   };
 
   // Notification
@@ -363,100 +282,35 @@ export default function Documents() {
   // Dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
+      if (dropdownOpen && !event.target.closest('.user-menu-container')) setDropdownOpen(false);
     };
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
+  const handleLogout = () => { localStorage.clear(); navigate('/'); };
   const isRH = userRole === 'RH' || userRole === 'ADMIN' || userRole === 'rh' || userRole === 'admin';
-
-  // Statistiques
-  const getUploadedCount = () => Object.keys(documents).length;
-
-  const getRequiredUploadedCount = () => {
-    return Object.entries(DOCUMENT_TYPES)
-      .filter(([id, doc]) => doc.required && documents[id])
-      .length;
-  };
-
-  const getTotalRequired = () => {
-    return Object.values(DOCUMENT_TYPES).filter(doc => doc.required).length;
-  };
-
-  const completenessScore = dossierData?.taux_completude || 
-    (getTotalRequired() > 0 ? Math.round((getRequiredUploadedCount() / getTotalRequired()) * 100) : 100);
-
-  const missingDocumentsCount = missingDocs.length;
-
-  // Documents expirés
-  const getExpiredDocuments = () => {
-    const expired = [];
-    const today = new Date();
-    Object.entries(documents).forEach(([key, doc]) => {
-      if (doc && doc.expiryDate) {
-        const expiryDate = new Date(doc.expiryDate);
-        if (expiryDate < today) {
-          expired.push({ docDef: DOCUMENT_TYPES[key], doc });
-        }
-      }
-    });
-    return expired;
-  };
-
-  const getExpiringSoon = () => {
-    const expiring = [];
-    const today = new Date();
-    Object.entries(documents).forEach(([key, doc]) => {
-      if (doc && doc.expiryDate) {
-        const expiryDate = new Date(doc.expiryDate);
-        const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-        if (daysUntilExpiry > 0 && daysUntilExpiry <= 30) {
-          expiring.push({ docDef: DOCUMENT_TYPES[key], doc, daysUntilExpiry });
-        }
-      }
-    });
-    return expiring;
-  };
-
-  const expiredDocuments = getExpiredDocuments();
-  const expiringSoon = getExpiringSoon();
-
-  // Rendu des cartes
+  // ✅ Rendu des cartes dynamique
   const renderDocumentCards = (category) => {
-    const categoryDocs = Object.entries(DOCUMENT_TYPES).filter(([, doc]) => doc.category === category);
-    
-    if (categoryDocs.length === 0) return null;
-    
-    const categoryInfo = CATEGORY_NAMES[category];
+    const catInfo = categoryNames[category];
+    if (!catInfo || !catInfo.docs || catInfo.docs.length === 0) return null;
     
     return (
       <section className="docs-section">
         <div className="section-header-with-icon">
-          <div className="header-icon">
-            {category === 'identity' && '🆔'}
-            {category === 'academic' && '🎓'}
-            {category === 'career' && '💼'}
-            {category === 'medical' && '🏥'}
-            {category === 'leave' && '✈️'}
-            {category === 'attestations' && '📑'}
-          </div>
+          <div className="header-icon">{categoryIcons[category] || '📄'}</div>
           <div>
-            <h2>{categoryInfo?.title}</h2>
-            <p>{categoryInfo?.description}</p>
+            <h2>{catInfo.title}</h2>
+            <p>{catInfo.description}</p>
           </div>
         </div>
         
         <div className="docs-grid">
-          {categoryDocs.map(([key, docDef]) => {
-            const doc = documents[key];
+          {catInfo.docs.map((typeId) => {
+            const docDef = documentTypes[typeId];
+            if (!docDef) return null;
+            
+            const doc = documents[typeId];
             const isUploaded = doc && doc.fileName;
             const isExpired = doc?.expiryDate && new Date(doc.expiryDate) < new Date();
             const isExpiringSoon = doc?.expiryDate && !isExpired && (new Date(doc.expiryDate) - new Date()) / (1000 * 60 * 60 * 24) <= 30;
@@ -469,7 +323,7 @@ export default function Documents() {
             }
             
             return (
-              <div key={key} className={`doc-card ${status === 'expired' ? 'expired' : ''} ${status === 'warning' ? 'warning' : ''}`}>
+              <div key={typeId} className={`doc-card ${status === 'expired' ? 'expired' : ''} ${status === 'warning' ? 'warning' : ''}`}>
                 <div className="doc-card-header">
                   <span className="doc-icon">{docDef.icon}</span>
                   {isUploaded && (
@@ -496,19 +350,14 @@ export default function Documents() {
                       }
                     </div>
                     <div className="doc-card-actions">
-                      <button className="doc-card-btn" onClick={() => downloadDocument(parseInt(key))}>
+                      <button className="doc-card-btn" onClick={() => downloadDocument(typeId)}>
                         📄 Télécharger
                       </button>
                       <label className="doc-card-btn">
                         🔄 Remplacer
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => handleFileUpload(parseInt(key), e.target.files[0])}
-                          style={{ display: 'none' }}
-                        />
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(typeId, e.target.files[0])} style={{ display: 'none' }} />
                       </label>
-                      <button className="doc-card-btn" onClick={() => handleDelete(parseInt(key))}>
+                      <button className="doc-card-btn" onClick={() => handleDelete(typeId)}>
                         🗑️ Supprimer
                       </button>
                     </div>
@@ -516,20 +365,12 @@ export default function Documents() {
                 ) : (
                   <>
                     <div className="doc-card-missing">
-                      {docDef.required 
-                        ? 'Document obligatoire'
-                        : 'Document optionnel'
-                      }
+                      {docDef.required ? 'Document obligatoire' : 'Document optionnel'}
                     </div>
                     <div className="doc-card-actions">
                       <label className="doc-card-btn">
                         📤 Importer
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => handleFileUpload(parseInt(key), e.target.files[0])}
-                          style={{ display: 'none' }}
-                        />
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(typeId, e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                     </div>
                   </>
@@ -541,6 +382,58 @@ export default function Documents() {
       </section>
     );
   };
+
+  // ✅ Stats dynamiques
+  const getUploadedCount = () => Object.keys(documents).length;
+  
+  const getRequiredUploadedCount = () => {
+    return Object.entries(documentTypes)
+      .filter(([, doc]) => doc.required && documents[doc.id])
+      .length;
+  };
+
+  const getTotalRequired = () => {
+    return Object.values(documentTypes).filter(doc => doc.required).length;
+  };
+
+  const completenessScore = dossierData?.taux_completude || 
+    (getTotalRequired() > 0 ? Math.round((getRequiredUploadedCount() / getTotalRequired()) * 100) : 100);
+
+  const missingDocumentsCount = missingDocs.length;
+
+  // ✅ Documents expirés (utilise documentTypes dynamique)
+  const getExpiredDocuments = () => {
+    const expired = [];
+    const today = new Date();
+    Object.entries(documents).forEach(([key, doc]) => {
+      if (doc && doc.expiryDate) {
+        const expiryDate = new Date(doc.expiryDate);
+        if (expiryDate < today) {
+          expired.push({ docDef: documentTypes[key], doc });
+        }
+      }
+    });
+    return expired;
+  };
+
+  const getExpiringSoon = () => {
+    const expiring = [];
+    const today = new Date();
+    Object.entries(documents).forEach(([key, doc]) => {
+      if (doc && doc.expiryDate) {
+        const expiryDate = new Date(doc.expiryDate);
+        const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        if (daysUntilExpiry > 0 && daysUntilExpiry <= 30) {
+          expiring.push({ docDef: documentTypes[key], doc, daysUntilExpiry });
+        }
+      }
+    });
+    return expiring;
+  };
+
+  const expiredDocuments = getExpiredDocuments();
+  const expiringSoon = getExpiringSoon();
+
 
   if (!isLoggedIn) {
     return null;
@@ -713,7 +606,7 @@ export default function Documents() {
               <div className="missing-docs-list">
                 {missingDocs.map(doc => (
                   <div key={doc.id} className="missing-doc-row">
-                    <span className="missing-doc-icon">{DOCUMENT_TYPES[doc.id]?.icon || '📄'}</span>
+                    <span className="missing-doc-icon">{documentTypes[doc.id]?.icon || '📄'}</span>
                     <span className="missing-doc-name">{doc.libelle}</span>
                     <label className="missing-doc-upload">
                       📤 Importer
