@@ -1132,7 +1132,7 @@ def get_notifications(request, matricule):
     """Récupérer les notifications d'un agent"""
     try:
         agent = Agent.objects.get(matricule=matricule)
-        notifications = Notification.objects.filter(agent_id=agent.matricule).order_by('-date_envoi')[:10]
+        notifications = Notification.objects.filter(agent_id=agent.matricule).order_by('-date_envoi')[:20]
         result = [{
             'id': n.id,
             'message': n.message,
@@ -1943,15 +1943,22 @@ def check_expired_documents(request):
         
         # Documents déjà expirés
         pieces_expired = Piece.objects.filter(
-            date_expiration__lt=today,
+            date_expiration__lte=today,
             valide=1
         ).select_related('dossier_agent__agent', 'type_piece')
-        
+
         for piece in pieces_expired:
             agent = piece.dossier_agent.agent
             jours = (today - piece.date_expiration).days
             
-            # Vérifier si une notification existe déjà pour aujourd'hui
+            # ✅ Personnaliser le message selon le nombre de jours
+            if jours == 0:
+                message = f"⚠️ {piece.type_piece.libelle} expire aujourd'hui"
+            elif jours == 1:
+                message = f"⚠️ {piece.type_piece.libelle} a expiré hier"
+            else:
+                message = f"⚠️ {piece.type_piece.libelle} est expiré depuis {jours} jours"
+            
             existe = Notification.objects.filter(
                 agent=agent,
                 message__contains=piece.type_piece.libelle,
@@ -1962,7 +1969,7 @@ def check_expired_documents(request):
             if not existe:
                 Notification.objects.create(
                     agent=agent,
-                    message=f"⚠️ {piece.type_piece.libelle} est expiré depuis {jours} jours",
+                    message=message,
                     type_notification='expiration',
                     date_envoi=today,
                     lue=0
@@ -1972,7 +1979,7 @@ def check_expired_documents(request):
         # Documents qui expirent bientôt (30 jours)
         in_30_days = today + timedelta(days=30)
         pieces_expiring = Piece.objects.filter(
-            date_expiration__gte=today,
+            date_expiration__gt=today,
             date_expiration__lte=in_30_days,
             valide=1
         ).select_related('dossier_agent__agent', 'type_piece')
@@ -2114,10 +2121,19 @@ def get_documents(request):
 def upload_document(request):
     """Uploader un document et le stocker en base de données"""
     try:
+        import unicodedata  # ✅ Déplacer l'import ici
+        
         matricule = request.POST.get('matricule') or request.headers.get('X-User-Matricule')
         type_piece_id = request.POST.get('type_piece_id')
         file_base64 = request.POST.get('file_base64')
         file_name = request.POST.get('file_name')
+        
+        # ✅ Nettoyer le nom du fichier ICI (dans la fonction)
+        if file_name:
+            try:
+                file_name = unicodedata.normalize('NFKD', file_name).encode('ascii', 'ignore').decode('ascii')
+            except:
+                pass
         
         print(f"Upload demandé - matricule: {matricule}, type_piece: {type_piece_id}, fichier: {file_name}")
         
@@ -2223,9 +2239,6 @@ def upload_document(request):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
-    # Nettoyer le nom du fichier
-    import unicodedata
-    file_name = unicodedata.normalize('NFKD', file_name).encode('ascii', 'ignore').decode('ascii')
 
 
 @csrf_exempt
