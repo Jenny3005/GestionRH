@@ -3565,19 +3565,28 @@ body {
 /* Actions dans les tableaux */
 .rh-actions-cell {
   display: flex;
-  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.rh-table th:last-child,
+.rh-table td:last-child {
+  text-align: center;
 }
 
 .btn-icon {
-  background: none;
-  border: none;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px 10px;
   cursor: pointer;
-  font-size: 1rem;
-  padding: 0.2rem 0.4rem;
+  font-size: 16px;
   transition: all 0.2s;
 }
 
 .btn-icon:hover {
+  background: #e0e0e0;
   transform: scale(1.1);
 }
 
@@ -3668,11 +3677,9 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  max-width: 1400px;
-  margin: 0 auto 1.5rem;
-  padding: 0 2rem;
+  margin-bottom: 20px;
+  margin-top: 30px; 
+  padding: 0 10px;
 }
 
 .rh-search-box {
@@ -3682,10 +3689,10 @@ body {
 
 .rh-search-input {
   width: 100%;
-  padding: 0.6rem 1rem;
-  border: 1px solid #E2E8F0;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 14px;
 }
 
 .rh-actions-buttons {
@@ -5008,4 +5015,116 @@ body {
 .suivi-info-agent p, .suivi-info-demande p {
   margin: 5px 0;
   font-size: 14px;
+}
+
+/* ============ MODAL ============ */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+/* Formulaire en flex column */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+/* LE SCROLL EST ICI UNIQUEMENT */
+.modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid #eee;
+  background: #f8f9fa;
+  flex-shrink: 0;
+}
+
+/* ============ FORMULAIRE ============ */
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #007bff;
 }

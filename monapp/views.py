@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.contrib.auth.hashers import make_password, check_password
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -1929,6 +1930,85 @@ def update_agent_role_by_matricule(request, matricule):
         print(f"Erreur update_agent_role_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+
+# ==================== VÉRIFICATION DOCUMENTS EXPIRÉS ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def check_expired_documents(request):
+    """Vérifie les documents expirés et crée des notifications dans la table notification"""
+    try:
+        today = date.today()
+        count = 0
+        
+        # Documents déjà expirés
+        pieces_expired = Piece.objects.filter(
+            date_expiration__lt=today,
+            valide=1
+        ).select_related('dossier_agent__agent', 'type_piece')
+        
+        for piece in pieces_expired:
+            agent = piece.dossier_agent.agent
+            jours = (today - piece.date_expiration).days
+            
+            # Vérifier si une notification existe déjà pour aujourd'hui
+            existe = Notification.objects.filter(
+                agent=agent,
+                message__contains=piece.type_piece.libelle,
+                type_notification='expiration',
+                date_envoi=today
+            ).exists()
+            
+            if not existe:
+                Notification.objects.create(
+                    agent=agent,
+                    message=f"⚠️ {piece.type_piece.libelle} est expiré depuis {jours} jours",
+                    type_notification='expiration',
+                    date_envoi=today,
+                    lue=0
+                )
+                count += 1
+        
+        # Documents qui expirent bientôt (30 jours)
+        in_30_days = today + timedelta(days=30)
+        pieces_expiring = Piece.objects.filter(
+            date_expiration__gte=today,
+            date_expiration__lte=in_30_days,
+            valide=1
+        ).select_related('dossier_agent__agent', 'type_piece')
+        
+        for piece in pieces_expiring:
+            agent = piece.dossier_agent.agent
+            jours = (piece.date_expiration - today).days
+            
+            existe = Notification.objects.filter(
+                agent=agent,
+                message__contains=piece.type_piece.libelle,
+                type_notification='expiration',
+                date_envoi=today
+            ).exists()
+            
+            if not existe:
+                Notification.objects.create(
+                    agent=agent,
+                    message=f"⏰ {piece.type_piece.libelle} expire dans {jours} jours",
+                    type_notification='expiration',
+                    date_envoi=today,
+                    lue=0
+                )
+                count += 1
+        
+        return JsonResponse({
+            'success': True,
+            'notifications_created': count,
+            'message': f'{count} notification(s) créée(s)'
+        })
+        
+    except Exception as e:
+        print(f"Erreur check_expired_documents: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+        
+
 # ==================== GESTION DES DOCUMENTS (PIÈCES) - STOCKAGE EN BASE DE DONNÉES ====================
 
 @csrf_exempt
@@ -2080,7 +2160,6 @@ def upload_document(request):
         if type_piece.duree_validite:
             try:
                 # Extraire le nombre d'années (ex: "5 ans" -> 5)
-                import re
                 match = re.search(r'(\d+)', type_piece.duree_validite)
                 if match:
                     duree_annees = int(match.group(1))
@@ -2128,18 +2207,6 @@ def upload_document(request):
         dossier.save()
         print(f"Taux de complétude mis à jour: {taux}%")
         
-        # Créer une notification pour l'agent
-        try:
-            Notification.objects.create(
-                agent=agent,
-                message=f"✅ Document '{type_piece.libelle}' importé avec succès",
-                type_notification='document',
-                date_envoi=date.today(),
-                lue=0
-            )
-        except Exception as e:
-            print(f"Erreur création notification: {e}")
-            # On continue même si la notification échoue
         
         return JsonResponse({
             'success': True,
@@ -2155,6 +2222,10 @@ def upload_document(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+    # Nettoyer le nom du fichier
+    import unicodedata
+    file_name = unicodedata.normalize('NFKD', file_name).encode('ascii', 'ignore').decode('ascii')
 
 
 @csrf_exempt
@@ -2255,4 +2326,105 @@ def delete_document(request, piece_id):
         
     except Exception as e:
         print(f"Erreur delete_document: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+# ==================== RH : ACCÈS AUX DOCUMENTS DES AGENTS ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_documents_by_matricule(request, matricule):
+    """RH : Récupérer les documents de n'importe quel agent par matricule"""
+    try:
+        # Vérifier que le demandeur est RH ou admin
+        demandeur_matricule = request.headers.get('X-User-Matricule')
+        if not demandeur_matricule:
+            return JsonResponse({'error': 'Non autorisé'}, status=401)
+        
+        try:
+            demandeur = Agent.objects.get(matricule=demandeur_matricule)
+            roles = AgentRole.objects.filter(agent=demandeur).values_list('role__libelle', flat=True)
+            if 'rh' not in roles and 'admin' not in roles:
+                return JsonResponse({'error': 'Accès non autorisé'}, status=403)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        # Récupérer l'agent cible
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        
+        # Récupérer ou créer le dossier de l'agent cible
+        dossier, created = DossierAgent.objects.get_or_create(
+            agent=agent,
+            defaults={'datecreation': date.today(), 'taux_completude': 0}
+        )
+        
+        # Récupérer toutes les pièces
+        pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
+        types_pieces = TypePiece.objects.all()
+        
+        documents = []
+        for piece in pieces:
+            est_expire = False
+            jours_avant_expiration = None
+            
+            if piece.date_expiration:
+                jours_restants = (piece.date_expiration - date.today()).days
+                if jours_restants < 0:
+                    est_expire = True
+                jours_avant_expiration = jours_restants
+            
+            documents.append({
+                'id': piece.id,
+                'type_piece_id': piece.type_piece.id,
+                'type_piece_libelle': piece.type_piece.libelle,
+                'nom_fichier': piece.nom_fichier,
+                'date_upload': str(piece.date_upload),
+                'date_expiration': str(piece.date_expiration) if piece.date_expiration else None,
+                'est_expire': est_expire,
+                'jours_avant_expiration': jours_avant_expiration,
+                'valide': piece.valide
+            })
+        
+        # Documents manquants
+        documents_uploades_ids = [d['type_piece_id'] for d in documents]
+        missing_documents = []
+        for type_piece in types_pieces:
+            if type_piece.obligatoire == 1 and type_piece.id not in documents_uploades_ids:
+                missing_documents.append({
+                    'id': type_piece.id,
+                    'libelle': type_piece.libelle,
+                    'obligatoire': True
+                })
+        
+        # Taux de complétude
+        total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
+        documents_obligatoires_uploades = len([d for d in documents if d['type_piece_id'] in 
+            [tp.id for tp in types_pieces if tp.obligatoire == 1]])
+        
+        taux = round((documents_obligatoires_uploades / total_obligatoire) * 100) if total_obligatoire > 0 else 100
+        dossier.taux_completude = taux
+        dossier.save()
+        
+        return JsonResponse({
+            'success': True,
+            'agent': {
+                'matricule': agent.matricule,
+                'nom': agent.nom,
+                'prenom': agent.prenom
+            },
+            'dossier': {
+                'id': dossier.id,
+                'date_creation': str(dossier.datecreation),
+                'taux_completude': taux
+            },
+            'documents': documents,
+            'missing_documents': missing_documents,
+            'total_obligatoire': total_obligatoire,
+            'total_uploades': len(documents)
+        })
+        
+    except Exception as e:
+        print(f"Erreur get_documents_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
