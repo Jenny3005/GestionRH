@@ -610,7 +610,78 @@ def get_agent_by_matricule(request, matricule):
         print(f"Erreur get_agent_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==================== GESTION DES RÔLES DES AGENTS (AJOUT/SUPPRESSION) ====================
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_role_to_agent(request, agent_id):
+    """Ajouter un rôle à un agent"""
+    try:
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
+        
+        print(f"=== add_role_to_agent - Agent: {agent_id}, Role: {role_id}")
+        
+        # Récupérer l'agent (agent_id est le matricule)
+        agent = Agent.objects.get(matricule=agent_id)
+        role = Role.objects.get(id=role_id)
+        
+        # Vérifier si l'agent n'a pas déjà ce rôle
+        existing = AgentRole.objects.filter(agent=agent, role=role).first()
+        
+        if not existing:
+            AgentRole.objects.create(
+                agent=agent, 
+                role=role, 
+                date_attribution=datetime.now().date()
+            )
+            print(f"✅ Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté avec succès'})
+        else:
+            print(f"ℹ️ L'agent a déjà le rôle {role.libelle}")
+            return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': f'Agent {agent_id} non trouvé'}, status=404)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': f'Rôle {role_id} non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR add_role_to_agent: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def remove_role_from_agent(request, agent_id):
+    """Supprimer un rôle d'un agent"""
+    try:
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
+        
+        print(f"=== remove_role_from_agent - Agent: {agent_id}, Role: {role_id}")
+        
+        # Récupérer l'agent et le rôle
+        agent = Agent.objects.get(matricule=agent_id)
+        role = Role.objects.get(id=role_id)
+        
+        # Supprimer le rôle
+        deleted, _ = AgentRole.objects.filter(agent=agent, role=role).delete()
+        
+        if deleted:
+            print(f"✅ Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} supprimé avec succès'})
+        else:
+            print(f"ℹ️ L'agent n'avait pas le rôle {role.libelle}")
+            return JsonResponse({'success': True, 'message': 'L\'agent n\'avait pas ce rôle'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': f'Agent {agent_id} non trouvé'}, status=404)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': f'Rôle {role_id} non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR remove_role_from_agent: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    
 # ==================== GESTION DES CONGÉS ====================
 
 @csrf_exempt
