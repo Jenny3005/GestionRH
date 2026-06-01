@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from './hooks/usePermissions';
+import * as XLSX from 'xlsx';
 import './App.css';
 
 export default function DashboardRH() {
@@ -167,52 +168,100 @@ const handleSubmitNewAgent = async (e) => {
     });
     
     const data = await response.json();
-    console.log('Réponse:', response.status, data);
-    
-    if (response.ok) {
-      alert(`✅ Agent ${data.matricule} créé avec succès !`);
-      closeAddAgentModal();
-      fetchData();
-    } else {
-      // Afficher l'erreur exacte
-      const errorMsg = data.error || data.message || JSON.stringify(data);
-      alert(`❌ Erreur: ${errorMsg}`);
+      console.log('Réponse:', response.status, data);
+      
+      if (response.ok) {
+        alert(`✅ Agent ${data.matricule} créé avec succès !`);
+        closeAddAgentModal();
+        fetchData();
+      } else {
+        // Afficher l'erreur exacte
+        const errorMsg = data.error || data.message || JSON.stringify(data);
+        alert(`❌ Erreur: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
     }
-  } catch (error) {
-    console.error('Erreur:', error);
-    alert('Erreur de connexion');
-  }
-};
+  };
 
   const handleImportAgents = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.csv,.xlsx,.json';
+    input.accept = '.csv,.json,.xlsx,.xls';
     
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       
-      const formData = new FormData();
-      formData.append('file', file);
-      
       try {
+        let agents = [];
+        
+        if (file.name.endsWith('.json')) {
+          const text = await file.text();
+          agents = JSON.parse(text);
+        } else if (file.name.endsWith('.csv')) {
+          const text = await file.text();
+          const lines = text.split('\n').filter(l => l.trim());
+          if (lines.length < 2) {
+            alert('Fichier CSV vide ou invalide');
+            return;
+          }
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          agents = lines.slice(1).map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+            const agent = {};
+            headers.forEach((h, i) => agent[h] = values[i] || '');
+            return agent;
+          });
+        } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        // ✅ Lire le fichier Excel
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawAgents = XLSX.utils.sheet_to_json(firstSheet);
+        
+        // ✅ Convertir les clés avec accents en clés sans accent
+        agents = rawAgents.map(agent => ({
+          matricule: agent.Matricule || agent.matricule || '',
+          nom: agent.Nom || agent.nom || '',
+          prenom: agent['Prénom'] || agent.Prénom || agent.prenom || '',
+          email: agent.Email || agent.email || agent['E-mail'] || '',
+          telephone: agent['Téléphone'] || agent.Téléphone || agent.telephone || '',
+          poste: agent.Poste || agent.poste || '',
+          direction: agent.Direction || agent.direction || '',
+          typecontrat: agent['Type de contrat'] || agent.typecontrat || 'APE',
+          date_prise_service: agent['Date de prise de service'] || agent.date_prise_service || '2024-01-01'
+        }));
+}
+        else {
+          alert('Format non supporté. Utilisez CSV, JSON ou Excel.');
+          return;
+        }
+        
+        if (!agents || agents.length === 0) {
+          alert('Aucun agent trouvé dans le fichier');
+          return;
+        }
+        
+        console.log('Agents à importer:', agents);
+        
         const response = await fetch('http://localhost:8000/api/import-agents/', {
           method: 'POST',
-          body: formData
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agents })
         });
         
+        const data = await response.json();
         if (response.ok) {
-          const data = await response.json();
           alert(`✅ ${data.success_count} agents importés avec succès !`);
           fetchData();
         } else {
-          const error = await response.json();
-          alert(`❌ Erreur: ${error.error}`);
+          alert(`❌ Erreur: ${data.error}`);
         }
       } catch (error) {
         console.error('Erreur import:', error);
-        alert('Erreur lors de l\'import');
+        alert('Erreur lors de l\'import.');
       }
     };
     
@@ -396,7 +445,7 @@ const handleSubmitNewAgent = async (e) => {
                       <th>Poste</th>
                       <th>Direction</th>
                       <th>Statut</th>
-                      <th>Actions</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -410,10 +459,8 @@ const handleSubmitNewAgent = async (e) => {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td>
-                            <button className="btn-icon" title="Voir dossier">👁️</button>
-                            <button className="btn-icon" title="Modifier">✏️</button>
-                            <button className="btn-icon" title="Documents">📄</button>
+                          <td className="rh-actions-cell">
+                            <button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button>
                           </td>
                         </tr>
                       ))
@@ -470,7 +517,7 @@ const handleSubmitNewAgent = async (e) => {
                       <th>Poste</th>
                       <th>Direction</th>
                       <th>Statut</th>
-                      <th>Actions</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -485,10 +532,8 @@ const handleSubmitNewAgent = async (e) => {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td className="rh-actions-cell">
-                            <button className="btn-icon" title="Voir profil" onClick={() => handleViewProfile(agent.matricule)}>👁️</button>
-                            <button className="btn-icon" title="Documents" onClick={() => handleViewDocuments(agent.matricule)}>📄</button>
-                            <button className="btn-icon" title="Modifier" onClick={() => handleEditAgent(agent.matricule)}>✏️</button>
+                          <td>
+                            <button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button>
                           </td>
                         </tr>
                       ))
@@ -757,11 +802,22 @@ const handleSubmitNewAgent = async (e) => {
                     </div>
                     <div className="form-group">
                       <label>Direction</label>
-                      <input
-                        type="text"
+                      <select
                         value={newAgent.direction}
                         onChange={(e) => setNewAgent({...newAgent, direction: e.target.value})}
-                      />
+                      >
+                        <option value="">Sélectionner une direction</option>
+                        <option value="DDIGIT">DDIGIT (Direction de la Digitalisation)</option>
+                        <option value="DSI">DSI (Direction des Systèmes d'Information)</option>
+                        <option value="DNUM">DNUM (Direction du Numérique)</option>
+                        <option value="DPAF">DPAF (Direction de la Planification, de l'Administration et des Finances)</option>
+                        <option value="SGM">SGM (Secrétariat Général du Ministère)</option>
+                        <option value="SG">SG (Secrétariat Général)</option>
+                        <option value="DGM">DGM (Direction Rattachée)</option>
+                        <option value="DCP">DCP (Direction Rattachée)</option>
+                        <option value="DM">DM (Direction des Médias)</option>
+                        <option value="Cabinet du Ministère">Cabinet du Ministère</option>
+                      </select>
                     </div>
                   </div>
                   
@@ -774,6 +830,8 @@ const handleSubmitNewAgent = async (e) => {
                       >
                         <option value="APE">APE</option>
                         <option value="ACDPE">ACDPE</option>
+                        <option value="AAE">AAE</option>
+                        <option value="ACE">ACE</option>
                       </select>
                     </div>
                     <div className="form-group">
