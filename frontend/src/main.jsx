@@ -8,6 +8,7 @@ import Demarches from './Demarches';
 import Documents from './Documents';
 import DashboardAdmin from './DashboardAdmin';
 import DashboardRH from './DashboardRH';
+import RHDocuments from './RHDocuments'; 
 import AdminAgents from './AdminAgents';
 import AdminRoles from './AdminRoles';
 import ActivateAccount from './ActivateAccount';
@@ -48,6 +49,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/secretaire/dashboard" element={<DashboardSecretaireDPAF />} />
       <Route path="/rh/dashboard" element={<DashboardRH />} />
       <Route path="/dpaf/dashboard" element={<DashboardDPAF />} />
+      <Route path="/rh/documents/:matricule" element={<RHDocuments />} />
     </Routes>
   </BrowserRouter>
 );
