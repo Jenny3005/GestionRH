@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function Demarches() {
@@ -8,7 +9,6 @@ export default function Demarches() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   
   // États pour les formulaires
   const [showCongeForm, setShowCongeForm] = useState(false);
@@ -47,24 +47,7 @@ export default function Demarches() {
     }
   }, []);
 
-  // Fermer le dropdown en cliquant ailleurs
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    setIsLoggedIn(false);
-    setUserName('');
-    setUserEmail('');
-    navigate('/'); 
-  };
 
   // Récupérer le solde de congés
   const fetchSoldeConge = async (matricule) => {
@@ -158,7 +141,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numero_suivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
+        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numerosuivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
         setShowCongeForm(false);
         setCongeForm({ date_debut: '', date_fin: '' });
         fetchSoldeConge(matricule);
@@ -383,49 +366,7 @@ export default function Demarches() {
         <PortalNav />
 
         <div className="nav-right">
-          {isLoggedIn ? (
-            <div className="user-menu-container">
-              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-                <div className="avatar-circle">{userName?.charAt(0) || 'U'}</div>
-                <div className="user-meta">
-                  <span className="user-name">{userName}</span>
-                  <span className="user-role">
-                    {getRoleLabel(userRole)}
-                  </span>
-                </div>
-                <span className="dropdown-arrow">▼</span>
-              </div>
-              
-              {dropdownOpen && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-header">
-                    <strong>{userName}</strong>
-                    <small>{userEmail}</small>
-                  </div>
-                  <div className="dropdown-divider"></div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      navigate(getDashboardPath());
-                    }}
-                  >
-                    📊 Tableau de bord
-                  </button>
-                  <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                    👤 Mon profil
-                  </button>
-                  <div className="dropdown-divider"></div>
-                  <button className="dropdown-item logout" onClick={handleLogout}>
-                    🔓 Se déconnecter
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button className="btn-login-main" onClick={() => navigate('/auth')}>
-              Se connecter / S'inscrire
-            </button>
-          )}
+          <UserMenu />
         </div>
       </header>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import PortalNav, { getRoleLabel } from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 // Configuration des types de documents (correspond à votre table type_piece)
@@ -120,7 +121,6 @@ export default function Documents() {
   const [userEmail, setUserEmail] = useState('');
   const [userRole, setUserRole] = useState('');
   const [userMatricule, setUserMatricule] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [documents, setDocuments] = useState({});
   const [dossierData, setDossierData] = useState(null);
   const [missingDocs, setMissingDocs] = useState([]);
@@ -360,22 +360,6 @@ export default function Documents() {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   const isRH = userRole === 'RH' || userRole === 'ADMIN' || userRole === 'rh' || userRole === 'admin';
 
   // Statistiques
@@ -585,39 +569,7 @@ export default function Documents() {
         <PortalNav />
 
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <span className="user-role">{getRoleLabel(userRole)}</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userEmail}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate(getDashboardPath())}>
-                  📊 Tableau de bord
-                </button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                  👤 Mon profil
-                </button>
-                <button className="dropdown-item" onClick={() => navigate('/documents')}>
-                  📁 Mes documents
-                </button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>
-                  🔓 Se déconnecter
-                </button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 
