@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from './hooks/usePermissions';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardRH() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   
@@ -52,15 +52,6 @@ export default function DashboardRH() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,11 +112,6 @@ export default function DashboardRH() {
     return <span className={`status-badge ${status.class}`}>{status.text}</span>;
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   if (permissionsLoading || loading) {
     return <div className="loading-screen">Chargement...</div>;
   }
@@ -153,29 +139,7 @@ export default function DashboardRH() {
           </a>
         </nav>
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'R'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Agent RH'}</span>
-                <span className="user-role">Ressources Humaines</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userInfo.email}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/rh/dashboard')}>📊 Tableau de bord RH</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardAgent() {
   const navigate = useNavigate();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const storedNom = localStorage.getItem('userNom') || '';
   const storedPrenom = localStorage.getItem('userPrenom') || '';
   const storedEmail = localStorage.getItem('userEmail') || '';
@@ -39,15 +39,6 @@ export default function DashboardAgent() {
     fetchNotifications();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   const fetchUserInfo = async () => {
     try {
@@ -149,11 +140,6 @@ export default function DashboardAgent() {
     setShowSoldeModal(true);
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
 
   const stats = [
@@ -173,29 +159,7 @@ export default function DashboardAgent() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'A'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Agent'}</span>
-                <span className="user-role">Agent</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userInfo.email}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 
