@@ -84,5 +84,6 @@ urlpatterns = [
     path('rh/generer-acte/<int:demande_id>/', views.generer_acte_rh, name='generer_acte_rh'),
 
     path('check-expiry/', views.check_expired_documents, name='check_expired_documents'),
+    path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
 
 ] 

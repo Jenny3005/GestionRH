@@ -47,8 +47,6 @@ export default function Demarches() {
     }
   }, []);
 
-
-
   // Récupérer le solde de congés
   const fetchSoldeConge = async (matricule) => {
     try {
@@ -211,12 +209,101 @@ export default function Demarches() {
     }
   };
 
+  // Attestation de présence au poste
+  const soumettreAttestationPresence = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/attestations/presence/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matricule: matricule
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Attestation de présence générée avec succès !\nRéférence: ${data.reference}`);
+        
+        // Ouvrir une fenêtre avec l'attestation
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Attestation de présence au poste</title>
+              <style>
+                @page {
+                  size: A4;
+                  margin: 2.5cm;
+                }
+                body {
+                  font-family: 'Times New Roman', Times, serif;
+                  font-size: 12pt;
+                  line-height: 1.5;
+                  margin: 0;
+                  padding: 0;
+                }
+                .print-btn {
+                  text-align: center;
+                  margin-top: 30px;
+                  margin-bottom: 30px;
+                }
+                button {
+                  padding: 10px 20px;
+                  background: #0B192C;
+                  color: white;
+                  border: none;
+                  border-radius: 5px;
+                  cursor: pointer;
+                  margin: 0 10px;
+                }
+                button:hover {
+                  background: #1a2a3a;
+                }
+                @media print {
+                  .print-btn {
+                    display: none;
+                  }
+                }
+              </style>
+            </head>
+            <body>
+              <pre style="white-space: pre-wrap; font-family: 'Times New Roman', Times, serif; margin: 0;">${data.contenu}</pre>
+              <div class="print-btn">
+                <button onclick="window.print()">🖨️ Imprimer / Télécharger PDF</button>
+                <button onclick="window.close()">❌ Fermer</button>
+              </div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        alert(data.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFaireDemande = (titre) => {
     requireLogin(`faire une ${titre}`, () => {
       if (titre.includes("Demande de congé")) {
         setShowCongeForm(true);
       } else if (titre.includes("Autorisation d'absence")) {
         setShowAbsenceForm(true);
+      } else if (titre.includes("Attestation de présence au poste")) {
+        soumettreAttestationPresence();
       } else {
         alert(`Demande de ${titre} en cours de traitement...`);
       }
@@ -284,7 +371,8 @@ export default function Demarches() {
       id: 2,
       titre: "Attestation de présence au poste",
       description: "Confirme votre présence effective à votre poste de travail.",
-      delai: "~3 jours"
+      delai: "Immédiat",
+      action: "generer"
     },
     {
       id: 3,
@@ -414,7 +502,7 @@ export default function Demarches() {
                   className="btn-demande" 
                   onClick={() => handleFaireDemande(item.titre)}
                 >
-                  Faire la demande →
+                  {item.action === 'generer' ? 'Générer →' : 'Faire la demande →'}
                 </button>
               </div>
             ))}
