@@ -5128,3 +5128,50 @@ body {
   outline: none;
   border-color: #007bff;
 }
+
+/* Sous-menu pour le tableau de bord */
+.dropdown-submenu {
+  position: relative;
+}
+
+.dropdown-parent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.submenu-arrow {
+  font-size: 10px;
+  margin-left: 10px;
+  color: #64748b;
+}
+
+.dropdown-submenu-content {
+  background: #f8fafc;
+  border-radius: 6px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding: 4px 0;
+}
+
+.dropdown-subitem {
+  display: block;
+  width: 100%;
+  padding: 8px 16px 8px 32px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #334155;
+  transition: background 0.2s;
+}
+
+.dropdown-subitem:hover {
+  background: #e2e8f0;
+}
+
+.dropdown-subitem.active {
+  background: #e0e7ff;
+  color: #3b82f6;
+}
