@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   // Vérifier si l'utilisateur est connecté au chargement
@@ -31,16 +31,6 @@ export default function App() {
     }
   }, []);
 
-  // Fermer le dropdown en cliquant ailleurs
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   const [postesVacants] = useState([
     {
@@ -140,43 +130,7 @@ export default function App() {
 
         <div className="nav-right">
           {isLoggedIn ? (
-            <div className="user-menu-container">
-              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'U'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <span className="user-role">
-                  {getRoleLabel()}
-                </span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-              
-              {dropdownOpen && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-header">
-                    <strong>{userName}</strong>
-                    <small>{userEmail}</small>
-                  </div>
-                  <div className="dropdown-divider"></div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      navigate(getDashboardPath());
-                    }}
-                  >
-                    📊 Tableau de bord
-                  </button>
-                  <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                    👤 Mon profil
-                  </button>
-                  <div className="dropdown-divider"></div>
-                  <button className="dropdown-item logout" onClick={handleLogout}>
-                    🔓 Se déconnecter
-                  </button>
-                </div>
-              )}
-            </div>
+            <UserMenu />
           ) : (
             <button className="btn-login-main" onClick={() => navigate('/auth')}>
               Se connecter / S'inscrire

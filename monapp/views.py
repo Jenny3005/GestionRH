@@ -759,7 +759,7 @@ def demande_conge(request):
             type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         )
         
         conge = DemandeConge.objects.create(
@@ -788,7 +788,7 @@ def demande_conge(request):
         
         return JsonResponse({
             'success': True,
-            'numero_suivi': demande.numero_suivi,
+            'numerosuivi': demande.numerosuivi,
             'message': f'Demande de {nombre_jours} jours envoyée pour validation',
             'jours_restants_apres': solde.jours_restants - nombre_jours
         })
@@ -847,14 +847,14 @@ def demande_absence(request):
             defaults={'acte_generable': 0}
         )
         
-        numero_suivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+        numerosuivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         
         demande = Demande.objects.create(
             agent=agent,
             type_demande=type_demande_obj,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numerosuivi=numero_suivi,
+            numerosuivi=numerosuivi,
             jours_consommes=nombre_jours,
             jours_restants=10 - nouveau_total,
             annee=annee_courante
@@ -870,7 +870,7 @@ def demande_absence(request):
         
         return JsonResponse({
             'success': True,
-            'numero_suivi': demande.numerosuivi,
+            'numerosuivi': demande.numerosuivi,
             'message': f'Demande envoyée',
             'jours_consommes': demande.jours_consommes,
             'jours_restants': demande.jours_restants
@@ -988,7 +988,7 @@ def demandes_direction(request, matricule_chef):
                 'date_soumission': str(d.date_soumission),
                 'statut': d.statut,
                 'commentaire': getattr(d, 'commentaire', ''),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"Demandes retournées: {len(result)}")
@@ -1132,7 +1132,7 @@ def mes_demandes(request, matricule):
                 'nombre_jours': nombre_jours,
                 'statut': d.statut,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"\n✅ FINAL - Demandes retournées: {len(result)}")
@@ -1540,7 +1540,7 @@ def get_demandes_validees_secretaire(request, matricule_secretaire):
                 'nombre_jours': nombre_jours,
                 'date_validation': str(d.date_soumission),
                 'statut': d.statut,
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"✅ Demandes retournées: {len(result)}")
@@ -1625,7 +1625,7 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
         
         demandes = Demande.objects.filter(
             statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine']
-        ).select_related('agent', 'type_demande')
+        ).select_related('agent', 'type_demande', 'agent_rh')
         
         result = []
         for d in demandes:
@@ -1639,6 +1639,16 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
                 date_debut = str(d.demandeabsence.date_debut)
                 date_fin = str(d.demandeabsence.date_fin)
             
+            # Récupérer le nom depuis d.agent_rh (clé étrangère)
+            if d.agent_rh:
+                agent_rh_nom = d.agent_rh.nom
+                agent_rh_prenom = d.agent_rh.prenom
+                print(f"✅ Demande {d.id}: Agent RH = {agent_rh_nom} {agent_rh_prenom}")
+            else:
+                agent_rh_nom = 'Non assigné'
+                agent_rh_prenom = ''
+                print(f"⚠️ Demande {d.id}: Aucun agent RH assigné")
+            
             result.append({
                 'id': d.id,
                 'agent_nom': d.agent.nom,
@@ -1647,8 +1657,8 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'agent_rh_nom': getattr(d, 'agent_rh_nom', 'Non assigné'),
-                'agent_rh_prenom': getattr(d, 'agent_rh_prenom', ''),
+                'agent_rh_nom': agent_rh_nom,
+                'agent_rh_prenom': agent_rh_prenom,
                 'statut': d.statut,
                 'date_assignation': str(getattr(d, 'date_assignation', d.date_soumission))
             })
@@ -1658,8 +1668,9 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
         
     except Exception as e:
         print(f"ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1705,16 +1716,16 @@ def assigner_demande_rh(request, demande_id):
         demande = Demande.objects.get(id=demande_id)
         agent_rh = Agent.objects.get(matricule=agent_rh_matricule)
         
+        # Mettre à jour la demande
         demande.statut = 'assignee_rh'
-        demande.agent_rh_matricule = agent_rh_matricule
-        demande.agent_rh_nom = agent_rh.nom
-        demande.agent_rh_prenom = agent_rh.prenom
+        demande.agent_rh = agent_rh
         demande.date_assignation = datetime.now().date()
         demande.commentaire_dpaf = commentaire
         demande.save()
         
         print(f"✅ Demande {demande_id} assignée à {agent_rh.nom} {agent_rh.prenom}")
         
+        # Notification pour l'agent RH
         Notification.objects.create(
             agent_id=agent_rh_matricule,
             message=f"Nouvelle demande assignée: {demande.type_demande.libelle} pour {demande.agent.nom} {demande.agent.prenom}",
@@ -1732,8 +1743,6 @@ def assigner_demande_rh(request, demande_id):
     except Exception as e:
         print(f"ERREUR: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
 # ==================== RH ====================
 
 @csrf_exempt
@@ -1741,8 +1750,11 @@ def assigner_demande_rh(request, demande_id):
 def get_demandes_assignees_rh(request, matricule_rh):
     """Récupérer les demandes assignées à un agent RH"""
     try:
+        print(f"=== get_demandes_assignees_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh (clé étrangère) au lieu de agent_rh_matricule
         demandes = Demande.objects.filter(
-            agent_rh_matricule=matricule_rh,
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
             statut='assignee_rh'
         ).select_related('agent', 'type_demande')
         
@@ -1765,13 +1777,18 @@ def get_demandes_assignees_rh(request, matricule_rh):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'date_assignation': str(getattr(d, 'date_assignation', d.date_soumission))
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes assignées trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_assignees_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -1825,8 +1842,11 @@ def generer_acte_rh(request, demande_id):
 def get_demandes_cours_rh(request, matricule_rh):
     """Récupérer les demandes en cours de traitement pour un agent RH"""
     try:
+        print(f"=== get_demandes_cours_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh__matricule
         demandes = Demande.objects.filter(
-            agent_rh_matricule=matricule_rh,
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
             statut='en_cours_traitement'
         ).select_related('agent', 'type_demande')
         
@@ -1849,14 +1869,17 @@ def get_demandes_cours_rh(request, matricule_rh):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'statut': d.statut,
-                'date_debut_traitement': str(getattr(d, 'date_debut_traitement', ''))
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes en cours trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_cours_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1899,30 +1922,47 @@ def get_demandes_terminees_rh(request, matricule_rh):
 
 @csrf_exempt
 @require_http_methods(["GET"])
-def get_actes_a_envoyer_rh(request, matricule_rh):
-    """Récupérer les actes générés à envoyer à la secrétaire"""
+def get_demandes_terminees_rh(request, matricule_rh):
+    """Récupérer les demandes terminées pour un agent RH"""
     try:
-        actes = ActeAdministratif.objects.filter(
-            statut='genere'
-        ).select_related('demande__agent')
+        print(f"=== get_demandes_terminees_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh__matricule
+        demandes = Demande.objects.filter(
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
+            statut__in=['acte_genere', 'termine']
+        ).select_related('agent', 'type_demande')
         
         result = []
-        for acte in actes:
+        for d in demandes:
+            date_debut = None
+            date_fin = None
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                date_debut = str(d.demandeconge.date_debut)
+                date_fin = str(d.demandeconge.date_fin)
+            elif hasattr(d, 'demandeabsence') and d.demandeabsence:
+                date_debut = str(d.demandeabsence.date_debut)
+                date_fin = str(d.demandeabsence.date_fin)
+            
             result.append({
-                'id': acte.id,
-                'agent_nom': acte.demande.agent.nom,
-                'agent_prenom': acte.demande.agent.prenom,
-                'agent_matricule': acte.demande.agent.matricule,
-                'type_acte': acte.type_acte,
-                'reference': acte.reference,
-                'date_generation': str(acte.date_generation),
-                'contenu': acte.contenu
+                'id': d.id,
+                'agent_nom': d.agent.nom,
+                'agent_prenom': d.agent.prenom,
+                'agent_matricule': d.agent.matricule,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'date_debut': date_debut,
+                'date_fin': date_fin,
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes terminées trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_terminees_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 @csrf_exempt
 @require_http_methods(["GET"])
 def mes_demandes_conge(request, matricule):
@@ -1954,7 +1994,7 @@ def mes_demandes_conge(request, matricule):
                 'nombre_jours': nombre_jours,
                 'statut': d.statut,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         return JsonResponse(result, safe=False)
@@ -1967,39 +2007,26 @@ def mes_demandes_conge(request, matricule):
 @csrf_exempt
 @require_http_methods(["PUT"])
 def update_agent_role_by_matricule(request, matricule):
-    """Modifier le rôle d'un agent en utilisant son matricule"""
+    """Ajouter un rôle à un agent (sans supprimer les existants)"""
     try:
         data = json.loads(request.body)
         role_id = data.get('role_id')
         
-        # Vérifier que le rôle existe
-        try:
-            role = Role.objects.get(id=role_id)
-        except Role.DoesNotExist:
-            return JsonResponse({'error': 'Rôle non trouvé'}, status=404)
+        agent = Agent.objects.get(matricule=matricule)
+        role = Role.objects.get(id=role_id)
         
-        # Récupérer l'agent par son matricule
-        try:
-            agent = Agent.objects.get(matricule=matricule)
-        except Agent.DoesNotExist:
-            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
-        
-        # Vérifier si l'agent a déjà ce rôle
+        # Vérifier si l'agent n'a pas déjà ce rôle
         existing = AgentRole.objects.filter(agent=agent, role=role).first()
         
-        if existing:
-            # Si le rôle existe déjà, on ne fait rien ou on peut le supprimer selon le besoin
-            return JsonResponse({'success': True, 'message': 'Ce rôle est déjà attribué à cet agent'})
-        
-        # Ajouter le nouveau rôle (sans supprimer les anciens)
-        AgentRole.objects.create(agent=agent, role=role, date_attribution=date.today())
-        
-        return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} attribué avec succès'})
+        if not existing:
+            # Ajouter le nouveau rôle sans supprimer les anciens
+            AgentRole.objects.create(agent=agent, role=role, date_attribution=date.today())
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté'})
+        else:
+            return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
         
     except Exception as e:
-        print(f"Erreur update_agent_role_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 # ==================== GESTION DES DOCUMENTS (PIÈCES) - STOCKAGE EN BASE DE DONNÉES ====================
 
 @csrf_exempt
@@ -2326,4 +2353,39 @@ def delete_document(request, piece_id):
         
     except Exception as e:
         print(f"Erreur delete_document: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_a_envoyer_rh(request, matricule_rh):
+    """Récupérer les actes générés à envoyer à la secrétaire"""
+    try:
+        print(f"=== get_actes_a_envoyer_rh for: {matricule_rh}")
+        
+        # Correction : filtrer par agent_rh__matricule
+        actes = ActeAdministratif.objects.filter(
+            demande__agent_rh__matricule=matricule_rh,  # ← Correction ici
+            statut='genere'
+        ).select_related('demande__agent')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.id,
+                'agent_nom': acte.demande.agent.nom,
+                'agent_prenom': acte.demande.agent.prenom,
+                'agent_matricule': acte.demande.agent.matricule,
+                'type_acte': acte.type_acte,
+                'reference': acte.reference,
+                'date_generation': str(acte.date_generation),
+                'contenu': acte.contenu
+            })
+        
+        print(f"✅ {len(result)} actes à envoyer trouvés")
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"ERREUR get_actes_a_envoyer_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
