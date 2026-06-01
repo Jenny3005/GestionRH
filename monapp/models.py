@@ -121,7 +121,7 @@ class DemandeAbsence(models.Model):
     date_fin = models.DateField(db_column='dateFin')
     nombrejours = models.IntegerField(db_column='nombreJours')
     motif = models.CharField(max_length=255, blank=True, null=True)
-
+    
     class Meta:
         managed = False
         db_table = 'demande_absence'
