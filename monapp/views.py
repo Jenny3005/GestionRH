@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from docx import Document
 from django.contrib.auth.hashers import make_password, check_password
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -10,6 +11,9 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from django.http import HttpResponse
+import io
+import os
 from datetime import datetime, date, timedelta
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
@@ -2585,10 +2589,11 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def generer_attestation_presence(request):
-    """Générer une attestation de présence au poste avec le format exact du document Word"""
+    """Générer une attestation de présence au poste"""
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
@@ -2602,7 +2607,6 @@ def generer_attestation_presence(request):
         # Formater la date de prise de service
         if agent.date_prise_service:
             date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
-            # Convertir le mois en français
             mois_fr = {
                 'January': 'janvier', 'February': 'février', 'March': 'mars',
                 'April': 'avril', 'May': 'mai', 'June': 'juin',
@@ -2616,280 +2620,112 @@ def generer_attestation_presence(request):
         
         date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
         
-        # Générer le numéro de référence
+        # Générer la référence
         annee = datetime.now().year
         ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
         reference = f"{ref_number}/MND/DPAF/SRHDS/SA"
         
-        # Générer le contenu HTML avec les logos et le style exact
-        contenu_html = f'''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Attestation de présence au poste</title>
-            <style>
-                @page {{
-                    size: A4;
-                    margin: 2cm;
-                }}
-                body {{
-                    font-family: 'Times New Roman', Times, serif;
-                    font-size: 12pt;
-                    line-height: 1.4;
-                    margin: 0;
-                    padding: 0;
-                }}
-                .header {{
-                    text-align: center;
-                    margin-bottom: 20px;
-                }}
-                .logo-left {{
-                    float: left;
-                    width: 80px;
-                }}
-                .logo-right {{
-                    float: right;
-                    width: 80px;
-                }}
-                .ministere {{
-                    text-align: center;
-                    font-weight: bold;
-                    font-size: 14pt;
-                    margin-top: 20px;
-                }}
-                .sous-titre {{
-                    text-align: center;
-                    font-size: 12pt;
-                }}
-                .benin {{
-                    text-align: center;
-                    font-weight: bold;
-                    font-size: 14pt;
-                    margin-top: 5px;
-                }}
-                .date-lieu {{
-                    text-align: right;
-                    margin: 30px 0 20px 0;
-                }}
-                .reference {{
-                    margin: 10px 0;
-                }}
-                .title {{
-                    text-align: center;
-                    font-size: 16pt;
-                    font-weight: bold;
-                    text-decoration: underline;
-                    margin: 40px 0 30px 0;
-                }}
-                .content {{
-                    text-align: justify;
-                    margin: 30px 0;
-                }}
-                .signature {{
-                    margin-top: 60px;
-                    text-align: right;
-                }}
-                .signature-name {{
-                    margin-top: 10px;
-                    font-weight: bold;
-                }}
-                .bandeau {{
-                    margin-top: 30px;
-                    width: 100%;
-                    height: 1px;
-                    background: #000;
-                }}
-                .clearfix {{
-                    clear: both;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <img src="/api/static/logo-mnd.png" class="logo-left" style="width: 80px;" />
-                <img src="/api/static/logo-benin.png" class="logo-right" style="width: 80px;" />
-                <div class="clearfix"></div>
-            </div>
-            
-            <div class="ministere">
-                MINISTÈRE DU NUMÉRIQUE<br>
-                ET DE LA DIGITALISATION
-            </div>
-            
-            <div class="benin">
-                RÉPUBLIQUE DU BÉNIN
-            </div>
-            
-            <div class="date-lieu">
-                Cotonou, le {date_aujourdhui}
-            </div>
-            
-            <div class="reference">
-                <strong>La Directrice Adjointe de la Planification,<br>
-                de l'Administration et des Finances</strong><br>
-                N° {reference} /MND/DPAF/SRHDS/SA
-            </div>
-            
-            <div class="title">
-                Attestation de Présence au Poste
-            </div>
-            
-            <div class="content">
-                La Directrice Adjointe de la Planification, de l'Administration et des<br>
-                Finances, du Ministère du Numérique et de la Digitalisation soussignée,<br>
-                atteste que Monsieur <strong>{nom_complet}</strong>, {poste}, est présent à son poste de<br>
-                travail depuis le {date_prise_service}, date de sa prise de service à ce<br>
-                jour.
-            </div>
-            
-            <div class="content">
-                En foi de quoi, la présente attestation lui est délivrée pour servir et<br>
-                valoir ce que de droit.
-            </div>
-            
-            <div class="signature">
-                <strong>Augustine Tognissè CAKPO SOGLO</strong>
-            </div>
-            
-            <div class="bandeau"></div>
-        </body>
-        </html>
-        '''
+        # Chemin du template
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_presence_template.docx')
         
-        # Sauvegarder l'acte dans la base
-        acte = ActeAdministratif.objects.create(
-            reference=reference,
-            type_acte='Attestation de présence au poste',
-            statut='genere',
-            date_generation=datetime.now().date(),
-            contenu=contenu_html
-        )
-        
-        # Enregistrer la demande
-        type_demande, _ = TypeDemande.objects.get_or_create(
-            libelle='Attestation',
-            defaults={'acte_generable': 1}
-        )
-        
-        Demande.objects.create(
-            agent=agent,
-            type_demande=type_demande,
-            statut='termine',
-            date_soumission=datetime.now().date(),
-            numerosuivi=reference
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'reference': reference,
-            'contenu': contenu_html,
-            'message': 'Attestation de présence générée avec succès'
-        })
-        
-    except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
-    except Exception as e:
-        print(f"ERREUR: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
-    """Générer une attestation de présence au poste immédiatement"""
-    try:
-        data = json.loads(request.body)
-        matricule = data.get('matricule')
-        
-        agent = Agent.objects.get(matricule=matricule)
-        
-        # Récupérer les infos de l'agent
-        nom_complet = f"{agent.nom} {agent.prenom}".upper()
-        prenom = agent.prenom
-        nom = agent.nom
-        matricule = agent.matricule
-        poste = agent.poste or 'Agent'
-        direction = agent.direction or 'Direction à renseigner'
-        
-        # Formater la date de prise de service
-        if agent.date_prise_service:
-            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
-            # Convertir le mois en français
-            mois_fr = {
-                'January': 'janvier', 'February': 'février', 'March': 'mars',
-                'April': 'avril', 'May': 'mai', 'June': 'juin',
-                'July': 'juillet', 'August': 'août', 'September': 'septembre',
-                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        # Vérifier si le template existe
+        if os.path.exists(template_path):
+            # Utiliser le template Word
+            doc = Document(template_path)
+            
+            # Remplacements robustes: gérer placeholders éventuellement cassés sur plusieurs runs
+            placeholders = {
+                '{{NOM_COMPLET}}': nom_complet,
+                '{{POSTE}}': poste,
+                '{{DATE_PRISE_SERVICE}}': date_prise_service,
+                '{{DATE_AUJOURD_HUI}}': date_aujourdhui,
+                # Certaines versions du template ont une balise malformée (_AUJOURD_HUI}})
+                '_AUJOURD_HUI}}': date_aujourdhui,
             }
-            for en, fr in mois_fr.items():
-                date_prise_service = date_prise_service.replace(en, fr)
+
+            for paragraph in doc.paragraphs:
+                # reconstruire le texte complet du paragraphe (peut être découpé en runs)
+                para_text = ''.join([r.text for r in paragraph.runs])
+                new_text = para_text
+
+                # Gestion spéciale pour la référence: si le template contient déjà le suffixe
+                # "/MND/DPAF/SRHDS/SA" à côté du placeholder, n'ajouter que le numéro.
+                if '{{REFERENCE}}' in new_text:
+                    if '/MND/DPAF/SRHDS/SA' in new_text:
+                        ref_display = ref_number
+                    else:
+                        ref_display = reference
+                    new_text = new_text.replace('{{REFERENCE}}', ref_display)
+
+                # Remplacer les autres placeholders
+                for key, val in placeholders.items():
+                    if key in new_text:
+                        new_text = new_text.replace(key, val)
+
+                # Éviter les duplications accidentelles de la date (ex: "01/06/202601/06/2026")
+                try:
+                    import re
+                    new_text = re.sub(r"(\d{2}/\d{2}/\d{4})\1+", r"\1", new_text)
+                except Exception:
+                    pass
+
+                # Si du texte a changé, remplacer le contenu du paragraphe tout en
+                # essayant de préserver le style de la première run
+                if new_text != para_text:
+                    first_run = paragraph.runs[0] if paragraph.runs else None
+                    # vider les runs existantes
+                    for r in paragraph.runs:
+                        r.text = ''
+                    new_run = paragraph.add_run(new_text)
+                    # appliquer quelques attributs de fonte de la première run
+                    if first_run:
+                        try:
+                            new_run.font.name = first_run.font.name
+                            new_run.font.size = first_run.font.size
+                            new_run.bold = first_run.bold
+                            new_run.italic = first_run.italic
+                        except Exception:
+                            pass
+            
+            output = io.BytesIO()
+            doc.save(output)
+            output.seek(0)
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Attestation_Presence_{agent.nom}_{agent.prenom}.docx"'
+            
         else:
-            date_prise_service = 'date non renseignée'
+            # Fallback : générer du HTML
+            html_content = f"""<!DOCTYPE html>
+            <html>
+            <head><meta charset="UTF-8"><title>Attestation de présence</title>
+            <style>
+                body {{ font-family: 'Times New Roman', serif; margin: 2cm; }}
+                .title {{ text-align: center; font-size: 16pt; font-weight: bold; }}
+            </style>
+            </head>
+            <body>
+                <div class="title">ATTESTATION DE PRESENCE AU POSTE</div>
+                <p>La Directrice Adjointe... atteste que Monsieur <strong>{nom_complet}</strong>, {poste}...</p>
+            </body>
+            </html>"""
+            
+            response = JsonResponse({'success': True, 'contenu': html_content})
         
-        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
-        
-        # Générer le numéro de référence
-        annee = datetime.now().year
-        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
-        reference = f"{ref_number}/MND/DPAF/SRHDS/SA"
-        
-        # Générer le contenu de l'attestation selon le template
-        contenu = f"""
-MINISTÈRE DU NUMERIQUE
-ET DE LA DIGITALISATION
-
-RÉPUBLIQUE DU BÉNIN
-
-Cotonou, le {date_aujourdhui}
-
-**La Directrice Adjointe de la Planification,**
-**de l'Administration et des Finances**
-
-N° {reference} /MND/DPAF/SRHDS/SA
-
-**Attestation de Présence au Poste**
-
-La Directrice Adjointe de la Planification, de l'Administration et des
-Finances, du Ministère du Numérique et de la Digitalisation soussignée,
-atteste que Monsieur **{nom_complet}**, {poste}, est présent à son poste de
-travail depuis le {date_prise_service}, date de sa prise de service à ce
-jour.
-
-En foi de quoi, la présente attestation lui est délivrée pour servir et
-valoir ce que de droit.
-
-> **Augustine Tognissè CAKPO SOGLO**
-
-"""
-        
-        # Sauvegarder l'acte dans la base
+        # Sauvegarder dans la base
         acte = ActeAdministratif.objects.create(
             reference=reference,
             type_acte='Attestation de présence au poste',
             statut='genere',
             date_generation=datetime.now().date(),
-            contenu=contenu
+            contenu=reference
         )
         
-        # Enregistrer la demande (pour l'historique)
-        type_demande, _ = TypeDemande.objects.get_or_create(
-            libelle='Attestation',
-            defaults={'acte_generable': 1}
-        )
+        return response
         
-        Demande.objects.create(
-            agent=agent,
-            type_demande=type_demande,
-            statut='termine',
-            date_soumission=datetime.now().date(),
-            numerosuivi=reference
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'reference': reference,
-            'contenu': contenu,
-            'message': 'Attestation de présence générée avec succès'
-        })
-        
-    except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)

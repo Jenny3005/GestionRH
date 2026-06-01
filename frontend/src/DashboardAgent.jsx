@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
-import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardAgent() {
   const navigate = useNavigate();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const storedNom = localStorage.getItem('userNom') || '';
   const storedPrenom = localStorage.getItem('userPrenom') || '';
   const storedEmail = localStorage.getItem('userEmail') || '';
@@ -186,6 +186,11 @@ export default function DashboardAgent() {
     setShowSoldeModal(true);
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
+
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
 
   const unreadCount = notifications.filter(n => !n.lue).length;
@@ -207,7 +212,6 @@ export default function DashboardAgent() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <UserMenu />
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
               <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'A'}</div>
