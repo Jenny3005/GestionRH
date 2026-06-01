@@ -194,7 +194,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numero_suivi}\nJours restants: ${data.jours_restants || '?'}/10`);
+        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numerosuivi}\nJours restants: ${data.jours_restants || '?'}/10`);
         setShowAbsenceForm(false);
         setAbsenceForm({ date_debut: '', date_fin: '', motif: '' });
         fetchTotalAbsences(matricule);
@@ -209,7 +209,7 @@ export default function Demarches() {
     }
   };
 
-  // Attestation de présence au poste
+  // Attestation de présence au poste - Téléchargement direct du fichier Word
   const soumettreAttestationPresence = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -221,72 +221,28 @@ export default function Demarches() {
       const response = await fetch('http://localhost:8000/api/attestations/presence/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matricule: matricule
-        })
+        body: JSON.stringify({ matricule: matricule })
       });
       
-      const data = await response.json();
-      
       if (response.ok) {
-        alert(`✅ Attestation de présence générée avec succès !\nRéférence: ${data.reference}`);
+        // Télécharger le fichier Word
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+      const nom = localStorage.getItem('userNom') || '';
+      const prenom = localStorage.getItem('userPrenom') || '';
+      const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+      a.download = `Attestation_Presence_${safeNom || matricule}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
         
-        // Ouvrir une fenêtre avec l'attestation
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="UTF-8">
-              <title>Attestation de présence au poste</title>
-              <style>
-                @page {
-                  size: A4;
-                  margin: 2.5cm;
-                }
-                body {
-                  font-family: 'Times New Roman', Times, serif;
-                  font-size: 12pt;
-                  line-height: 1.5;
-                  margin: 0;
-                  padding: 0;
-                }
-                .print-btn {
-                  text-align: center;
-                  margin-top: 30px;
-                  margin-bottom: 30px;
-                }
-                button {
-                  padding: 10px 20px;
-                  background: #0B192C;
-                  color: white;
-                  border: none;
-                  border-radius: 5px;
-                  cursor: pointer;
-                  margin: 0 10px;
-                }
-                button:hover {
-                  background: #1a2a3a;
-                }
-                @media print {
-                  .print-btn {
-                    display: none;
-                  }
-                }
-              </style>
-            </head>
-            <body>
-              <pre style="white-space: pre-wrap; font-family: 'Times New Roman', Times, serif; margin: 0;">${data.contenu}</pre>
-              <div class="print-btn">
-                <button onclick="window.print()">🖨️ Imprimer / Télécharger PDF</button>
-                <button onclick="window.close()">❌ Fermer</button>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
+        alert('✅ Attestation de présence générée avec succès !');
       } else {
-        alert(data.error || 'Erreur lors de la génération');
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -305,7 +261,7 @@ export default function Demarches() {
       } else if (titre.includes("Attestation de présence au poste")) {
         soumettreAttestationPresence();
       } else {
-        alert(`Demande de ${titre} en cours de traitement...`);
+        alert(`Demande de ${titre} en cours de développement...`);
       }
     });
   };
