@@ -76,6 +76,8 @@ export default function Auth({ onLogin }) {
             localStorage.setItem('lastLogin', Date.now().toString());
             
             if (onLogin) onLogin(data.matricule, selectedRole);
+            console.log('rolesToStore.length:', rolesToStore.length);
+            console.log('navigation vers:', rolesToStore.length > 1 ? '/dashboard' : getDashboardPath(selectedRole));
 
             if (rolesToStore.length > 1) {
               navigate('/dashboard');
