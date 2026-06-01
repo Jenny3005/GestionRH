@@ -2399,7 +2399,7 @@ def download_document(request, piece_id):
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def delete_document(request, piece_id):
-    """Supprimer un document"""
+    """Supprimer un document (agent propriétaire ou RH/admin)"""
     try:
         matricule = request.headers.get('X-User-Matricule')
         
@@ -2411,15 +2411,22 @@ def delete_document(request, piece_id):
         except Piece.DoesNotExist:
             return JsonResponse({'error': 'Document non trouvé'}, status=404)
         
-        # Vérifier que l'agent est propriétaire du document
-        if piece.dossier_agent.agent.matricule != matricule:
+        # ✅ Vérifier si le demandeur est propriétaire OU RH/admin
+        agent_demandeur = Agent.objects.get(matricule=matricule)
+        roles = AgentRole.objects.filter(agent=agent_demandeur).values_list('role__libelle', flat=True)
+        
+        est_proprietaire = piece.dossier_agent.agent.matricule == matricule
+        est_rh_ou_admin = 'rh' in roles or 'admin' in roles
+        
+        if not est_proprietaire and not est_rh_ou_admin:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        dossier = piece.dossier_agent
         
         # Supprimer le document
         piece.delete()
         
         # Recalculer le taux de complétude
-        dossier = piece.dossier_agent
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(
             dossier_agent=dossier,
@@ -2436,10 +2443,12 @@ def delete_document(request, piece_id):
             'taux_completude': taux
         })
         
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"Erreur delete_document: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
+        
 # ==================== RH : ACCÈS AUX DOCUMENTS DES AGENTS ====================
 
 @csrf_exempt
