@@ -86,7 +86,7 @@ export default function DashboardAgent() {
       }
 
       // ✅ 3. Afficher les notifications telles quelles (elles viennent de la BD)
-      setNotifications(notifs.slice(0, 10));
+      setNotifications(notifs.slice(0, 20));
       
     } catch (error) {
       console.error('Erreur chargement notifications:', error);
