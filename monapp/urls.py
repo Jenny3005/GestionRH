@@ -54,6 +54,7 @@ urlpatterns = [
     path('documents/upload/', views.upload_document, name='upload_document'),
     path('documents/download/<int:piece_id>/', views.download_document, name='download_document'),
     path('documents/delete/<int:piece_id>/', views.delete_document, name='delete_document'),
+    path('rh/documents/<str:matricule>/', views.get_documents_by_matricule, name='get_documents_by_matricule'),
 
     # ==================== GESTION DES PERMISSIONS ====================
     path('permissions/', views.get_permissions, name='get_permissions'),
@@ -81,4 +82,7 @@ urlpatterns = [
     path('rh/actes-a-envoyer/<str:matricule_rh>/', views.get_actes_a_envoyer_rh, name='actes_a_envoyer_rh'),
     path('rh/commencer-traitement/<int:demande_id>/', views.commencer_traitement_rh, name='commencer_traitement_rh'),
     path('rh/generer-acte/<int:demande_id>/', views.generer_acte_rh, name='generer_acte_rh'),
+
+    path('check-expiry/', views.check_expired_documents, name='check_expired_documents'),
+
 ] 
