@@ -34,6 +34,19 @@ export default function DashboardRH() {
   const [documentsExpirant, setDocumentsExpirant] = useState([]);
   const [annonces, setAnnonces] = useState([]);
 
+  const [showAddAgentModal, setShowAddAgentModal] = useState(false);
+  const [newAgent, setNewAgent] = useState({
+    matricule: '',
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: '',
+    poste: 'Agent',
+    direction: '',
+    typecontrat: 'APE',
+    date_prise_service: new Date().toISOString().split('T')[0]
+  });
+
   const userName = `${userInfo.prenom} ${userInfo.nom}`.trim();
   const matricule = localStorage.getItem('userMatricule');
 
@@ -124,6 +137,98 @@ export default function DashboardRH() {
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
+  };
+
+  const handleAddAgent = () => {
+  setShowAddAgentModal(true);
+  document.body.style.overflow = 'hidden';
+};
+
+const closeAddAgentModal = () => {
+  setShowAddAgentModal(false);
+  document.body.style.overflow = '';
+  setNewAgent({
+    matricule: '', nom: '', prenom: '', email: '', telephone: '',
+    poste: 'Agent', direction: '', typecontrat: 'APE',
+    date_prise_service: new Date().toISOString().split('T')[0]
+  });
+};
+
+const handleSubmitNewAgent = async (e) => {
+  e.preventDefault();
+  
+  console.log('Données envoyées:', JSON.stringify(newAgent, null, 2));
+  
+  try {
+    const response = await fetch('http://localhost:8000/api/register/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newAgent)
+    });
+    
+    const data = await response.json();
+    console.log('Réponse:', response.status, data);
+    
+    if (response.ok) {
+      alert(`✅ Agent ${data.matricule} créé avec succès !`);
+      closeAddAgentModal();
+      fetchData();
+    } else {
+      // Afficher l'erreur exacte
+      const errorMsg = data.error || data.message || JSON.stringify(data);
+      alert(`❌ Erreur: ${errorMsg}`);
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur de connexion');
+  }
+};
+
+  const handleImportAgents = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,.xlsx,.json';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const response = await fetch('http://localhost:8000/api/import-agents/', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          alert(`✅ ${data.success_count} agents importés avec succès !`);
+          fetchData();
+        } else {
+          const error = await response.json();
+          alert(`❌ Erreur: ${error.error}`);
+        }
+      } catch (error) {
+        console.error('Erreur import:', error);
+        alert('Erreur lors de l\'import');
+      }
+    };
+    
+    input.click();
+  };
+
+  const handleViewProfile = (matricule) => {
+    navigate(`/profil/${matricule}`);
+  };
+
+  const handleViewDocuments = (matricule) => {
+    navigate(`/rh/documents/${matricule}`);
+  };
+
+  const handleEditAgent = (matricule) => {
+    navigate(`/agent/edit/${matricule}`);
   };
 
   if (permissionsLoading || loading) {
@@ -320,72 +425,88 @@ export default function DashboardRH() {
           </>
         )}
 
+
         {/* ==================== ONGLET GESTION DES DOSSIERS ==================== */}
         {activeTab === 'dossiers' && (
           <div className="rh-section">
             <div className="rh-actions-bar">
               <div className="rh-search-box">
-                <input type="text" placeholder="Rechercher un agent (matricule, nom, prénom)..." className="rh-search-input" />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher un agent (matricule, nom, prénom)..." 
+                  className="rh-search-input"
+                  onChange={(e) => {
+                    const search = e.target.value.toLowerCase();
+                    if (search.length > 0) {
+                      const filtered = vraisAgents.filter(a => 
+                        a.matricule.toLowerCase().includes(search) ||
+                        a.nom.toLowerCase().includes(search) ||
+                        a.prenom.toLowerCase().includes(search)
+                      );
+                      setAgentsRecents(filtered);
+                    } else {
+                      setAgentsRecents(vraisAgents.slice(0, 10));
+                    }
+                  }}
+                />
               </div>
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary">➕ Nouvel agent</button>
-                <button className="btn-rh-secondary">📤 Importer liste</button>
-                <button className="btn-rh-secondary">📊 Statistiques</button>
+                <button className="btn-rh-primary" onClick={handleAddAgent}>➕ Nouvel agent</button>
+                <button className="btn-rh-secondary" onClick={handleImportAgents}>📤 Importer liste</button>
               </div>
-            </div>
-
-            <div className="rh-filters">
-              <button className="filter-btn active">Tous</button>
-              <button className="filter-btn">Dossiers complets</button>
-              <button className="filter-btn">Dossiers incomplets</button>
-              <button className="filter-btn">Documents expirés</button>
-              <button className="filter-btn">En congé</button>
             </div>
 
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>📋 Gestion des dossiers agents</h3>
-                <button className="rh-card-btn">Exporter la liste →</button>
+                <h3>📋 Gestion des dossiers agents ({vraisAgents.length} agents)</h3>
               </div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead>
                     <tr>
-                      <th><input type="checkbox" /></th>
                       <th>Matricule</th>
                       <th>Nom & Prénom</th>
+                      <th>Email</th>
                       <th>Poste</th>
                       <th>Direction</th>
-                      <th>Documents</th>
-                      <th>Dernière mise à jour</th>
+                      <th>Statut</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vraisAgents.slice(0, 10).map((agent) => (
-                      <tr key={agent.matricule}>
-                        <td><input type="checkbox" /></td>
-                        <td>{agent.matricule}</td>
-                        <td>{agent.nom} {agent.prenom}</td>
-                        <td>{agent.poste || 'Agent'}</td>
-                        <td>{agent.direction || 'À renseigner'}</td>
-                        <td>
-                          <div className="document-progress">
-                            <div className="progress-bar" style={{ width: '65%' }}></div>
-                            <span>65%</span>
-                          </div>
-                        </td>
-                        <td>{new Date().toLocaleDateString('fr-FR')}</td>
-                        <td className="rh-actions-cell">
-                          <button className="btn-icon" title="Consulter">👁️</button>
-                          <button className="btn-icon" title="Ajouter pièce">📎</button>
-                          <button className="btn-icon" title="Modifier">✏️</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {vraisAgents.length === 0 ? (
+                      <tr><td colSpan="7" className="text-center">📭 Aucun agent trouvé</td></tr>
+                    ) : (
+                      agentsRecents.map((agent) => (
+                        <tr key={agent.matricule}>
+                          <td><strong>{agent.matricule}</strong></td>
+                          <td>{agent.nom} {agent.prenom}</td>
+                          <td>{agent.email}</td>
+                          <td>{agent.poste || 'Agent'}</td>
+                          <td>{agent.direction || 'À renseigner'}</td>
+                          <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
+                          <td className="rh-actions-cell">
+                            <button className="btn-icon" title="Voir profil" onClick={() => handleViewProfile(agent.matricule)}>👁️</button>
+                            <button className="btn-icon" title="Documents" onClick={() => handleViewDocuments(agent.matricule)}>📄</button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleEditAgent(agent.matricule)}>✏️</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
+              {/* Pagination simple */}
+              {vraisAgents.length > 10 && (
+                <div className="rh-pagination">
+                  <button className="btn-rh-secondary" onClick={() => {
+                    // Afficher tous les agents
+                    setAgentsRecents(vraisAgents);
+                  }}>
+                    Voir tous les {vraisAgents.length} agents
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -555,6 +676,127 @@ export default function DashboardRH() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL AJOUT AGENT */}
+        {showAddAgentModal && (
+          <div className="modal-overlay" onClick={closeAddAgentModal}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>➕ Ajouter un nouvel agent</h3>
+                <button className="modal-close" onClick={closeAddAgentModal}>✕</button>
+              </div>
+              
+              <form onSubmit={handleSubmitNewAgent}>
+                <div className="modal-body">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Matricule *</label>
+                      <input
+                        type="text"
+                        value={newAgent.matricule}
+                        onChange={(e) => setNewAgent({...newAgent, matricule: e.target.value.toUpperCase()})}
+                        placeholder="Ex: MND-2026-001"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Nom *</label>
+                      <input
+                        type="text"
+                        value={newAgent.nom}
+                        onChange={(e) => setNewAgent({...newAgent, nom: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Prénom *</label>
+                      <input
+                        type="text"
+                        value={newAgent.prenom}
+                        onChange={(e) => setNewAgent({...newAgent, prenom: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Email *</label>
+                      <input
+                        type="email"
+                        value={newAgent.email}
+                        onChange={(e) => setNewAgent({...newAgent, email: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Téléphone *</label>
+                      <input
+                        type="text"
+                        value={newAgent.telephone}
+                        onChange={(e) => setNewAgent({...newAgent, telephone: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Poste</label>
+                      <input
+                        type="text"
+                        value={newAgent.poste}
+                        onChange={(e) => setNewAgent({...newAgent, poste: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Direction</label>
+                      <input
+                        type="text"
+                        value={newAgent.direction}
+                        onChange={(e) => setNewAgent({...newAgent, direction: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Type de contrat</label>
+                      <select
+                        value={newAgent.typecontrat}
+                        onChange={(e) => setNewAgent({...newAgent, typecontrat: e.target.value})}
+                      >
+                        <option value="APE">APE</option>
+                        <option value="ACDPE">ACDPE</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Date de prise de service *</label>
+                      <input
+                        type="date"
+                        value={newAgent.date_prise_service}
+                        onChange={(e) => setNewAgent({...newAgent, date_prise_service: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="modal-footer">
+                  <button type="button" className="btn-rh-secondary" onClick={closeAddAgentModal}>
+                    Annuler
+                  </button>
+                  <button type="submit" className="btn-rh-primary">
+                    ✅ Créer l'agent
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
