@@ -40,13 +40,6 @@ export default function DashboardRH() {
   const [annonces, setAnnonces] = useState([]);
 
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
-  const [showGenererActeModal, setShowGenererActeModal] = useState(false);
-  const [selectedDemande, setSelectedDemande] = useState(null);
-  const [acteData, setActeData] = useState({
-    reference: '',
-    contenu: '',
-    observations: ''
-  });
 
   const [newAgent, setNewAgent] = useState({
     matricule: '',
@@ -81,54 +74,36 @@ export default function DashboardRH() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Récupérer les statistiques
-      const statsRes = await fetch('http://localhost:8000/api/stats/');
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setStats(prev => ({
-          ...prev,
-          totalAgents: data.total_agents || 0
-        }));
+      // 1. Demandes validées par le chef (statut = 'valide')
+      const valideesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-validees/${matricule}/`);
+      if (valideesRes.ok) {
+        const data = await valideesRes.json();
+        console.log('📋 Demandes validées:', data);
+        setDemandesValidees(data);
       }
 
-      // 2. Récupérer les agents
-      const agentsRes = await fetch('http://localhost:8000/api/agents/');
-      if (agentsRes.ok) {
-        const data = await agentsRes.json();
-        setVraisAgents(data);
-        setAgentsRecents(data.slice(0, 10));
+      // 2. Demandes déjà transmises au DPAF
+      const transmisesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-transmises/${matricule}/`);
+      if (transmisesRes.ok) {
+        const data = await transmisesRes.json();
+        console.log('📤 Demandes transmises:', data);
+        setDemandesTransmises(data);
       }
 
-      // 3. Récupérer les demandes assignées (à traiter)
-      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matricule}/`);
-      if (assigneesRes.ok) {
-        const data = await assigneesRes.json();
-        setDemandesAssignees(data);
-        setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
-      }
-
-      // 4. Récupérer les demandes en cours
-      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matricule}/`);
-      if (enCoursRes.ok) {
-        const data = await enCoursRes.json();
-        setDemandesEnCours(data);
-        setStats(prev => ({ ...prev, demandesEnCours: data.length }));
-      }
-
-      // 5. Récupérer les demandes terminées
-      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matricule}/`);
-      if (termineesRes.ok) {
-        const data = await termineesRes.json();
-        setDemandesTerminees(data);
-      }
-
-      // 6. Récupérer les actes générés à envoyer
-      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matricule}/`);
+      // 3. Actes reçus des RH
+      const actesRes = await fetch(`http://localhost:8000/api/secretaire/actes-recus/${matricule}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
-        setActesGeneres(data);
-        setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
+        console.log('📄 Actes reçus:', data);
+        setActesRecus(data);
       }
+
+      // Mettre à jour les stats
+      setStats({
+        a_transmettre: demandesValidees.length,
+        transmises: demandesTransmises.length,
+        actes_recus: actesRecus.length
+      });
 
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -158,42 +133,44 @@ export default function DashboardRH() {
     }
   };
 
-  const handleGenererActe = (demande) => {
-    setSelectedDemande(demande);
-    // Générer une référence automatique
-    const annee = new Date().getFullYear();
-    const refNumber = `${annee}${Date.now()}`;
-    setActeData({
-      reference: `${refNumber}/MND/RH`,
-      contenu: '',
-      observations: ''
-    });
-    setShowGenererActeModal(true);
-  };
-
-  const handleSubmitActe = async () => {
-    if (!acteData.reference) {
-      alert('Veuillez saisir une référence pour l\'acte');
+  // Génération directe de l'acte sans modal
+  const handleGenererActe = async (demande) => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
       return;
     }
-
+    
+    setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${selectedDemande.id}/`, {
+      // Générer une référence automatique
+      const annee = new Date().getFullYear();
+      const refNumber = `${annee}${Date.now()}`;
+      const reference = `${refNumber}/MND/RH`;
+      
+      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rh_matricule: matricule,
-          reference: acteData.reference,
-          contenu: acteData.contenu,
-          observations: acteData.observations
+          reference: reference,
+          contenu: '',
+          observations: ''
         })
       });
       
       if (response.ok) {
-        alert('✅ Acte généré et stocké avec succès !');
-        setShowGenererActeModal(false);
-        setSelectedDemande(null);
-        setActeData({ reference: '', contenu: '', observations: '' });
+        // Télécharger le fichier Word directement
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Autorisation_Conge_${demande.agent_nom}_${demande.agent_prenom}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ Acte généré avec succès !');
         fetchData();
       } else {
         const error = await response.json();
@@ -202,12 +179,14 @@ export default function DashboardRH() {
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleEnvoyerSecretaire = async (acteId) => {
+  const handleEnvoyerSecretaire = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${acteId}/`, {
+      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
@@ -215,7 +194,7 @@ export default function DashboardRH() {
       
       if (response.ok) {
         alert('✅ Acte envoyé à la secrétaire !');
-        fetchData();
+        fetchData(); // Recharger les données
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de l\'envoi');
@@ -226,8 +205,9 @@ export default function DashboardRH() {
     }
   };
 
-  const handleVoirActe = (acteId) => {
-    window.open(`http://localhost:8000/api/actes/${acteId}/download/`, '_blank');
+  const handleVoirActe = (reference) => {
+    // L'URL doit correspondre à celle que tu as ajoutée dans urls.py
+    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
   };
 
   const getStatutBadge = (statut) => {
@@ -949,60 +929,6 @@ export default function DashboardRH() {
                   <button type="submit" className="btn-rh-primary">✅ Créer l'agent</button>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL GÉNÉRER ACTE */}
-        {showGenererActeModal && selectedDemande && (
-          <div className="modal-overlay" onClick={() => setShowGenererActeModal(false)}>
-            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>📄 Générer l'acte administratif</h3>
-                <button className="modal-close" onClick={() => setShowGenererActeModal(false)}>✕</button>
-              </div>
-              
-              <div className="modal-body">
-                <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-                <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
-                <p><strong>Période:</strong> {selectedDemande.date_debut} au {selectedDemande.date_fin}</p>
-                
-                <div className="form-group">
-                  <label>Référence de l'acte *</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 2026-001/MND/RH"
-                    value={acteData.reference}
-                    onChange={(e) => setActeData({...acteData, reference: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Contenu de l'acte</label>
-                  <textarea
-                    rows="6"
-                    placeholder="Décrivez le contenu de l'acte..."
-                    value={acteData.contenu}
-                    onChange={(e) => setActeData({...acteData, contenu: e.target.value})}
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Observations (optionnel)</label>
-                  <textarea
-                    rows="3"
-                    placeholder="Observations supplémentaires..."
-                    value={acteData.observations}
-                    onChange={(e) => setActeData({...acteData, observations: e.target.value})}
-                  />
-                </div>
-              </div>
-              
-              <div className="modal-footer">
-                <button type="button" className="btn-rh-secondary" onClick={() => setShowGenererActeModal(false)}>Annuler</button>
-                <button type="button" className="btn-rh-primary" onClick={handleSubmitActe}>📄 Générer l'acte</button>
-              </div>
             </div>
           </div>
         )}

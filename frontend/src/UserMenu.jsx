@@ -18,16 +18,28 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
     setUserName(`${savedPrenom} ${savedNom}`.trim());
     setUserEmail(localStorage.getItem('userEmail') || '');
 
-    const currentRole = normalizeRole(localStorage.getItem('userRole'));
+    const currentRole = localStorage.getItem('userRole');
     const savedRoles = localStorage.getItem('userRoles');
+
+    // 🔍 AJOUTE ICI
+    console.log('=== DEBUG USERMENU ===');
+    console.log('currentRole:', currentRole);
+    console.log('savedRoles:', savedRoles);
 
     let parsedRoles = [];
     try {
       const raw = JSON.parse(savedRoles || '[]');
+      // 🔍 AJOUTE ICI
+      console.log('raw after parse:', raw);
+      console.log('is array?', Array.isArray(raw));
+      
       if (Array.isArray(raw)) {
         parsedRoles = raw.map(normalizeRole).filter(Boolean);
+        // 🔍 AJOUTE ICI
+        console.log('parsedRoles after map+filter:', parsedRoles);
       }
     } catch (error) {
+      console.error('Error parsing roles:', error);
       parsedRoles = [];
     }
 
@@ -39,7 +51,10 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
       setUserRole(currentRole);
     }
     
-    console.log('🔍 userRoles détectés:', parsedRoles);
+    // 🔍 AJOUTE ICI
+    console.log('userRoles state will be:', parsedRoles);
+    console.log('userRole state will be:', currentRole || (parsedRoles[0] || 'agent'));
+    console.log('=== FIN DEBUG ===');
   }, []);
 
   useEffect(() => {
