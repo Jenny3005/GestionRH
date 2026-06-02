@@ -209,7 +209,7 @@ export default function Demarches() {
     }
   };
 
-  // Attestation de présence au poste - Téléchargement direct du fichier Word
+  // Attestation de présence au poste
   const soumettreAttestationPresence = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -225,21 +225,62 @@ export default function Demarches() {
       });
       
       if (response.ok) {
-        // Télécharger le fichier Word
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-      const nom = localStorage.getItem('userNom') || '';
-      const prenom = localStorage.getItem('userPrenom') || '';
-      const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-      a.download = `Attestation_Presence_${safeNom || matricule}.docx`;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Attestation_Presence_${safeNom || matricule}.docx`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
         alert('✅ Attestation de présence générée avec succès !');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Attestation de travail
+  const soumettreAttestationTravail = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/attestations/travail/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matricule: matricule })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Attestation_Travail_${safeNom || matricule}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ Attestation de travail générée avec succès !');
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la génération');
@@ -260,6 +301,8 @@ export default function Demarches() {
         setShowAbsenceForm(true);
       } else if (titre.includes("Attestation de présence au poste")) {
         soumettreAttestationPresence();
+      } else if (titre.includes("Attestation de travail")) {
+        soumettreAttestationTravail();
       } else {
         alert(`Demande de ${titre} en cours de développement...`);
       }
@@ -321,7 +364,8 @@ export default function Demarches() {
       id: 1,
       titre: "Attestation de travail",
       description: "Certifie que vous êtes en activité au Ministère du Numérique.",
-      delai: "~3 jours"
+      delai: "Immédiat",
+      action: "generer"
     },
     {
       id: 2,

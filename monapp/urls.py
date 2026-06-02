@@ -86,7 +86,6 @@ urlpatterns = [
 
     path('check-expiry/', views.check_expired_documents, name='check_expired_documents'),
     path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
-    
-
+    path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
 
 ] 
