@@ -2121,14 +2121,14 @@ def get_documents(request):
 def upload_document(request):
     """Uploader un document et le stocker en base de données"""
     try:
-        import unicodedata  # ✅ Déplacer l'import ici
+        import unicodedata
         
         matricule = request.POST.get('matricule') or request.headers.get('X-User-Matricule')
         type_piece_id = request.POST.get('type_piece_id')
         file_base64 = request.POST.get('file_base64')
         file_name = request.POST.get('file_name')
         
-        # ✅ Nettoyer le nom du fichier ICI (dans la fonction)
+        # ✅ Nettoyer le nom du fichier
         if file_name:
             try:
                 file_name = unicodedata.normalize('NFKD', file_name).encode('ascii', 'ignore').decode('ascii')
@@ -2166,24 +2166,20 @@ def upload_document(request):
         if created:
             print(f"Nouveau dossier créé pour l'agent {matricule}")
         
-        # Nettoyer le base64 (enlever le préfixe "data:application/pdf;base64," si présent)
+        # Nettoyer le base64
         cleaned_base64 = file_base64
         if 'base64,' in file_base64:
             cleaned_base64 = file_base64.split('base64,')[1]
         
-        # Calculer la date d'expiration si le type de pièce a une durée de validité
+        # ✅ Récupérer la date d'expiration envoyée par le frontend
+        date_expiration_str = request.POST.get('date_expiration')
         date_expiration = None
-        if type_piece.duree_validite:
+        if date_expiration_str:
             try:
-                # Extraire le nombre d'années (ex: "5 ans" -> 5)
-                match = re.search(r'(\d+)', type_piece.duree_validite)
-                if match:
-                    duree_annees = int(match.group(1))
-                    date_expiration = date.today() + timedelta(days=duree_annees * 365)
-                    print(f"Date d'expiration calculée: {date_expiration} ({duree_annees} ans)")
-            except Exception as e:
-                print(f"Impossible de calculer la date d'expiration: {e}")
-                # Pas de date d'expiration si le format n'est pas reconnu
+                date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
+                print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
+            except:
+                print(f"Format de date invalide: {date_expiration_str}")
         
         # Supprimer l'ancienne pièce du même type si elle existe (remplacement)
         anciennes_pieces = Piece.objects.filter(
@@ -2194,7 +2190,7 @@ def upload_document(request):
             anciennes_pieces.delete()
             print(f"Ancienne pièce de type {type_piece.libelle} supprimée")
         
-        # Créer la nouvelle pièce avec le contenu stocké dans cheminfichier
+        # ✅ Créer la nouvelle pièce
         piece = Piece.objects.create(
             dossier_agent=dossier,
             type_piece=type_piece,
@@ -2202,7 +2198,7 @@ def upload_document(request):
             date_expiration=date_expiration,
             date_upload=date.today(),
             valide=1,
-            cheminfichier=cleaned_base64  # Stockage direct du contenu en base64
+            cheminfichier=cleaned_base64
         )
         
         print(f"Pièce créée - ID: {piece.id}, Type: {type_piece.libelle}")
@@ -2222,7 +2218,6 @@ def upload_document(request):
         dossier.taux_completude = taux
         dossier.save()
         print(f"Taux de complétude mis à jour: {taux}%")
-        
         
         return JsonResponse({
             'success': True,
