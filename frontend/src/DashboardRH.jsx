@@ -24,6 +24,7 @@ export default function DashboardRH() {
     totalAgents: 0,
     demandesEnAttente: 0,
     demandesEnCours: 0,
+    actesAEnvoyer: 0,
     documentsExpires: 0,
     annoncesActives: 0,
     dossiersIncomplets: 0,
@@ -33,9 +34,9 @@ export default function DashboardRH() {
   const [demandesAssignees, setDemandesAssignees] = useState([]);
   const [demandesEnCours, setDemandesEnCours] = useState([]);
   const [demandesTerminees, setDemandesTerminees] = useState([]);
+  const [actesGeneres, setActesGeneres] = useState([]);
   const [agentsRecents, setAgentsRecents] = useState([]);
   const [vraisAgents, setVraisAgents] = useState([]);
-  const [documentsExpirant, setDocumentsExpirant] = useState([]);
   const [annonces, setAnnonces] = useState([]);
 
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
@@ -121,6 +122,14 @@ export default function DashboardRH() {
         setDemandesTerminees(data);
       }
 
+      // 6. Récupérer les actes générés à envoyer
+      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matricule}/`);
+      if (actesRes.ok) {
+        const data = await actesRes.json();
+        setActesGeneres(data);
+        setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
+      }
+
     } catch (error) {
       console.error('Erreur chargement:', error);
     } finally {
@@ -151,8 +160,11 @@ export default function DashboardRH() {
 
   const handleGenererActe = (demande) => {
     setSelectedDemande(demande);
+    // Générer une référence automatique
+    const annee = new Date().getFullYear();
+    const refNumber = `${annee}${Date.now()}`;
     setActeData({
-      reference: '',
+      reference: `${refNumber}/MND/RH`,
       contenu: '',
       observations: ''
     });
@@ -178,7 +190,7 @@ export default function DashboardRH() {
       });
       
       if (response.ok) {
-        alert('✅ Acte généré et envoyé à la secrétaire !');
+        alert('✅ Acte généré et stocké avec succès !');
         setShowGenererActeModal(false);
         setSelectedDemande(null);
         setActeData({ reference: '', contenu: '', observations: '' });
@@ -193,11 +205,37 @@ export default function DashboardRH() {
     }
   };
 
+  const handleEnvoyerSecretaire = async (acteId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${acteId}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rh_matricule: matricule })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte envoyé à la secrétaire !');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'envoi');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleVoirActe = (acteId) => {
+    window.open(`http://localhost:8000/api/actes/${acteId}/download/`, '_blank');
+  };
+
   const getStatutBadge = (statut) => {
     const statusMap = {
       'assignee_rh': { class: 'status-pending', text: '📋 À traiter' },
       'en_cours_traitement': { class: 'status-progress', text: '⚙️ En cours' },
       'acte_genere': { class: 'status-approved', text: '📄 Acte généré' },
+      'envoye_secretaire': { class: 'status-sent', text: '📤 Envoyé secrétaire' },
       'termine': { class: 'status-approved', text: '✅ Terminé' },
       'valide': { class: 'status-approved', text: 'Validé' },
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
@@ -401,6 +439,13 @@ export default function DashboardRH() {
                 </div>
               </div>
               <div className="rh-stat-card">
+                <div className="rh-stat-icon">📄</div>
+                <div className="rh-stat-info">
+                  <span className="rh-stat-value">{stats.actesAEnvoyer}</span>
+                  <span className="rh-stat-label">Actes à envoyer</span>
+                </div>
+              </div>
+              <div className="rh-stat-card">
                 <div className="rh-stat-icon">⚠️</div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.documentsExpires}</span>
@@ -412,13 +457,6 @@ export default function DashboardRH() {
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.annoncesActives}</span>
                   <span className="rh-stat-label">Annonces actives</span>
-                </div>
-              </div>
-              <div className="rh-stat-card">
-                <div className="rh-stat-icon">📁</div>
-                <div className="rh-stat-info">
-                  <span className="rh-stat-value">{stats.dossiersIncomplets}</span>
-                  <span className="rh-stat-label">Dossiers incomplets</span>
                 </div>
               </div>
             </div>
@@ -442,9 +480,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {demandesAssignees.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="text-center">📭 Aucune demande à traiter</td>
-                      </tr>
+                      <tr><td colSpan="5" className="text-center">📭 Aucune demande à traiter</td></tr>
                     ) : (
                       demandesAssignees.map((demande) => (
                         <tr key={demande.id}>
@@ -483,9 +519,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {demandesEnCours.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="text-center">📭 Aucune demande en cours</td>
-                      </tr>
+                      <tr><td colSpan="5" className="text-center">📭 Aucune demande en cours</td></tr>
                     ) : (
                       demandesEnCours.map((demande) => (
                         <tr key={demande.id}>
@@ -506,7 +540,51 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Derniers agents inscrits */}
+            {/* SECTION 3: Actes générés à envoyer */}
+            <div className="rh-card full-width">
+              <div className="rh-card-header">
+                <h3>📄 Actes générés - En attente d'envoi</h3>
+              </div>
+              <div className="rh-table-container">
+                <table className="rh-table">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Type d'acte</th>
+                      <th>Référence</th>
+                      <th>Date génération</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actesGeneres.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">📭 Aucun acte en attente</td></tr>
+                    ) : (
+                      actesGeneres.map((acte) => (
+                        <tr key={acte.id}>
+                          <td>{acte.agent_nom} {acte.agent_prenom}</td>
+                          <td>{acte.type_acte}</td>
+                          <td><code>{acte.reference}</code></td>
+                          <td>{new Date(acte.date_generation).toLocaleDateString('fr-FR')}</td>
+                          <td>
+                            <div className="action-buttons-cell">
+                              <button className="btn-view" onClick={() => handleVoirActe(acte.id)}>
+                                👁️ Voir l'acte
+                              </button>
+                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.id)}>
+                                📤 Envoyer à la secrétaire
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 4: Derniers agents inscrits */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>👥 Derniers agents inscrits</h3>
@@ -526,9 +604,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {agentsRecents.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" className="text-center">📭 Aucun agent trouvé</td>
-                      </tr>
+                      <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
                     ) : (
                       agentsRecents.slice(0, 5).map((agent) => (
                         <tr key={agent.matricule}>
@@ -599,9 +675,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {vraisAgents.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="text-center">📭 Aucun agent trouvé</td>
-                      </tr>
+                      <tr><td colSpan="7" className="text-center">📭 Aucun agent trouvé</td></tr>
                     ) : (
                       agentsRecents.map((agent) => (
                         <tr key={agent.matricule}>
@@ -611,7 +685,7 @@ export default function DashboardRH() {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td>
+                          <td className="rh-actions-cell">
                             <button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button>
                           </td>
                         </tr>
@@ -891,6 +965,7 @@ export default function DashboardRH() {
               <div className="modal-body">
                 <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
                 <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
+                <p><strong>Période:</strong> {selectedDemande.date_debut} au {selectedDemande.date_fin}</p>
                 
                 <div className="form-group">
                   <label>Référence de l'acte *</label>
