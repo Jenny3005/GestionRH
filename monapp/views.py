@@ -3243,8 +3243,6 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         
     except Exception as e:
         print(f"ERREUR get_actes_a_envoyer_rh: {str(e)}")
-<<<<<<< HEAD
-=======
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -3612,5 +3610,4 @@ def detect_anomalies(request, matricule):
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
->>>>>>> aa860afdac5686e4691c9f93764e54785ed93a68
         return JsonResponse({'error': str(e)}, status=500)
