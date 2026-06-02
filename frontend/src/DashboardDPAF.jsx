@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import './App.css';
 
 export default function DashboardDPAF() {
   const navigate = useNavigate();
   const { loading: permissionsLoading } = usePermissions();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
   // États
@@ -50,24 +50,28 @@ export default function DashboardDPAF() {
     try {
       // 1. Demandes transmises par la secrétaire (statut = 'transmise_dpaf')
       const transmisesRes = await fetch(`http://localhost:8000/api/dpaf/demandes-transmises/${matricule}/`);
+      let transmisesData = [];
       if (transmisesRes.ok) {
-        const data = await transmisesRes.json();
-        console.log('📋 Demandes transmises:', data);
-        setDemandesTransmises(data);
+        transmisesData = await transmisesRes.json();
+        console.log('📋 Demandes transmises:', transmisesData);
+        setDemandesTransmises(transmisesData);
       }
 
       // 2. Demandes déjà assignées
       const assigneesRes = await fetch(`http://localhost:8000/api/dpaf/demandes-assignees/${matricule}/`);
+      let assigneesData = [];
       if (assigneesRes.ok) {
-        const data = await assigneesRes.json();
-        setDemandesAssignees(data);
+        assigneesData = await assigneesRes.json();
+        console.log('📋 Demandes assignées:', assigneesData);
+        setDemandesAssignees(assigneesData);
       }
 
+      // 3. Mettre à jour les stats APRÈS avoir récupéré les données
       setStats({
-        a_assigner: demandesTransmises.length,
-        assignees: demandesAssignees.length,
-        en_cours: demandesAssignees.filter(d => d.statut === 'en_cours_traitement').length,
-        terminees: demandesAssignees.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length
+        a_assigner: transmisesData.length,  // ← Utilise transmisesData, pas demandesTransmises
+        assignees: assigneesData.length,    // ← Utilise assigneesData, pas demandesAssignees
+        en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
+        terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length
       });
 
     } catch (error) {
@@ -156,11 +160,6 @@ export default function DashboardDPAF() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
   }
@@ -173,24 +172,7 @@ export default function DashboardDPAF() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'D'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <span className="user-role">DPAF</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => navigate('/dpaf/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 

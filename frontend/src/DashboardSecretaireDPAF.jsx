@@ -5,36 +5,28 @@ import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
 
-export default function DashboardRH() {
+export default function DashboardSecretaire() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  // États
-  const [demandesAssignee, setDemandesAssignee] = useState([]);
-  const [demandesEnCours, setDemandesEnCours] = useState([]);
-  const [demandesTerminees, setDemandesTerminees] = useState([]);
-  const [actesGeneres, setActesGeneres] = useState([]);
+  // États pour la secrétaire
+  const [demandesValidees, setDemandesValidees] = useState([]);  // Demandes validées par le chef
+  const [demandesTransmises, setDemandesTransmises] = useState([]);  // Demandes transmises au DPAF
+  const [actesRecus, setActesRecus] = useState([]);  // Actes reçus des RH
   
   // Modals
-  const [showTraiterModal, setShowTraiterModal] = useState(false);
-  const [showGenererActeModal, setShowGenererActeModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showTransmettreModal, setShowTransmettreModal] = useState(false);
+  const [showRemettreModal, setShowRemettreModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [commentaire, setCommentaire] = useState('');
-  const [acteData, setActeData] = useState({
-    reference: '',
-    contenu: '',
-    observations: ''
-  });
   
   // Stats
   const [stats, setStats] = useState({
-    a_traiter: 0,
-    en_cours: 0,
-    terminees: 0,
-    actes_a_remettre: 0
+    a_transmettre: 0,
+    transmises: 0,
+    actes_recus: 0
   });
 
   const matricule = localStorage.getItem('userMatricule');
@@ -52,41 +44,33 @@ export default function DashboardRH() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Demandes assignées par le DPAF (statut = 'assignee_rh')
-      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matricule}/`);
-      if (assigneesRes.ok) {
-        const data = await assigneesRes.json();
-        console.log('📋 Demandes assignées:', data);
-        setDemandesAssignee(data);
+      // 1. Demandes validées par le chef (statut = 'valide')
+      const valideesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-validees/${matricule}/`);
+      if (valideesRes.ok) {
+        const data = await valideesRes.json();
+        console.log('📋 Demandes validées:', data);
+        setDemandesValidees(data);
       }
 
-      // 2. Demandes en cours de traitement
-      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matricule}/`);
-      if (enCoursRes.ok) {
-        const data = await enCoursRes.json();
-        setDemandesEnCours(data);
+      // 2. Demandes déjà transmises au DPAF
+      const transmisesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-transmises/${matricule}/`);
+      if (transmisesRes.ok) {
+        const data = await transmisesRes.json();
+        setDemandesTransmises(data);
       }
 
-      // 3. Demandes terminées
-      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matricule}/`);
-      if (termineesRes.ok) {
-        const data = await termineesRes.json();
-        setDemandesTerminees(data);
-      }
-
-      // 4. Actes générés à envoyer à la secrétaire
-      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matricule}/`);
+      // 3. Actes reçus des RH
+      const actesRes = await fetch(`http://localhost:8000/api/secretaire/actes-recus/${matricule}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
-        setActesGeneres(data);
+        setActesRecus(data);
       }
 
       // Mettre à jour les stats
       setStats({
-        a_traiter: demandesAssignee.length,
-        en_cours: demandesEnCours.length,
-        terminees: demandesTerminees.length,
-        actes_a_remettre: actesGeneres.length
+        a_transmettre: demandesValidees.length,
+        transmises: demandesTransmises.length,
+        actes_recus: actesRecus.length
       });
 
     } catch (error) {
@@ -96,88 +80,49 @@ export default function DashboardRH() {
     }
   };
 
-  const handleCommencerTraitement = async (demandeId) => {
+  const handleTransmettreDPAF = async (demandeId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/commencer-traitement/${demandeId}/`, {
+      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-dpaf/${demandeId}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rh_matricule: matricule
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Traitement commencé');
-        fetchData();
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur de connexion');
-    }
-  };
-
-  const handleGenererActe = async (demandeId) => {
-    if (!acteData.reference) {
-      alert('Veuillez saisir une référence');
-      return;
-    }
-    
-    try {
-      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demandeId}/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rh_matricule: matricule,
-          reference: acteData.reference,
-          contenu: acteData.contenu,
-          observations: acteData.observations
-        })
-      });
-      
-      if (response.ok) {
-        alert('✅ Acte généré et envoyé à la secrétaire');
-        setShowGenererActeModal(false);
-        setActeData({ reference: '', contenu: '', observations: '' });
-        setSelectedDemande(null);
-        fetchData();
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la génération');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur de connexion');
-    }
-  };
-
-  const handleEnvoyerCorrection = async (acteId) => {
-    if (!commentaire.trim()) {
-      alert('Veuillez indiquer la correction à apporter');
-      return;
-    }
-    
-    try {
-      const response = await fetch(`http://localhost:8000/api/rh/corriger-acte/${acteId}/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rh_matricule: matricule,
+          secretaire_matricule: matricule,
           commentaire: commentaire
         })
       });
       
       if (response.ok) {
-        alert('✅ Acte renvoyé pour correction');
-        setShowDetailsModal(false);
-        setCommentaire('');
+        alert('✅ Demande transmise au DPAF avec succès');
+        setShowTransmettreModal(false);
         setSelectedDemande(null);
+        setCommentaire('');
         fetchData();
       } else {
         const error = await response.json();
-        alert(error.error || 'Erreur');
+        alert(error.error || 'Erreur lors de la transmission');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleRemettreActe = async (acteId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/secretaire/remettre-acte/${acteId}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secretaire_matricule: matricule
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte remis à l\'agent avec succès');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la remise');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -191,11 +136,9 @@ export default function DashboardRH() {
 
   const getStatusBadge = (statut) => {
     const badges = {
-      'assignee_rh': <span className="badge-warning">📋 Nouvelle assignation</span>,
-      'en_cours_traitement': <span className="badge-info">⚙️ En cours</span>,
-      'acte_genere': <span className="badge-success">📄 Acte généré</span>,
-      'envoye_secretaire': <span className="badge-success">📤 Envoyé secrétaire</span>,
-      'termine': <span className="badge-success">✅ Terminé</span>
+      'valide': <span className="badge-success">✅ Validée par le chef</span>,
+      'transmise_dpaf': <span className="badge-warning">📤 Transmise au DPAF</span>,
+      'acte_genere': <span className="badge-info">📄 Acte généré</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -219,16 +162,16 @@ export default function DashboardRH() {
         <div className="nav-right">
           <div className="user-menu-container">
             <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'R'}</div>
+              <div className="avatar-circle">{userName.charAt(0) || 'S'}</div>
               <div className="user-meta">
                 <span className="user-name">{userName}</span>
-                <span className="user-role">Ressources Humaines</span>
+                <span className="user-role">Secrétaire DPAF</span>
               </div>
               <span className="dropdown-arrow">▼</span>
             </div>
             {dropdownOpen && (
               <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => navigate('/rh/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/secretaire/dashboard')}>📊 Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
@@ -241,34 +184,30 @@ export default function DashboardRH() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - Ressources Humaines</h2>
-            <p>Traitement des demandes assignées et génération des actes</p>
+            <h2>📊 Tableau de bord - Secrétariat DPAF</h2>
+            <p>Transmission des demandes au DPAF et remise des actes aux agents</p>
           </div>
         </section>
 
         {/* STATISTIQUES */}
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
-            <div className="stat-number">{stats.a_traiter}</div>
-            <div className="stat-label">📋 À traiter</div>
+            <div className="stat-number">{stats.a_transmettre}</div>
+            <div className="stat-label">📋 À transmettre au DPAF</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
-            <div className="stat-number">{stats.en_cours}</div>
-            <div className="stat-label">⚙️ En cours</div>
+            <div className="stat-number">{stats.transmises}</div>
+            <div className="stat-label">📤 Transmises au DPAF</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
-            <div className="stat-number">{stats.terminees}</div>
-            <div className="stat-label">✅ Terminées</div>
-          </div>
-          <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
-            <div className="stat-number">{stats.actes_a_remettre}</div>
-            <div className="stat-label">📄 Actes à envoyer</div>
+            <div className="stat-number">{stats.actes_recus}</div>
+            <div className="stat-label">📄 Actes reçus</div>
           </div>
         </div>
 
-        {/* SECTION 1: Demandes à traiter */}
+        {/* SECTION 1: Demandes validées à transmettre */}
         <div className="admin-section">
-          <h3>📋 Nouvelles demandes assignées</h3>
+          <h3>📋 Demandes validées par le chef - À transmettre au DPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -277,74 +216,34 @@ export default function DashboardRH() {
                   <th>Matricule</th>
                   <th>Type</th>
                   <th>Période</th>
-                  <th>Date assignation</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
-                ) : demandesAssignee.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center">📭 Aucune demande à traiter</td></tr>
-                ) : (
-                  demandesAssignee.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.agent_nom} {d.agent_prenom}</td>
-                      <td>{d.agent_matricule}</td>
-                      <td>{d.type_demande}</td>
-                      <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
-                      <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
-                      <td>
-                        <button 
-                          className="btn-traiter"
-                          onClick={() => handleCommencerTraitement(d.id)}
-                        >
-                          ▶️ Commencer
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* SECTION 2: Demandes en cours */}
-        <div className="admin-section">
-          <h3>⚙️ Demandes en cours de traitement</h3>
-          <div className="admin-table-container">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Type</th>
-                  <th>Période</th>
+                  <th>Date validation</th>
                   <th>Statut</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
-                ) : demandesEnCours.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center">📭 Aucune demande en cours</td></tr>
+                  <tr><td colSpan="7" className="text-center">⏳ Chargement...</td></tr>
+                ) : demandesValidees.length === 0 ? (
+                  <tr><td colSpan="7" className="text-center">📭 Aucune demande validée à transmettre</td></tr>
                 ) : (
-                  demandesEnCours.map((d) => (
+                  demandesValidees.map((d) => (
                     <tr key={d.id}>
                       <td>{d.agent_nom} {d.agent_prenom}</td>
+                      <td>{d.agent_matricule}</td>
                       <td>{d.type_demande}</td>
                       <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
+                      <td>{d.date_validation ? new Date(d.date_validation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>{getStatusBadge(d.statut)}</td>
                       <td>
                         <button 
-                          className="btn-generer"
+                          className="btn-transmettre"
                           onClick={() => {
                             setSelectedDemande(d);
-                            setShowGenererActeModal(true);
+                            setShowTransmettreModal(true);
                           }}
                         >
-                          📄 Générer l'acte
+                          📤 Transmettre au DPAF
                         </button>
                       </td>
                     </tr>
@@ -355,9 +254,9 @@ export default function DashboardRH() {
           </div>
         </div>
 
-        {/* SECTION 3: Actes générés à envoyer */}
+        {/* SECTION 2: Actes reçus à remettre */}
         <div className="admin-section">
-          <h3>📄 Actes générés - En attente d'envoi</h3>
+          <h3>📄 Actes reçus des RH - À remettre aux agents</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -365,32 +264,32 @@ export default function DashboardRH() {
                   <th>Agent</th>
                   <th>Type d'acte</th>
                   <th>Référence</th>
-                  <th>Date génération</th>
+                  <th>Date réception</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
-                ) : actesGeneres.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center">📭 Aucun acte en attente</td></tr>
+                ) : actesRecus.length === 0 ? (
+                  <tr><td colSpan="5" className="text-center">📭 Aucun acte reçu</td></tr>
                 ) : (
-                  actesGeneres.map((acte) => (
+                  actesRecus.map((acte) => (
                     <tr key={acte.id}>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.type_acte}</td>
                       <td><code>{acte.reference}</code></td>
-                      <td>{new Date(acte.date_generation).toLocaleDateString('fr-FR')}</td>
+                      <td>{acte.date_reception ? new Date(acte.date_reception).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.id)}>
-                            👁️ Voir
+                            👁️ Voir l'acte
                           </button>
                           <button 
-                            className="btn-envoyer"
-                            onClick={() => handleEnvoyerSecretaire(acte.id)}
+                            className="btn-remettre"
+                            onClick={() => handleRemettreActe(acte.id)}
                           >
-                            📤 Envoyer à la secrétaire
+                            📋 Remettre à l'agent
                           </button>
                         </div>
                       </td>
@@ -403,47 +302,24 @@ export default function DashboardRH() {
         </div>
       </main>
 
-      {/* MODAL GÉNÉRER ACTE */}
-      {showGenererActeModal && selectedDemande && (
-        <div className="modal-overlay" onClick={() => setShowGenererActeModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <h3>📄 Générer l'acte administratif</h3>
+      {/* MODAL TRANSMETTRE AU DPAF */}
+      {showTransmettreModal && selectedDemande && (
+        <div className="modal-overlay" onClick={() => setShowTransmettreModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>📤 Transmettre au DPAF</h3>
             <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-            
             <div className="form-group">
-              <label>Référence de l'acte *</label>
-              <input
-                type="text"
-                placeholder="Ex: 2026-001/MND/RH"
-                value={acteData.reference}
-                onChange={(e) => setActeData({...acteData, reference: e.target.value})}
-                required
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Contenu de l'acte</label>
-              <textarea
-                rows="6"
-                placeholder="Décrivez le contenu de l'acte..."
-                value={acteData.contenu}
-                onChange={(e) => setActeData({...acteData, contenu: e.target.value})}
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Observations (optionnel)</label>
+              <label>Commentaire (optionnel)</label>
               <textarea
                 rows="3"
-                placeholder="Observations supplémentaires..."
-                value={acteData.observations}
-                onChange={(e) => setActeData({...acteData, observations: e.target.value})}
+                placeholder="Ajoutez un commentaire pour le DPAF..."
+                value={commentaire}
+                onChange={(e) => setCommentaire(e.target.value)}
               />
             </div>
-            
             <div className="modal-buttons">
-              <button onClick={() => setShowGenererActeModal(false)}>Annuler</button>
-              <button onClick={() => handleGenererActe(selectedDemande.id)}>Générer l'acte</button>
+              <button className="btn-cancel" onClick={() => setShowTransmettreModal(false)}>Annuler</button>
+              <button className="btn-transmettre" onClick={() => handleTransmettreDPAF(selectedDemande.id)}>Transmettre</button>
             </div>
           </div>
         </div>

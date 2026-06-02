@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardChef() {
@@ -10,7 +11,6 @@ export default function DashboardChef() {
   const [error, setError] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [selectedDemande, setSelectedDemande] = useState(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [stats, setStats] = useState({ en_attente_chef: 0, validees: 0, refusees: 0 });
   const [filter, setFilter] = useState('en_attente_chef'); // en_attente, valide, refuse
   
@@ -26,15 +26,6 @@ export default function DashboardChef() {
     fetchDemandes();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   const fetchDemandes = async () => {
     setLoading(true);
@@ -120,11 +111,6 @@ export default function DashboardChef() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   // Filtrer les demandes selon l'onglet sélectionné
   const filteredDemandes = demandes.filter(d => {
     if (filter === 'en_attente_chef') return d.statut === 'en_attente_chef' || d.statut === 'en_attente_chef';
@@ -141,23 +127,7 @@ export default function DashboardChef() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'C'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Chef de service'}</span>
-                <span className="user-role">Chef de service</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => navigate('/chef/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 

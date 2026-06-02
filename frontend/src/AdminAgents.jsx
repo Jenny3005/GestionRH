@@ -502,14 +502,18 @@ export default function AdminAgents() {
     reader.readAsArrayBuffer(file);
   };
 
-  const getRoleLabel = (role) => {
-    switch(role) {
-      case 'admin': return 'Administrateur';
-      case 'rh': return 'RH';
-      case 'chef': return 'Chef de service';
-      default: return 'Agent';
-    }
-  };
+const getRoleLabel = (role) => {
+  switch(role) {
+    case 'admin': return 'Administrateur';
+    case 'rh': return 'RH';
+    case 'chef': return 'Chef de service';
+    case 'agent': return 'Agent';
+    case 'dpaf': return 'DPAF';  // ← AJOUTE CE CI
+    case 'secretaire': return 'Secrétaire DPAF';
+    case 'rh/secretaire': return 'RH secretaire';  // ← AJOUTE CE CI
+    default: return role;
+  }
+};
 
   const handleLogout = () => {
     localStorage.clear();
@@ -720,17 +724,27 @@ export default function AdminAgents() {
             <h3>Gérer les rôles de {selectedAgent.prenom} {selectedAgent.nom}</h3>
             <p className="modal-info">Un agent peut avoir plusieurs rôles (ex: Agent + Chef)</p>
             <div className="roles-checkboxes">
-              {roles.map(role => {
-                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
+              {[...new Map(roles.map(role => [role.id, role])).values()].map(role => {
+                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
+                                (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
                 return (
                   <label key={role.id} className="role-checkbox">
-                    <input type="checkbox" value={role.id} defaultChecked={isChecked} onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} />
-                    <span className={`role-badge ${role.libelle}`}>{getRoleLabel(role.libelle)}</span>
+                    <input 
+                      type="checkbox" 
+                      value={role.id} 
+                      defaultChecked={isChecked} 
+                      onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} 
+                    />
+                    <span className={`role-badge ${role.libelle}`}>
+                      {getRoleLabel(role.libelle)}
+                    </span>
                     <span className="role-description">
-                      {role.libelle === 'admin' && '👑 Accès total'}
-                      {role.libelle === 'rh' && '👥 Gestion des demandes'}
-                      {role.libelle === 'chef' && '⭐ Validation des congés'}
-                      {role.libelle === 'agent' && '👤 Espace personnel'}
+                      {role.libelle === 'admin' && '👑 Accès total à toutes les fonctionnalités'}
+                      {role.libelle === 'agent' && '👤 Soumission de demandes et suivi personnel'}
+                      {role.libelle === 'chef' && '⭐ Validation des congés de son équipe'}
+                      {role.libelle === 'dpaf' && '🏢 Assignment des demandes aux agents RH'}
+                      {role.libelle === 'rh' && '👥 Gestion des agents et des demandes'}
+                      {role.libelle === 'rh/secretaire' && '📋📝 Gestion RH + Transmission au DPAF'}
                     </span>
                   </label>
                 );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function Demarches() {
@@ -8,7 +9,6 @@ export default function Demarches() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   
   // États pour les formulaires
   const [showCongeForm, setShowCongeForm] = useState(false);
@@ -46,25 +46,6 @@ export default function Demarches() {
       fetchTotalAbsences(savedMatricule);
     }
   }, []);
-
-  // Fermer le dropdown en cliquant ailleurs
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    setIsLoggedIn(false);
-    setUserName('');
-    setUserEmail('');
-    navigate('/'); 
-  };
 
   // Récupérer le solde de congés
   const fetchSoldeConge = async (matricule) => {
@@ -158,7 +139,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numero_suivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
+        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numerosuivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
         setShowCongeForm(false);
         setCongeForm({ date_debut: '', date_fin: '' });
         fetchSoldeConge(matricule);
@@ -213,7 +194,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numero_suivi}\nJours restants: ${data.jours_restants || '?'}/10`);
+        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numerosuivi}\nJours restants: ${data.jours_restants || '?'}/10`);
         setShowAbsenceForm(false);
         setAbsenceForm({ date_debut: '', date_fin: '', motif: '' });
         fetchTotalAbsences(matricule);
@@ -228,14 +209,102 @@ export default function Demarches() {
     }
   };
 
+  // Attestation de présence au poste
+  const soumettreAttestationPresence = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/attestations/presence/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matricule: matricule })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Attestation_Presence_${safeNom || matricule}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ Attestation de présence générée avec succès !');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Attestation de travail
+  const soumettreAttestationTravail = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/attestations/travail/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matricule: matricule })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Attestation_Travail_${safeNom || matricule}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ Attestation de travail générée avec succès !');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFaireDemande = (titre) => {
     requireLogin(`faire une ${titre}`, () => {
       if (titre.includes("Demande de congé")) {
         setShowCongeForm(true);
       } else if (titre.includes("Autorisation d'absence")) {
         setShowAbsenceForm(true);
+      } else if (titre.includes("Attestation de présence au poste")) {
+        soumettreAttestationPresence();
+      } else if (titre.includes("Attestation de travail")) {
+        soumettreAttestationTravail();
       } else {
-        alert(`Demande de ${titre} en cours de traitement...`);
+        alert(`Demande de ${titre} en cours de développement...`);
       }
     });
   };
@@ -295,13 +364,15 @@ export default function Demarches() {
       id: 1,
       titre: "Attestation de travail",
       description: "Certifie que vous êtes en activité au Ministère du Numérique.",
-      delai: "~3 jours"
+      delai: "Immédiat",
+      action: "generer"
     },
     {
       id: 2,
       titre: "Attestation de présence au poste",
       description: "Confirme votre présence effective à votre poste de travail.",
-      delai: "~3 jours"
+      delai: "Immédiat",
+      action: "generer"
     },
     {
       id: 3,
@@ -383,49 +454,7 @@ export default function Demarches() {
         <PortalNav />
 
         <div className="nav-right">
-          {isLoggedIn ? (
-            <div className="user-menu-container">
-              <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-                <div className="avatar-circle">{userName?.charAt(0) || 'U'}</div>
-                <div className="user-meta">
-                  <span className="user-name">{userName}</span>
-                  <span className="user-role">
-                    {getRoleLabel(userRole)}
-                  </span>
-                </div>
-                <span className="dropdown-arrow">▼</span>
-              </div>
-              
-              {dropdownOpen && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-header">
-                    <strong>{userName}</strong>
-                    <small>{userEmail}</small>
-                  </div>
-                  <div className="dropdown-divider"></div>
-                  <button 
-                    className="dropdown-item" 
-                    onClick={() => {
-                      navigate(getDashboardPath());
-                    }}
-                  >
-                    📊 Tableau de bord
-                  </button>
-                  <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                    👤 Mon profil
-                  </button>
-                  <div className="dropdown-divider"></div>
-                  <button className="dropdown-item logout" onClick={handleLogout}>
-                    🔓 Se déconnecter
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <button className="btn-login-main" onClick={() => navigate('/auth')}>
-              Se connecter / S'inscrire
-            </button>
-          )}
+          <UserMenu />
         </div>
       </header>
 
@@ -473,7 +502,7 @@ export default function Demarches() {
                   className="btn-demande" 
                   onClick={() => handleFaireDemande(item.titre)}
                 >
-                  Faire la demande →
+                  {item.action === 'generer' ? 'Générer →' : 'Faire la demande →'}
                 </button>
               </div>
             ))}
