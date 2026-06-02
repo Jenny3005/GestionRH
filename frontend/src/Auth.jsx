@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getDashboardPath, normalizeRole } from './PortalNav';
 import './App.css';
 
 export default function Auth({ onLogin }) {
@@ -60,40 +61,29 @@ export default function Auth({ onLogin }) {
           if (response.ok) {
             alert(`Bienvenue ${data.prenom} ${data.nom}`);
             
+            const normalizedRole = normalizeRole(data.role || 'agent');
+            const rawRoles = Array.isArray(data.roles) ? data.roles : [data.role || normalizedRole];
+            const normalizedRoles = rawRoles.map(normalizeRole).filter(Boolean);
+            const rolesToStore = normalizedRoles.length > 0 ? normalizedRoles : [normalizedRole];
+            const selectedRole = normalizedRole || rolesToStore[0] || 'agent';
+
             localStorage.setItem('userMatricule', data.matricule);
             localStorage.setItem('userNom', data.nom);
             localStorage.setItem('userPrenom', data.prenom);
             localStorage.setItem('userEmail', data.email || '');
-            localStorage.setItem('userRole', data.role);
-            localStorage.setItem('userRoles', JSON.stringify(data.roles || [data.role]));
+            localStorage.setItem('userRole', selectedRole);
+            localStorage.setItem('userRoles', JSON.stringify(rolesToStore));
             localStorage.setItem('lastLogin', Date.now().toString());
             
-            if (onLogin) onLogin(data.matricule, data.role);
-            
-            // Redirection selon le rôle
-          // Dans la fonction handleSubmit, après la connexion
-          switch(data.role) {
-            case 'admin':
-              navigate('/admin/dashboard');
-              break;
-            case 'chef':
-              navigate('/chef/dashboard');
-              break;
-            case 'rh':
-              navigate('/rh/dashboard');
-              break;
-            case 'secretaire':
-              navigate('/secretaire/dashboard');
-              break;
-            case 'rh/secretaire':
-              navigate('/secretaire/dashboard');
-              break;
-            case 'dpaf':  // ← AJOUTÉ
-              navigate('/dpaf/dashboard');
-              break;
-            default:
+            if (onLogin) onLogin(data.matricule, selectedRole);
+            console.log('rolesToStore.length:', rolesToStore.length);
+            console.log('navigation vers:', rolesToStore.length > 1 ? '/dashboard' : getDashboardPath(selectedRole));
+
+            if (rolesToStore.length > 1) {
               navigate('/dashboard');
-          }
+            } else {
+              navigate(getDashboardPath(selectedRole));
+            }
           } else {
             alert(data.error || 'Erreur de connexion');
           }

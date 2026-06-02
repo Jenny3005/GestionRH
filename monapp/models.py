@@ -104,7 +104,7 @@ class Demande(models.Model):
     agent_rh = models.ForeignKey(
         'Agent',
         models.DO_NOTHING,
-        db_column='agent_rh_matricule',
+        db_column='agent_rh',
         related_name='demandes_assignees',
         blank=True,
         null=True
@@ -121,7 +121,7 @@ class DemandeAbsence(models.Model):
     date_fin = models.DateField(db_column='dateFin')
     nombrejours = models.IntegerField(db_column='nombreJours')
     motif = models.CharField(max_length=255, blank=True, null=True)
-
+    
     class Meta:
         managed = False
         db_table = 'demande_absence'

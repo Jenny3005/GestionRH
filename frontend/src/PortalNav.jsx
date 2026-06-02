@@ -1,24 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+export function normalizeRole(role) {
+  if (!role || typeof role !== 'string') return '';
+  return role.trim().toLowerCase();
+}
+
 export function getDashboardPath(role = localStorage.getItem('userRole')) {
+  role = normalizeRole(role);
   if (role === 'admin') return '/admin/dashboard';
   if (role === 'chef') return '/chef/dashboard';
   if (role === 'rh') return '/rh/dashboard';
   if (role === 'secretaire') return '/secretaire/dashboard';
   if (role === 'rh/secretaire') return '/secretaire/dashboard';
-  if (role === 'dpaf') return '/dpaf/dashboard';  // ← AJOUTÉ
+  if (role === 'dpaf') return '/dpaf/dashboard';
   return '/dashboard';
 }
 
 export function getRoleLabel(role = localStorage.getItem('userRole')) {
+  role = normalizeRole(role);
   switch(role) {
     case 'admin': return '👑 Administrateur';
     case 'rh': return '📋 Ressources Humaines';
     case 'chef': return '⭐ Chef de service';
     case 'secretaire': return '📝 Secrétaire DPAF';
     case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
-    case 'dpaf': return '🏢 DPAF';  // ← AJOUTÉ
+    case 'dpaf': return '🏢 DPAF';
     default: return '👤 Agent';
   }
 }
@@ -27,14 +34,27 @@ export default function PortalNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState(null);
+  const [userRole, setUserRole] = useState('');
+  const [userRoles, setUserRoles] = useState([]);
 
   useEffect(() => {
     setIsLoggedIn(Boolean(localStorage.getItem('userMatricule')));
-    setUserRole(localStorage.getItem('userRole'));
+    setUserRole(normalizeRole(localStorage.getItem('userRole')));
+
+    const savedRoles = localStorage.getItem('userRoles');
+    let parsedRoles = [];
+    try {
+      const raw = JSON.parse(savedRoles || '[]');
+      if (Array.isArray(raw)) {
+        parsedRoles = raw.map(normalizeRole).filter(Boolean);
+      }
+    } catch (error) {
+      parsedRoles = [];
+    }
+    setUserRoles(parsedRoles);
   }, []);
 
-  const dashboardPath = getDashboardPath();
+  const dashboardPath = userRoles.length > 1 ? '/dashboard' : getDashboardPath(userRole);
 
   const getVisibleLinks = () => {
     const links = [];

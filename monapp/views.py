@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from docx import Document
 from django.contrib.auth.hashers import make_password, check_password
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -10,6 +11,9 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from django.http import HttpResponse
+import io
+import os
 from datetime import datetime, date, timedelta
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
@@ -613,7 +617,78 @@ def get_agent_by_matricule(request, matricule):
         print(f"Erreur get_agent_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==================== GESTION DES RÔLES DES AGENTS (AJOUT/SUPPRESSION) ====================
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_role_to_agent(request, agent_id):
+    """Ajouter un rôle à un agent"""
+    try:
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
+        
+        print(f"=== add_role_to_agent - Agent: {agent_id}, Role: {role_id}")
+        
+        # Récupérer l'agent (agent_id est le matricule)
+        agent = Agent.objects.get(matricule=agent_id)
+        role = Role.objects.get(id=role_id)
+        
+        # Vérifier si l'agent n'a pas déjà ce rôle
+        existing = AgentRole.objects.filter(agent=agent, role=role).first()
+        
+        if not existing:
+            AgentRole.objects.create(
+                agent=agent, 
+                role=role, 
+                date_attribution=datetime.now().date()
+            )
+            print(f"✅ Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté avec succès'})
+        else:
+            print(f"ℹ️ L'agent a déjà le rôle {role.libelle}")
+            return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': f'Agent {agent_id} non trouvé'}, status=404)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': f'Rôle {role_id} non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR add_role_to_agent: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def remove_role_from_agent(request, agent_id):
+    """Supprimer un rôle d'un agent"""
+    try:
+        data = json.loads(request.body)
+        role_id = data.get('role_id')
+        
+        print(f"=== remove_role_from_agent - Agent: {agent_id}, Role: {role_id}")
+        
+        # Récupérer l'agent et le rôle
+        agent = Agent.objects.get(matricule=agent_id)
+        role = Role.objects.get(id=role_id)
+        
+        # Supprimer le rôle
+        deleted, _ = AgentRole.objects.filter(agent=agent, role=role).delete()
+        
+        if deleted:
+            print(f"✅ Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} supprimé avec succès'})
+        else:
+            print(f"ℹ️ L'agent n'avait pas le rôle {role.libelle}")
+            return JsonResponse({'success': True, 'message': 'L\'agent n\'avait pas ce rôle'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': f'Agent {agent_id} non trouvé'}, status=404)
+    except Role.DoesNotExist:
+        return JsonResponse({'error': f'Rôle {role_id} non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR remove_role_from_agent: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+    
 # ==================== GESTION DES CONGÉS ====================
 
 @csrf_exempt
@@ -689,7 +764,7 @@ def demande_conge(request):
             type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numero_suivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         )
         
         conge = DemandeConge.objects.create(
@@ -718,7 +793,7 @@ def demande_conge(request):
         
         return JsonResponse({
             'success': True,
-            'numero_suivi': demande.numero_suivi,
+            'numerosuivi': demande.numerosuivi,
             'message': f'Demande de {nombre_jours} jours envoyée pour validation',
             'jours_restants_apres': solde.jours_restants - nombre_jours
         })
@@ -777,14 +852,14 @@ def demande_absence(request):
             defaults={'acte_generable': 0}
         )
         
-        numero_suivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+        numerosuivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         
         demande = Demande.objects.create(
             agent=agent,
             type_demande=type_demande_obj,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numerosuivi=numero_suivi,
+            numerosuivi=numerosuivi,
             jours_consommes=nombre_jours,
             jours_restants=10 - nouveau_total,
             annee=annee_courante
@@ -800,7 +875,7 @@ def demande_absence(request):
         
         return JsonResponse({
             'success': True,
-            'numero_suivi': demande.numerosuivi,
+            'numerosuivi': demande.numerosuivi,
             'message': f'Demande envoyée',
             'jours_consommes': demande.jours_consommes,
             'jours_restants': demande.jours_restants
@@ -918,7 +993,7 @@ def demandes_direction(request, matricule_chef):
                 'date_soumission': str(d.date_soumission),
                 'statut': d.statut,
                 'commentaire': getattr(d, 'commentaire', ''),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"Demandes retournées: {len(result)}")
@@ -1062,7 +1137,7 @@ def mes_demandes(request, matricule):
                 'nombre_jours': nombre_jours,
                 'statut': d.statut,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"\n✅ FINAL - Demandes retournées: {len(result)}")
@@ -1470,7 +1545,7 @@ def get_demandes_validees_secretaire(request, matricule_secretaire):
                 'nombre_jours': nombre_jours,
                 'date_validation': str(d.date_soumission),
                 'statut': d.statut,
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         print(f"✅ Demandes retournées: {len(result)}")
@@ -1555,7 +1630,7 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
         
         demandes = Demande.objects.filter(
             statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine']
-        ).select_related('agent', 'type_demande')
+        ).select_related('agent', 'type_demande', 'agent_rh')
         
         result = []
         for d in demandes:
@@ -1569,6 +1644,16 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
                 date_debut = str(d.demandeabsence.date_debut)
                 date_fin = str(d.demandeabsence.date_fin)
             
+            # Récupérer le nom depuis d.agent_rh (clé étrangère)
+            if d.agent_rh:
+                agent_rh_nom = d.agent_rh.nom
+                agent_rh_prenom = d.agent_rh.prenom
+                print(f"✅ Demande {d.id}: Agent RH = {agent_rh_nom} {agent_rh_prenom}")
+            else:
+                agent_rh_nom = 'Non assigné'
+                agent_rh_prenom = ''
+                print(f"⚠️ Demande {d.id}: Aucun agent RH assigné")
+            
             result.append({
                 'id': d.id,
                 'agent_nom': d.agent.nom,
@@ -1577,8 +1662,8 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'agent_rh_nom': getattr(d, 'agent_rh_nom', 'Non assigné'),
-                'agent_rh_prenom': getattr(d, 'agent_rh_prenom', ''),
+                'agent_rh_nom': agent_rh_nom,
+                'agent_rh_prenom': agent_rh_prenom,
                 'statut': d.statut,
                 'date_assignation': str(getattr(d, 'date_assignation', d.date_soumission))
             })
@@ -1588,8 +1673,9 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
         
     except Exception as e:
         print(f"ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1635,16 +1721,16 @@ def assigner_demande_rh(request, demande_id):
         demande = Demande.objects.get(id=demande_id)
         agent_rh = Agent.objects.get(matricule=agent_rh_matricule)
         
+        # Mettre à jour la demande
         demande.statut = 'assignee_rh'
-        demande.agent_rh_matricule = agent_rh_matricule
-        demande.agent_rh_nom = agent_rh.nom
-        demande.agent_rh_prenom = agent_rh.prenom
+        demande.agent_rh = agent_rh
         demande.date_assignation = datetime.now().date()
         demande.commentaire_dpaf = commentaire
         demande.save()
         
         print(f"✅ Demande {demande_id} assignée à {agent_rh.nom} {agent_rh.prenom}")
         
+        # Notification pour l'agent RH
         Notification.objects.create(
             agent_id=agent_rh_matricule,
             message=f"Nouvelle demande assignée: {demande.type_demande.libelle} pour {demande.agent.nom} {demande.agent.prenom}",
@@ -1662,8 +1748,6 @@ def assigner_demande_rh(request, demande_id):
     except Exception as e:
         print(f"ERREUR: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
-
 # ==================== RH ====================
 
 @csrf_exempt
@@ -1671,8 +1755,11 @@ def assigner_demande_rh(request, demande_id):
 def get_demandes_assignees_rh(request, matricule_rh):
     """Récupérer les demandes assignées à un agent RH"""
     try:
+        print(f"=== get_demandes_assignees_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh (clé étrangère) au lieu de agent_rh_matricule
         demandes = Demande.objects.filter(
-            agent_rh_matricule=matricule_rh,
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
             statut='assignee_rh'
         ).select_related('agent', 'type_demande')
         
@@ -1695,13 +1782,18 @@ def get_demandes_assignees_rh(request, matricule_rh):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'date_assignation': str(getattr(d, 'date_assignation', d.date_soumission))
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes assignées trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_assignees_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -1727,27 +1819,136 @@ def generer_acte_rh(request, demande_id):
         reference = data.get('reference')
         contenu = data.get('contenu', '')
         observations = data.get('observations', '')
+        rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
+        agent = demande.agent
+        
+        # Récupérer les dates du congé
+        if hasattr(demande, 'demandeconge') and demande.demandeconge:
+            date_debut = demande.demandeconge.date_debut
+            date_fin = demande.demandeconge.date_fin
+            nombre_jours = demande.demandeconge.nombrejours
+        else:
+            return JsonResponse({'error': 'Demande de congé non trouvée'}, status=404)
+        
+        # Formater les dates
+        date_debut_formatee = date_debut.strftime('%d %B %Y')
+        date_fin_formatee = date_fin.strftime('%d %B %Y')
+        
+        # Convertir les mois en français
+        mois_fr = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        for en, fr in mois_fr.items():
+            date_debut_formatee = date_debut_formatee.replace(en, fr)
+            date_fin_formatee = date_fin_formatee.replace(en, fr)
+        
+        # Récupérer le jour de la semaine
+        jours_semaine = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+        jour_debut = jours_semaine[date_debut.weekday()]
+        jour_fin = jours_semaine[date_fin.weekday()]
+        
+        # Nombre de jours en toutes lettres
+        nombre_jours_lettres = nombre_en_toutes_lettres(nombre_jours)
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        # Chemin du template
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'autorisation_conge_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        # Charger le template
+        doc = Document(template_path)
+        
+        # Remplacer les variables
+        for paragraph in doc.paragraphs:
+            if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+            if '{{REFERENCE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+            if '{{AGENT_NOM_COMPLET}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{AGENT_NOM_COMPLET}}', f"{agent.prenom} {agent.nom}".upper())
+            if '{{AGENT_POSTE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{AGENT_POSTE}}', agent.poste or 'Agent')
+            if '{{ANNEE_CONGE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{ANNEE_CONGE}}', str(date_debut.year))
+            if '{{DATE_DEBUT}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_DEBUT}}', f"{jour_debut} {date_debut_formatee}")
+            if '{{DATE_FIN}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_FIN}}', f"{jour_fin} {date_fin_formatee}")
+            if '{{NOMBRE_JOURS}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS}}', str(nombre_jours))
+            if '{{NOMBRE_JOURS_LETTRES}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS_LETTRES}}', nombre_jours_lettres)
+        
+        # Remplacer dans les tableaux
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+                        if '{{REFERENCE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+                        if '{{AGENT_NOM_COMPLET}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{AGENT_NOM_COMPLET}}', f"{agent.prenom} {agent.nom}".upper())
+                        if '{{AGENT_POSTE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{AGENT_POSTE}}', agent.poste or 'Agent')
+                        if '{{ANNEE_CONGE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{ANNEE_CONGE}}', str(date_debut.year))
+                        if '{{DATE_DEBUT}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_DEBUT}}', f"{jour_debut} {date_debut_formatee}")
+                        if '{{DATE_FIN}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_FIN}}', f"{jour_fin} {date_fin_formatee}")
+                        if '{{NOMBRE_JOURS}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS}}', str(nombre_jours))
+                        if '{{NOMBRE_JOURS_LETTRES}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS_LETTRES}}', nombre_jours_lettres)
+        
+        # Sauvegarder le document
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        # Mettre à jour la demande
         demande.statut = 'acte_genere'
         demande.reference_acte = reference
         demande.contenu_acte = contenu
         demande.date_generation_acte = datetime.now().date()
         demande.save()
         
+        # Sauvegarder l'acte
         acte = ActeAdministratif.objects.create(
             demande=demande,
             reference=reference,
-            type_acte=demande.type_demande.libelle,
+            type_acte='Autorisation de jouissance de congé administratif',
             statut='genere',
             date_generation=datetime.now().date(),
             contenu=contenu
         )
         
-        return JsonResponse({'success': True, 'acte_id': acte.reference})
+        # Retourner le fichier Word
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Autorisation_Conge_{agent.nom}_{agent.prenom}.docx"'
+        return response
+        
+    except Demande.DoesNotExist:
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
+        print(f"ERREUR generer_acte_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 # ==================== RH (SUITE) - FONCTIONS MANQUANTES ====================
 
 @csrf_exempt
@@ -1755,8 +1956,11 @@ def generer_acte_rh(request, demande_id):
 def get_demandes_cours_rh(request, matricule_rh):
     """Récupérer les demandes en cours de traitement pour un agent RH"""
     try:
+        print(f"=== get_demandes_cours_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh__matricule
         demandes = Demande.objects.filter(
-            agent_rh_matricule=matricule_rh,
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
             statut='en_cours_traitement'
         ).select_related('agent', 'type_demande')
         
@@ -1779,12 +1983,16 @@ def get_demandes_cours_rh(request, matricule_rh):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'statut': d.statut,
-                'date_debut_traitement': str(getattr(d, 'date_debut_traitement', ''))
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes en cours trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_cours_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -1793,8 +2001,11 @@ def get_demandes_cours_rh(request, matricule_rh):
 def get_demandes_terminees_rh(request, matricule_rh):
     """Récupérer les demandes terminées pour un agent RH"""
     try:
+        print(f"=== get_demandes_terminees_rh for: {matricule_rh}")
+        
+        # Correction : utiliser agent_rh__matricule
         demandes = Demande.objects.filter(
-            agent_rh_matricule=matricule_rh,
+            agent_rh__matricule=matricule_rh,  # ← Correction ici
             statut__in=['acte_genere', 'termine']
         ).select_related('agent', 'type_demande')
         
@@ -1817,41 +2028,18 @@ def get_demandes_terminees_rh(request, matricule_rh):
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
                 'date_debut': date_debut,
                 'date_fin': date_fin,
-                'statut': d.statut,
-                'reference_acte': getattr(d, 'reference_acte', ''),
-                'date_generation_acte': str(getattr(d, 'date_generation_acte', ''))
+                'statut': d.statut
             })
         
+        print(f"✅ {len(result)} demandes terminées trouvées")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"ERREUR get_demandes_terminees_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
-
-@csrf_exempt
-@require_http_methods(["GET"])
-def get_actes_a_envoyer_rh(request, matricule_rh):
-    """Récupérer les actes générés à envoyer à la secrétaire"""
-    try:
-        actes = ActeAdministratif.objects.filter(
-            statut='genere'
-        ).select_related('demande__agent')
-        
-        result = []
-        for acte in actes:
-            result.append({
-                'id': acte.id,
-                'agent_nom': acte.demande.agent.nom,
-                'agent_prenom': acte.demande.agent.prenom,
-                'agent_matricule': acte.demande.agent.matricule,
-                'type_acte': acte.type_acte,
-                'reference': acte.reference,
-                'date_generation': str(acte.date_generation),
-                'contenu': acte.contenu
-            })
-        
-        return JsonResponse(result, safe=False)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -1884,7 +2072,7 @@ def mes_demandes_conge(request, matricule):
                 'nombre_jours': nombre_jours,
                 'statut': d.statut,
                 'date_soumission': str(d.date_soumission),
-                'numero_suivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi
             })
         
         return JsonResponse(result, safe=False)
@@ -1894,40 +2082,29 @@ def mes_demandes_conge(request, matricule):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def update_agent_role_by_matricule(request, matricule):
-    """Modifier le rôle d'un agent en utilisant son matricule"""
+    """Ajouter un rôle à un agent (sans supprimer les existants)"""
     try:
         data = json.loads(request.body)
         role_id = data.get('role_id')
         
-        # Vérifier que le rôle existe
-        try:
-            role = Role.objects.get(id=role_id)
-        except Role.DoesNotExist:
-            return JsonResponse({'error': 'Rôle non trouvé'}, status=404)
+        agent = Agent.objects.get(matricule=matricule)
+        role = Role.objects.get(id=role_id)
         
-        # Récupérer l'agent par son matricule
-        try:
-            agent = Agent.objects.get(matricule=matricule)
-        except Agent.DoesNotExist:
-            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
-        
-        # Vérifier si l'agent a déjà ce rôle
+        # Vérifier si l'agent n'a pas déjà ce rôle
         existing = AgentRole.objects.filter(agent=agent, role=role).first()
         
-        if existing:
-            # Si le rôle existe déjà, on ne fait rien ou on peut le supprimer selon le besoin
-            return JsonResponse({'success': True, 'message': 'Ce rôle est déjà attribué à cet agent'})
-        
-        # Ajouter le nouveau rôle (sans supprimer les anciens)
-        AgentRole.objects.create(agent=agent, role=role, date_attribution=date.today())
-        
-        return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} attribué avec succès'})
+        if not existing:
+            # Ajouter le nouveau rôle sans supprimer les anciens
+            AgentRole.objects.create(agent=agent, role=role, date_attribution=date.today())
+            return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté'})
+        else:
+            return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
         
     except Exception as e:
-        print(f"Erreur update_agent_role_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -1951,7 +2128,6 @@ def check_expired_documents(request):
             agent = piece.dossier_agent.agent
             jours = (today - piece.date_expiration).days
             
-            # ✅ Personnaliser le message selon le nombre de jours
             if jours == 0:
                 message = f"⚠️ {piece.type_piece.libelle} expire aujourd'hui"
             elif jours == 1:
@@ -2122,6 +2298,7 @@ def upload_document(request):
     """Uploader un document et le stocker en base de données"""
     try:
         import unicodedata
+        import unicodedata
         
         matricule = request.POST.get('matricule') or request.headers.get('X-User-Matricule')
         type_piece_id = request.POST.get('type_piece_id')
@@ -2142,19 +2319,16 @@ def upload_document(request):
                 'error': 'Tous les champs sont requis (matricule, type_piece_id, file_base64, file_name)'
             }, status=400)
         
-        # Vérifier que l'agent existe
         try:
             agent = Agent.objects.get(matricule=matricule)
         except Agent.DoesNotExist:
             return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
         
-        # Vérifier que le type de pièce existe
         try:
             type_piece = TypePiece.objects.get(id=type_piece_id)
         except TypePiece.DoesNotExist:
             return JsonResponse({'error': f'Type de pièce {type_piece_id} non trouvé'}, status=404)
         
-        # Récupérer ou créer le dossier de l'agent
         dossier, created = DossierAgent.objects.get_or_create(
             agent=agent,
             defaults={
@@ -2176,12 +2350,18 @@ def upload_document(request):
         date_expiration = None
         if date_expiration_str:
             try:
+                match = re.search(r'(\d+)', type_piece.duree_validite)
+                if match:
+                    duree_annees = int(match.group(1))
+                    date_expiration = date.today() + timedelta(days=duree_annees * 365)
+                    print(f"Date d'expiration calculée: {date_expiration} ({duree_annees} ans)")
+            except Exception as e:
+                print(f"Impossible de calculer la date d'expiration: {e}")
                 date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
                 print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
             except:
                 print(f"Format de date invalide: {date_expiration_str}")
         
-        # Supprimer l'ancienne pièce du même type si elle existe (remplacement)
         anciennes_pieces = Piece.objects.filter(
             dossier_agent=dossier,
             type_piece=type_piece
@@ -2203,7 +2383,6 @@ def upload_document(request):
         
         print(f"Pièce créée - ID: {piece.id}, Type: {type_piece.libelle}")
         
-        # Recalculer le taux de complétude
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(
             dossier_agent=dossier,
@@ -2235,7 +2414,6 @@ def upload_document(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-
 @csrf_exempt
 @require_http_methods(["GET"])
 def download_document(request, piece_id):
@@ -2246,17 +2424,14 @@ def download_document(request, piece_id):
         if not matricule:
             return JsonResponse({'error': 'Matricule requis'}, status=400)
         
-        # Récupérer la pièce
         try:
             piece = Piece.objects.select_related('dossier_agent__agent', 'type_piece').get(id=piece_id)
         except Piece.DoesNotExist:
             return JsonResponse({'error': 'Document non trouvé'}, status=404)
         
-        # Vérifier les droits d'accès
         agent_demandeur = piece.dossier_agent.agent
         
         if agent_demandeur.matricule != matricule:
-            # Vérifier si c'est un RH ou admin qui fait la demande
             try:
                 agent = Agent.objects.get(matricule=matricule)
                 roles = AgentRole.objects.filter(agent=agent).values_list('role__libelle', flat=True)
@@ -2265,20 +2440,17 @@ def download_document(request, piece_id):
             except:
                 return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # Vérifier que le contenu existe
         if not piece.cheminfichier:
             return JsonResponse({'error': 'Document vide ou corrompu'}, status=404)
         
         print(f"Téléchargement du document {piece.id} - {piece.nom_fichier}")
         
-        # Déterminer le type MIME
         mime_type = 'application/pdf'
         if piece.nom_fichier.lower().endswith(('.jpg', '.jpeg')):
             mime_type = 'image/jpeg'
         elif piece.nom_fichier.lower().endswith('.png'):
             mime_type = 'image/png'
         
-        # Le contenu est déjà en base64 dans la base de données
         return JsonResponse({
             'success': True,
             'file_name': piece.nom_fichier,
@@ -2307,7 +2479,6 @@ def delete_document(request, piece_id):
         except Piece.DoesNotExist:
             return JsonResponse({'error': 'Document non trouvé'}, status=404)
         
-        # ✅ Vérifier si le demandeur est propriétaire OU RH/admin
         agent_demandeur = Agent.objects.get(matricule=matricule)
         roles = AgentRole.objects.filter(agent=agent_demandeur).values_list('role__libelle', flat=True)
         
@@ -2319,10 +2490,8 @@ def delete_document(request, piece_id):
         
         dossier = piece.dossier_agent
         
-        # Supprimer le document
         piece.delete()
         
-        # Recalculer le taux de complétude
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(
             dossier_agent=dossier,
@@ -2344,7 +2513,8 @@ def delete_document(request, piece_id):
     except Exception as e:
         print(f"Erreur delete_document: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-        
+
+
 # ==================== RH : ACCÈS AUX DOCUMENTS DES AGENTS ====================
 
 @csrf_exempt
@@ -2352,7 +2522,6 @@ def delete_document(request, piece_id):
 def get_documents_by_matricule(request, matricule):
     """RH : Récupérer les documents de n'importe quel agent par matricule"""
     try:
-        # Vérifier que le demandeur est RH ou admin
         demandeur_matricule = request.headers.get('X-User-Matricule')
         if not demandeur_matricule:
             return JsonResponse({'error': 'Non autorisé'}, status=401)
@@ -2365,19 +2534,16 @@ def get_documents_by_matricule(request, matricule):
         except Agent.DoesNotExist:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # Récupérer l'agent cible
         try:
             agent = Agent.objects.get(matricule=matricule)
         except Agent.DoesNotExist:
             return JsonResponse({'error': 'Agent non trouvé'}, status=404)
         
-        # Récupérer ou créer le dossier de l'agent cible
         dossier, created = DossierAgent.objects.get_or_create(
             agent=agent,
             defaults={'datecreation': date.today(), 'taux_completude': 0}
         )
         
-        # Récupérer toutes les pièces
         pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
         types_pieces = TypePiece.objects.all()
         
@@ -2404,7 +2570,6 @@ def get_documents_by_matricule(request, matricule):
                 'valide': piece.valide
             })
         
-        # Documents manquants
         documents_uploades_ids = [d['type_piece_id'] for d in documents]
         missing_documents = []
         for type_piece in types_pieces:
@@ -2415,7 +2580,6 @@ def get_documents_by_matricule(request, matricule):
                     'obligatoire': True
                 })
         
-        # Taux de complétude
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         documents_obligatoires_uploades = len([d for d in documents if d['type_piece_id'] in 
             [tp.id for tp in types_pieces if tp.obligatoire == 1]])
@@ -2444,4 +2608,314 @@ def get_documents_by_matricule(request, matricule):
         
     except Exception as e:
         print(f"Erreur get_documents_by_matricule: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_a_envoyer_rh(request, matricule_rh):
+    """Récupérer les actes générés à envoyer à la secrétaire"""
+    try:
+        print(f"=== get_actes_a_envoyer_rh for: {matricule_rh}")
+        
+        actes = ActeAdministratif.objects.filter(
+            demande__agent_rh__matricule=matricule_rh,
+            statut='genere'
+        ).select_related('demande__agent')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.id,
+                'agent_nom': acte.demande.agent.nom,
+                'agent_prenom': acte.demande.agent.prenom,
+                'agent_matricule': acte.demande.agent.matricule,
+                'type_acte': acte.type_acte,
+                'reference': acte.reference,
+                'date_generation': str(acte.date_generation),
+                'contenu': acte.contenu
+            })
+        
+        print(f"✅ {len(result)} actes à envoyer trouvés")
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"ERREUR get_actes_a_envoyer_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ==================== ATTESTATIONS ====================
+
+def nombre_en_toutes_lettres(n):
+    """Convertit un nombre en toutes lettres (1-30)"""
+    nombres = {
+        1: 'un', 2: 'deux', 3: 'trois', 4: 'quatre', 5: 'cinq',
+        6: 'six', 7: 'sept', 8: 'huit', 9: 'neuf', 10: 'dix',
+        11: 'onze', 12: 'douze', 13: 'treize', 14: 'quatorze', 15: 'quinze',
+        16: 'seize', 17: 'dix-sept', 18: 'dix-huit', 19: 'dix-neuf', 20: 'vingt',
+        21: 'vingt-et-un', 22: 'vingt-deux', 23: 'vingt-trois', 24: 'vingt-quatre', 25: 'vingt-cinq',
+        26: 'vingt-six', 27: 'vingt-sept', 28: 'vingt-huit', 29: 'vingt-neuf', 30: 'trente'
+    }
+    return nombres.get(n, str(n))
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_attestation_presence(request):
+    """Générer une attestation de présence au poste"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        nom_complet = f"{agent.nom} {agent.prenom}".upper()
+        poste = agent.poste or 'Ouvrier Spécialisé des Services Généraux de l\'Administration'
+        
+        if agent.date_prise_service:
+            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
+            mois_fr = {
+                'January': 'janvier', 'February': 'février', 'March': 'mars',
+                'April': 'avril', 'May': 'mai', 'June': 'juin',
+                'July': 'juillet', 'August': 'août', 'September': 'septembre',
+                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+            }
+            for en, fr in mois_fr.items():
+                date_prise_service = date_prise_service.replace(en, fr)
+        else:
+            date_prise_service = '02 février 2015'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        annee = datetime.now().year
+        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = f"{ref_number}/MND/DPAF/SRHDS/SA"
+        
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_presence_template.docx')
+        
+        if os.path.exists(template_path):
+            doc = Document(template_path)
+            
+            placeholders = {
+                '{{NOM_COMPLET}}': nom_complet,
+                '{{POSTE}}': poste,
+                '{{DATE_PRISE_SERVICE}}': date_prise_service,
+                '{{DATE_AUJOURD_HUI}}': date_aujourdhui,
+            }
+            
+            for paragraph in doc.paragraphs:
+                para_text = ''.join([r.text for r in paragraph.runs])
+                new_text = para_text
+                
+                if '{{REFERENCE}}' in new_text:
+                    if '/MND/DPAF/SRHDS/SA' in new_text:
+                        ref_display = ref_number
+                    else:
+                        ref_display = reference
+                    new_text = new_text.replace('{{REFERENCE}}', ref_display)
+                
+                for key, val in placeholders.items():
+                    if key in new_text:
+                        new_text = new_text.replace(key, val)
+                
+                if new_text != para_text:
+                    first_run = paragraph.runs[0] if paragraph.runs else None
+                    for r in paragraph.runs:
+                        r.text = ''
+                    new_run = paragraph.add_run(new_text)
+                    if first_run:
+                        try:
+                            new_run.font.name = first_run.font.name
+                            new_run.font.size = first_run.font.size
+                            new_run.bold = first_run.bold
+                            new_run.italic = first_run.italic
+                        except Exception:
+                            pass
+            
+            output = io.BytesIO()
+            doc.save(output)
+            output.seek(0)
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Attestation_Presence_{agent.nom}_{agent.prenom}.docx"'
+            
+        else:
+            return JsonResponse({'error': 'Template non trouvé'}, status=500)
+        
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Attestation de présence au poste',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference
+        )
+        
+        return response
+        
+    except Exception as e:
+        print(f"ERREUR generer_attestation_presence: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_attestation_travail(request):
+    """Générer une attestation de travail à partir du template Word"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        nom_complet = f"{agent.nom} {agent.prenom}".upper()
+        poste = agent.poste or 'Administrateur'
+        
+        if agent.date_prise_service:
+            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
+            mois_fr = {
+                'January': 'janvier', 'February': 'février', 'March': 'mars',
+                'April': 'avril', 'May': 'mai', 'June': 'juin',
+                'July': 'juillet', 'August': 'août', 'September': 'septembre',
+                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+            }
+            for en, fr in mois_fr.items():
+                date_prise_service = date_prise_service.replace(en, fr)
+        else:
+            date_prise_service = 'date non renseignée'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        annee = datetime.now().year
+        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = f"{ref_number}/MND/DPAF/SGRHTE/SA"
+        
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_travail_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        doc = Document(template_path)
+        
+        for paragraph in doc.paragraphs:
+            if '{{NOM_COMPLET}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
+            if '{{POSTE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
+            if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
+            if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+            if '{{REFERENCE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+        
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if '{{NOM_COMPLET}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
+                        if '{{POSTE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
+                        if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
+                        if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+                        if '{{REFERENCE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+        
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Attestation de travail',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference
+        )
+        
+        TypeDemande.objects.get_or_create(
+            libelle='Attestation',
+            defaults={'acte_generable': 1}
+        )
+        
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Attestation_Travail_{agent.nom}_{agent.prenom}.docx"'
+        return response
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR generer_attestation_travail: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_a_envoyer_rh(request, matricule_rh):
+    """Récupérer les actes générés non encore envoyés"""
+    try:
+        actes = ActeAdministratif.objects.filter(
+            demande__agent_rh__matricule=matricule_rh,
+            statut='genere'
+        ).select_related('demande__agent')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.id,
+                'agent_nom': acte.demande.agent.nom,
+                'agent_prenom': acte.demande.agent.prenom,
+                'type_acte': acte.type_acte,
+                'reference': acte.reference,
+                'date_generation': str(acte.date_generation)
+            })
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def envoyer_acte_secretaire(request, acte_id):
+    """Envoyer un acte à la secrétaire"""
+    try:
+        data = json.loads(request.body)
+        rh_matricule = data.get('rh_matricule')
+        
+        acte = ActeAdministratif.objects.get(id=acte_id)
+        acte.statut = 'envoye_secretaire'
+        acte.save()
+        
+        # Mettre à jour la demande
+        demande = acte.demande
+        demande.statut = 'envoye_secretaire'
+        demande.save()
+        
+        # Notification pour la secrétaire
+        secretaire = Agent.objects.filter(
+            agentrole__role__libelle='secretaire',
+            direction=demande.agent.direction,
+            actif=1
+        ).first()
+        
+        if secretaire:
+            Notification.objects.create(
+                agent_id=secretaire.matricule,
+                message=f"📄 Nouvel acte à remettre pour {demande.agent.nom} {demande.agent.prenom}",
+                type_notification='acte_recu',
+                date_envoi=datetime.now().date(),
+                lue=0
+            )
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
