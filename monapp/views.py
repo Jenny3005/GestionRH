@@ -1819,27 +1819,136 @@ def generer_acte_rh(request, demande_id):
         reference = data.get('reference')
         contenu = data.get('contenu', '')
         observations = data.get('observations', '')
+        rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
+        agent = demande.agent
+        
+        # Récupérer les dates du congé
+        if hasattr(demande, 'demandeconge') and demande.demandeconge:
+            date_debut = demande.demandeconge.date_debut
+            date_fin = demande.demandeconge.date_fin
+            nombre_jours = demande.demandeconge.nombrejours
+        else:
+            return JsonResponse({'error': 'Demande de congé non trouvée'}, status=404)
+        
+        # Formater les dates
+        date_debut_formatee = date_debut.strftime('%d %B %Y')
+        date_fin_formatee = date_fin.strftime('%d %B %Y')
+        
+        # Convertir les mois en français
+        mois_fr = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        for en, fr in mois_fr.items():
+            date_debut_formatee = date_debut_formatee.replace(en, fr)
+            date_fin_formatee = date_fin_formatee.replace(en, fr)
+        
+        # Récupérer le jour de la semaine
+        jours_semaine = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
+        jour_debut = jours_semaine[date_debut.weekday()]
+        jour_fin = jours_semaine[date_fin.weekday()]
+        
+        # Nombre de jours en toutes lettres
+        nombre_jours_lettres = nombre_en_toutes_lettres(nombre_jours)
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        # Chemin du template
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'autorisation_conge_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        # Charger le template
+        doc = Document(template_path)
+        
+        # Remplacer les variables
+        for paragraph in doc.paragraphs:
+            if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+            if '{{REFERENCE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+            if '{{AGENT_NOM_COMPLET}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{AGENT_NOM_COMPLET}}', f"{agent.prenom} {agent.nom}".upper())
+            if '{{AGENT_POSTE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{AGENT_POSTE}}', agent.poste or 'Agent')
+            if '{{ANNEE_CONGE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{ANNEE_CONGE}}', str(date_debut.year))
+            if '{{DATE_DEBUT}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_DEBUT}}', f"{jour_debut} {date_debut_formatee}")
+            if '{{DATE_FIN}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_FIN}}', f"{jour_fin} {date_fin_formatee}")
+            if '{{NOMBRE_JOURS}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS}}', str(nombre_jours))
+            if '{{NOMBRE_JOURS_LETTRES}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS_LETTRES}}', nombre_jours_lettres)
+        
+        # Remplacer dans les tableaux
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+                        if '{{REFERENCE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+                        if '{{AGENT_NOM_COMPLET}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{AGENT_NOM_COMPLET}}', f"{agent.prenom} {agent.nom}".upper())
+                        if '{{AGENT_POSTE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{AGENT_POSTE}}', agent.poste or 'Agent')
+                        if '{{ANNEE_CONGE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{ANNEE_CONGE}}', str(date_debut.year))
+                        if '{{DATE_DEBUT}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_DEBUT}}', f"{jour_debut} {date_debut_formatee}")
+                        if '{{DATE_FIN}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_FIN}}', f"{jour_fin} {date_fin_formatee}")
+                        if '{{NOMBRE_JOURS}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS}}', str(nombre_jours))
+                        if '{{NOMBRE_JOURS_LETTRES}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOMBRE_JOURS_LETTRES}}', nombre_jours_lettres)
+        
+        # Sauvegarder le document
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        # Mettre à jour la demande
         demande.statut = 'acte_genere'
         demande.reference_acte = reference
         demande.contenu_acte = contenu
         demande.date_generation_acte = datetime.now().date()
         demande.save()
         
+        # Sauvegarder l'acte
         acte = ActeAdministratif.objects.create(
             demande=demande,
             reference=reference,
-            type_acte=demande.type_demande.libelle,
+            type_acte='Autorisation de jouissance de congé administratif',
             statut='genere',
             date_generation=datetime.now().date(),
             contenu=contenu
         )
         
-        return JsonResponse({'success': True, 'acte_id': acte.reference})
+        # Retourner le fichier Word
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Autorisation_Conge_{agent.nom}_{agent.prenom}.docx"'
+        return response
+        
+    except Demande.DoesNotExist:
+        return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
+        print(f"ERREUR generer_acte_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 # ==================== RH (SUITE) - FONCTIONS MANQUANTES ====================
 
 @csrf_exempt
@@ -2737,4 +2846,66 @@ def generer_attestation_travail(request):
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR generer_attestation_travail: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_a_envoyer_rh(request, matricule_rh):
+    """Récupérer les actes générés non encore envoyés"""
+    try:
+        actes = ActeAdministratif.objects.filter(
+            demande__agent_rh__matricule=matricule_rh,
+            statut='genere'
+        ).select_related('demande__agent')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.id,
+                'agent_nom': acte.demande.agent.nom,
+                'agent_prenom': acte.demande.agent.prenom,
+                'type_acte': acte.type_acte,
+                'reference': acte.reference,
+                'date_generation': str(acte.date_generation)
+            })
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def envoyer_acte_secretaire(request, acte_id):
+    """Envoyer un acte à la secrétaire"""
+    try:
+        data = json.loads(request.body)
+        rh_matricule = data.get('rh_matricule')
+        
+        acte = ActeAdministratif.objects.get(id=acte_id)
+        acte.statut = 'envoye_secretaire'
+        acte.save()
+        
+        # Mettre à jour la demande
+        demande = acte.demande
+        demande.statut = 'envoye_secretaire'
+        demande.save()
+        
+        # Notification pour la secrétaire
+        secretaire = Agent.objects.filter(
+            agentrole__role__libelle='secretaire',
+            direction=demande.agent.direction,
+            actif=1
+        ).first()
+        
+        if secretaire:
+            Notification.objects.create(
+                agent_id=secretaire.matricule,
+                message=f"📄 Nouvel acte à remettre pour {demande.agent.nom} {demande.agent.prenom}",
+                type_notification='acte_recu',
+                date_envoi=datetime.now().date(),
+                lue=0
+            )
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
