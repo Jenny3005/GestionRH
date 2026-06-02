@@ -185,12 +185,13 @@ export default function Documents() {
   };
 
   // Upload de document
-  const uploadDocumentToAPI = async (typePieceId, fileBase64, fileName) => {
+  const uploadDocumentToAPI = async (typePieceId, fileBase64, fileName, dateExpiration) => {
     const formData = new FormData();
     formData.append('matricule', userMatricule);
     formData.append('type_piece_id', typePieceId);
     formData.append('file_base64', fileBase64);
     formData.append('file_name', fileName);
+    formData.append('date_expiration', dateExpiration);
     
     try {
       const response = await fetch('/api/documents/upload/', {
@@ -206,7 +207,12 @@ export default function Documents() {
     }
   };
 
-  // Gérer l'upload de fichier
+  // States pour le modal de date d'expiration
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState(null);
+  const [expiryDate, setExpiryDate] = useState('');
+
+  // Gérer l'upload de fichier avec modal pour la date d'expiration
   const handleFileUpload = async (documentKey, file) => {
     if (!file) return;
     const docDef = documentTypes[documentKey];
@@ -216,14 +222,40 @@ export default function Documents() {
     if (!allowedTypes.includes(file.type)) { showNotification('Format non supporté (PDF, JPG, PNG uniquement)', 'error'); return; }
     if (file.size > 5 * 1024 * 1024) { showNotification('Fichier trop volumineux (max 5MB)', 'error'); return; }
     
+    // ✅ Ouvrir le modal pour demander la date
+    setPendingUpload({ documentKey, file });
+    setExpiryDate('');
+    setShowExpiryModal(true);
+  };
+
+  // Fonction appelée après validation de la date
+  const confirmUpload = async () => {
+    if (!expiryDate) {
+      alert('La date d\'expiration est obligatoire.');
+      return;
+    }
+    
+    const { documentKey, file } = pendingUpload;
+    setShowExpiryModal(false);
     showNotification('Upload en cours...', 'info');
+    
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const result = await uploadDocumentToAPI(documentKey, e.target.result, file.name);
-        if (result.success) { showNotification(`"${file.name}" importé avec succès`, 'success'); await loadDocumentsFromAPI(userMatricule); }
-        else { showNotification(`Erreur: ${result.message}`, 'error'); }
-      } catch (error) { showNotification('Erreur lors de l\'upload', 'error'); }
+        // Formater la date en YYYY-MM-DD
+        const dateParts = expiryDate.split('-');
+        const formattedDate = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]}`;
+        
+        const result = await uploadDocumentToAPI(documentKey, e.target.result, file.name, formattedDate);
+        if (result.success) { 
+          showNotification(`"${file.name}" importé avec succès`, 'success'); 
+          await loadDocumentsFromAPI(userMatricule); 
+        } else { 
+          showNotification(`Erreur: ${result.message}`, 'error'); 
+        }
+      } catch (error) { 
+        showNotification('Erreur lors de l\'upload', 'error'); 
+      }
     };
     reader.onerror = () => showNotification('Erreur de lecture du fichier', 'error');
     reader.readAsDataURL(file);
@@ -405,12 +437,10 @@ export default function Documents() {
   const getExpiredDocuments = () => {
     const expired = [];
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
     Object.entries(documents).forEach(([key, doc]) => {
       if (doc && doc.expiryDate) {
         const expiryDate = new Date(doc.expiryDate);
-        expiryDate.setHours(0, 0, 0, 0);
-        if (expiryDate <= today) {  // ✅ <= pour inclure aujourd'hui
+        if (expiryDate < today) {
           expired.push({ docDef: documentTypes[key], doc });
         }
       }
@@ -556,21 +586,16 @@ export default function Documents() {
                   <div className="alerte-icon">⚠️</div>
                   <div className="alerte-content">
                     <div className="alerte-title">
-                      {(() => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const expDate = new Date(doc.expiryDate);
-                        expDate.setHours(0, 0, 0, 0);
-                        const diffDays = Math.ceil((today - expDate) / (1000 * 60 * 60 * 24));
-                        
-                        if (diffDays === 0) return `${docDef.label} expire aujourd'hui`;
-                        if (diffDays === 1) return `${docDef.label} a expiré hier`;
-                        return `${docDef.label} expiré depuis le ${expDate.toLocaleDateString('fr-FR')}`;
-                      })()}
+                      {docDef.label} expiré depuis le {new Date(doc.expiryDate).toLocaleDateString('fr-FR')}
                     </div>
                     <label className="alerte-action">
                       📤 Remplacer
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])} style={{ display: 'none' }} />
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])}
+                        style={{ display: 'none' }}
+                      />
                     </label>
                   </div>
                 </div>
@@ -655,6 +680,42 @@ export default function Documents() {
               <p>✓ Actions tracées et horodatées</p>
             </div>
           </section>
+        )}
+
+        {/* MODAL DATE D'EXPIRATION */}
+        {showExpiryModal && (
+          <div className="modal-overlay" onClick={() => setShowExpiryModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <div className="modal-header">
+                <h3>📅 Date d'expiration</h3>
+                <button className="modal-close" onClick={() => setShowExpiryModal(false)}>✕</button>
+              </div>
+              <div className="modal-body">
+                <p style={{ marginBottom: '15px' }}>
+                  Veuillez saisir la date d'expiration pour <strong>{pendingUpload?.documentKey ? documentTypes[pendingUpload.documentKey]?.label : ''}</strong>
+                </p>
+                <div className="form-group">
+                  <label>Date d'expiration *</label>
+                  <input
+                    type="date"
+                    value={expiryDate}
+                    onChange={(e) => setExpiryDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    required
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ddd', width: '100%', fontSize: '14px' }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => setShowExpiryModal(false)}>
+                  Annuler
+                </button>
+                <button type="button" className="btn-rh-primary" onClick={confirmUpload}>
+                  ✅ Valider et importer
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
       </main>
