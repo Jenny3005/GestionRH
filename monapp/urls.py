@@ -3,9 +3,9 @@ from . import views
 
 urlpatterns = [
     # ==================== SYSTÈME D'AUTHENTIFICATION ====================
-    path('register/', views.register, name='register'),  # Inscription nouveau agent avec email
-    path('activate-account/', views.activate_agent_account, name='activate_agent_account'),  # Activation agent existant (RH)
-    path('activate/', views.activate_account_via_email, name='activate_account_via_email'),  # Activation via lien email
+    path('register/', views.register, name='register'),
+    path('activate-account/', views.activate_agent_account, name='activate_agent_account'),
+    path('activate/', views.activate_account_via_email, name='activate_account_via_email'),
     path('login/', views.login, name='login'),
     
     # ==================== GESTION DES AGENTS ====================
@@ -21,7 +21,7 @@ urlpatterns = [
     path('agents/<str:agent_id>/role/add/', views.add_role_to_agent, name='add_role_to_agent'),
     path('agents/<str:agent_id>/role/remove/', views.remove_role_from_agent, name='remove_role_from_agent'),
     
-    # ==================== GESTION DES CONGÉS (M2) ====================
+    # ==================== GESTION DES CONGÉS ====================
     path('conges/demander/', views.demande_conge, name='demande_conge'),
     path('conges/mes-demandes/<str:matricule>/', views.mes_demandes_conge, name='mes_demandes_conge'),
     path('conges/solde/<str:matricule>/', views.solde_conge, name='solde_conge'),
@@ -30,7 +30,6 @@ urlpatterns = [
     path('absences/demander/', views.demande_absence, name='demande_absence'),
     path('absences/total/<str:matricule>/', views.total_absences_annee, name='total_absences_annee'),
     path('api/conges/mes-demandes/<str:matricule>/', views.mes_demandes, name='mes_demandes'),
-    
     
     # ==================== TYPES DE DEMANDE ====================
     path('types-demande/', views.get_types_demande, name='get_types_demande'),
@@ -65,27 +64,36 @@ urlpatterns = [
 
     path('user-permissions/<str:matricule>/', views.get_user_permissions, name='user_permissions'),
 
-    # Demandes validées pour secrétaire
+    # ==================== SECRÉTARIAT ====================
     path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
     path('secretaire/transmettre-dpaf/<int:demande_id>/', views.transmettre_demande_dpaf, name='transmettre_demande_dpaf'),
+    path('secretaire/demandes-transmises/<str:matricule_secretaire>/', views.get_demandes_transmises_secretaire, name='get_demandes_transmises_secretaire'),
+    path('secretaire/actes-a-transmettre/<str:matricule_secretaire>/', views.get_actes_a_transmettre_secretaire, name='actes_a_transmettre_secretaire'),
+    path('secretaire/actes-a-remettre/<str:matricule_secretaire>/', views.get_actes_a_remettre_secretaire, name='actes_a_remettre_secretaire'),
+    path('secretaire/actes-recus/<str:matricule_secretaire>/', views.get_actes_recus_secretaire, name='get_actes_recus_secretaire'),
+    path('secretaire/transmettre-acte-dpaf/<path:reference>/', views.transmettre_acte_dpaf, name='transmettre_acte_dpaf'),
+    path('secretaire/remettre-acte/<path:reference>/', views.remettre_acte, name='remettre_acte'),
 
-    # DPAF
+    # ==================== DPAF ====================
     path('dpaf/demandes-transmises/<str:matricule_dpaf>/', views.get_demandes_transmises_dpaf, name='demandes_transmises_dpaf'),
     path('dpaf/demandes-assignees/<str:matricule_dpaf>/', views.get_demandes_assignees_dpaf, name='demandes_assignees_dpaf'),
+    path('dpaf/actes-a-signer/<str:matricule_dpaf>/', views.get_actes_a_signer_dpaf, name='actes_a_signer_dpaf'),
     path('agents/rh/', views.get_agents_rh, name='agents_rh'),
     path('dpaf/assigner-rh/<int:demande_id>/', views.assigner_demande_rh, name='assigner_demande_rh'),
+    path('dpaf/signer-acte/<path:reference>/', views.signer_acte_dpaf, name='signer_acte_dpaf'),
     
-    # RH
+    # ==================== RH ====================
     path('rh/demandes-assignees/<str:matricule_rh>/', views.get_demandes_assignees_rh, name='demandes_assignees_rh'),
     path('rh/demandes-cours/<str:matricule_rh>/', views.get_demandes_cours_rh, name='demandes_cours_rh'),
     path('rh/demandes-terminees/<str:matricule_rh>/', views.get_demandes_terminees_rh, name='demandes_terminees_rh'),
     path('rh/actes-a-envoyer/<str:matricule_rh>/', views.get_actes_a_envoyer_rh, name='actes_a_envoyer_rh'),
     path('rh/commencer-traitement/<int:demande_id>/', views.commencer_traitement_rh, name='commencer_traitement_rh'),
     path('rh/generer-acte/<int:demande_id>/', views.generer_acte_rh, name='generer_acte_rh'),
-   
+    path('rh/envoyer-acte-secretaire/<path:reference>/', views.envoyer_acte_secretaire, name='envoyer_acte_secretaire'),
 
+    # ==================== AUTRES ====================
     path('check-expiry/', views.check_expired_documents, name='check_expired_documents'),
     path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
     path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
-
-] 
+    path('actes/<path:reference>/download/', views.download_acte, name='download_acte'),
+]
