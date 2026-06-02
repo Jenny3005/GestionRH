@@ -232,7 +232,7 @@ export default function Demarches() {
         const nom = localStorage.getItem('userNom') || '';
         const prenom = localStorage.getItem('userPrenom') || '';
         const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Attestation_Presence_${safeNom || matricule}.docx`;
+        a.download = `Attestation_Presence_${safeNom || matricule}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -274,7 +274,7 @@ export default function Demarches() {
         const nom = localStorage.getItem('userNom') || '';
         const prenom = localStorage.getItem('userPrenom') || '';
         const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Attestation_Travail_${safeNom || matricule}.docx`;
+        a.download = `Attestation_Travail_${safeNom || matricule}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

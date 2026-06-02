@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardAgent() {
   const navigate = useNavigate();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const storedNom = localStorage.getItem('userNom') || '';
   const storedPrenom = localStorage.getItem('userPrenom') || '';
   const storedEmail = localStorage.getItem('userEmail') || '';
@@ -60,16 +60,6 @@ export default function DashboardAgent() {
       console.error('Erreur taux complétude:', error);
     }
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   // Fusionner notifications BD + alertes documents expirés
   const fetchAllNotifications = async () => {
@@ -199,7 +189,7 @@ export default function DashboardAgent() {
     { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: "📋", color: "#3B82F6" },
     { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: "🌴", color: "#10B981", unit: "jours" },
     { label: "Notifications", value: unreadCount.toString(), icon: "🔔", color: "#F59E0B" },
-    { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: "📊", color: "#8B5CF6" }  // ✅ Utilise la vraie valeur
+    { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: "📊", color: "#8B5CF6" }
   ];
 
   return (
@@ -212,30 +202,7 @@ export default function DashboardAgent() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'A'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Agent'}</span>
-                <span className="user-role">Agent</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userInfo.email}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <button className="dropdown-item" onClick={() => navigate('/documents')}>📁 Mes documents</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 
@@ -340,7 +307,7 @@ export default function DashboardAgent() {
         {/* DEUXIÈME LIGNE */}
         <div className="agent-dashboard-grid">
           
-          {/* Notifications avec alertes documents expirés */}
+          {/* Notifications */}
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🔔 Notifications</h3>
