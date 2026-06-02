@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from docx import Document
 from django.contrib.auth.hashers import make_password, check_password
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -2917,5 +2916,95 @@ def envoyer_acte_secretaire(request, acte_id):
             )
         
         return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# Dans views.py, ajoutez cette fonction
+@csrf_exempt
+@require_http_methods(["GET"])
+def detect_anomalies(request, matricule):
+    """Détecte les anomalies dans le dossier d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        dossier = DossierAgent.objects.filter(agent=agent).first()
+        
+        if not dossier:
+            return JsonResponse({'anomalies': [], 'score': 100})
+        
+        pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
+        anomalies = []
+        score = 100
+        
+        # 1. Vérifier les dates incohérentes
+        for piece in pieces:
+            if piece.date_expiration and piece.date_upload:
+                if piece.date_expiration < piece.date_upload:
+                    anomalies.append({
+                        'type': 'date_incoherente',
+                        'severite': 'haute',
+                        'message': f"Date d'expiration antérieure à la date d'upload pour {piece.type_piece.libelle}"
+                    })
+                    score -= 15
+        
+        # 2. Vérifier les documents obligatoires manquants
+        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
+        for tp in types_obligatoires:
+            if not pieces.filter(type_piece=tp).exists():
+                anomalies.append({
+                    'type': 'document_manquant',
+                    'severite': 'moyenne',
+                    'message': f"Document obligatoire manquant : {tp.libelle}"
+                })
+                score -= 10
+        
+        # 3. Vérifier les documents expirés
+        today = date.today()
+        for piece in pieces:
+            if piece.date_expiration and piece.date_expiration < today:
+                jours = (today - piece.date_expiration).days
+                anomalies.append({
+                    'type': 'document_expire',
+                    'severite': 'haute' if jours > 30 else 'moyenne',
+                    'message': f"{piece.type_piece.libelle} expiré depuis {jours} jours"
+                })
+                score -= 20 if jours > 30 else 10
+        
+        # 4. Vérifier la cohérence des noms (si plusieurs documents)
+        noms_fichiers = [p.nom_fichier.lower() for p in pieces]
+        if len(noms_fichiers) != len(set(noms_fichiers)):
+            anomalies.append({
+                'type': 'doublon',
+                'severite': 'basse',
+                'message': 'Possibles doublons de documents détectés'
+            })
+            score -= 5
+        
+        # 5. Vérifier l'ancienneté vs le grade (si disponible)
+        if agent.date_prise_service and agent.echelon:
+            anciennete = (today - agent.date_prise_service).days / 365
+            echelon_num = int(agent.echelon.split('-')[0]) if agent.echelon and '-' in agent.echelon else 1
+            
+            if anciennete > 10 and echelon_num < 3:
+                anomalies.append({
+                    'type': 'anciennete_grade',
+                    'severite': 'basse',
+                    'message': f'Ancienneté élevée ({anciennete:.0f} ans) mais échelon bas ({agent.echelon})'
+                })
+                score -= 5
+        
+        score = max(0, min(100, score))
+        
+        return JsonResponse({
+            'success': True,
+            'agent': f"{agent.prenom} {agent.nom}",
+            'anomalies': anomalies,
+            'score': score,
+            'total_anomalies': len(anomalies),
+            'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé'
+        })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
