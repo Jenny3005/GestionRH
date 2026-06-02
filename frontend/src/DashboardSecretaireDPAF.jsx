@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
+import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -8,25 +9,27 @@ import './App.css';
 export default function DashboardSecretaire() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
   // États pour la secrétaire
   const [demandesValidees, setDemandesValidees] = useState([]);  // Demandes validées par le chef
   const [demandesTransmises, setDemandesTransmises] = useState([]);  // Demandes transmises au DPAF
-  const [actesRecus, setActesRecus] = useState([]);  // Actes reçus des RH
+  const [actesATransmettre, setActesATransmettre] = useState([]);  // Actes reçus des RH à transmettre au DPAF
+  const [actesARemettre, setActesARemettre] = useState([]);  // Actes signés à remettre aux agents
   
   // Modals
   const [showTransmettreModal, setShowTransmettreModal] = useState(false);
-  const [showRemettreModal, setShowRemettreModal] = useState(false);
+  const [showTransmettreActeModal, setShowTransmettreActeModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
+  const [selectedActe, setSelectedActe] = useState(null);
   const [commentaire, setCommentaire] = useState('');
   
   // Stats
   const [stats, setStats] = useState({
     a_transmettre: 0,
     transmises: 0,
-    actes_recus: 0
+    actes_a_transmettre: 0,
+    actes_a_remettre: 0
   });
 
   const matricule = localStorage.getItem('userMatricule');
@@ -56,21 +59,32 @@ export default function DashboardSecretaire() {
       const transmisesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-transmises/${matricule}/`);
       if (transmisesRes.ok) {
         const data = await transmisesRes.json();
+        console.log('📤 Demandes transmises:', data);
         setDemandesTransmises(data);
       }
 
-      // 3. Actes reçus des RH
-      const actesRes = await fetch(`http://localhost:8000/api/secretaire/actes-recus/${matricule}/`);
-      if (actesRes.ok) {
-        const data = await actesRes.json();
-        setActesRecus(data);
+      // 3. Actes à transmettre au DPAF (statut = 'envoye_secretaire')
+      const actesATransmettreRes = await fetch(`http://localhost:8000/api/secretaire/actes-a-transmettre/${matricule}/`);
+      if (actesATransmettreRes.ok) {
+        const data = await actesATransmettreRes.json();
+        console.log('📄 Actes à transmettre au DPAF:', data);
+        setActesATransmettre(data);
+      }
+
+      // 4. Actes signés à remettre aux agents (statut = 'signe')
+      const actesARemettreRes = await fetch(`http://localhost:8000/api/secretaire/actes-a-remettre/${matricule}/`);
+      if (actesARemettreRes.ok) {
+        const data = await actesARemettreRes.json();
+        console.log('📄 Actes à remettre aux agents:', data);
+        setActesARemettre(data);
       }
 
       // Mettre à jour les stats
       setStats({
         a_transmettre: demandesValidees.length,
         transmises: demandesTransmises.length,
-        actes_recus: actesRecus.length
+        actes_a_transmettre: actesATransmettre.length,
+        actes_a_remettre: actesARemettre.length
       });
 
     } catch (error) {
@@ -107,9 +121,36 @@ export default function DashboardSecretaire() {
     }
   };
 
-  const handleRemettreActe = async (acteId) => {
+  const handleTransmettreActeDPAF = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/secretaire/remettre-acte/${acteId}/`, {
+      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-acte-dpaf/${reference}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secretaire_matricule: matricule,
+          commentaire: commentaire
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte transmis au DPAF pour signature');
+        setShowTransmettreActeModal(false);
+        setSelectedActe(null);
+        setCommentaire('');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la transmission');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleRemettreActe = async (reference) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/secretaire/remettre-acte/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,15 +171,17 @@ export default function DashboardSecretaire() {
     }
   };
 
-  const handleVoirActe = (acteId) => {
-    window.open(`http://localhost:8000/api/actes/${acteId}/download/`, '_blank');
+  const handleVoirActe = (reference) => {
+    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
   };
 
   const getStatusBadge = (statut) => {
     const badges = {
       'valide': <span className="badge-success">✅ Validée par le chef</span>,
       'transmise_dpaf': <span className="badge-warning">📤 Transmise au DPAF</span>,
-      'acte_genere': <span className="badge-info">📄 Acte généré</span>
+      'acte_genere': <span className="badge-info">📄 Acte généré</span>,
+      'envoye_secretaire': <span className="badge-warning">📤 Reçu du RH</span>,
+      'signe': <span className="badge-success">✅ Signé par DPAF</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -160,24 +203,7 @@ export default function DashboardSecretaire() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userName.charAt(0) || 'S'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <span className="user-role">Secrétaire DPAF</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => navigate('/secretaire/dashboard')}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 
@@ -185,7 +211,7 @@ export default function DashboardSecretaire() {
         <section className="hero-banner-intranet">
           <div className="banner-content">
             <h2>📊 Tableau de bord - Secrétariat DPAF</h2>
-            <p>Transmission des demandes au DPAF et remise des actes aux agents</p>
+            <p>Transmission des demandes au DPAF, signature des actes et remise aux agents</p>
           </div>
         </section>
 
@@ -193,19 +219,23 @@ export default function DashboardSecretaire() {
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{stats.a_transmettre}</div>
-            <div className="stat-label">📋 À transmettre au DPAF</div>
+            <div className="stat-label">📋 Demandes à transmettre</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
             <div className="stat-number">{stats.transmises}</div>
-            <div className="stat-label">📤 Transmises au DPAF</div>
+            <div className="stat-label">📤 Demandes transmises</div>
+          </div>
+          <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
+            <div className="stat-number">{stats.actes_a_transmettre}</div>
+            <div className="stat-label">📄 Actes à transmettre</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
-            <div className="stat-number">{stats.actes_recus}</div>
-            <div className="stat-label">📄 Actes reçus</div>
+            <div className="stat-number">{stats.actes_a_remettre}</div>
+            <div className="stat-label">📋 Actes à remettre</div>
           </div>
         </div>
 
-        {/* SECTION 1: Demandes validées à transmettre */}
+        {/* SECTION 1: Demandes validées à transmettre au DPAF */}
         <div className="admin-section">
           <h3>📋 Demandes validées par le chef - À transmettre au DPAF</h3>
           <div className="admin-table-container">
@@ -223,9 +253,13 @@ export default function DashboardSecretaire() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="7" className="text-center">⏳ Chargement...</td></tr>
+                  <tr>
+                    <td colSpan="7" className="text-center">⏳ Chargement...</td>
+                  </tr>
                 ) : demandesValidees.length === 0 ? (
-                  <tr><td colSpan="7" className="text-center">📭 Aucune demande validée à transmettre</td></tr>
+                  <tr>
+                    <td colSpan="7" className="text-center">📭 Aucune demande validée à transmettre</td>
+                  </tr>
                 ) : (
                   demandesValidees.map((d) => (
                     <tr key={d.id}>
@@ -254,9 +288,9 @@ export default function DashboardSecretaire() {
           </div>
         </div>
 
-        {/* SECTION 2: Actes reçus à remettre */}
+        {/* SECTION 2: Actes à transmettre au DPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À remettre aux agents</h3>
+          <h3>📄 Actes reçus des RH - À transmettre au DPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -270,24 +304,82 @@ export default function DashboardSecretaire() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
-                ) : actesRecus.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center">📭 Aucun acte reçu</td></tr>
+                  <tr>
+                    <td colSpan="5" className="text-center">⏳ Chargement...</td>
+                  </tr>
+                ) : actesATransmettre.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">📭 Aucun acte à transmettre</td>
+                  </tr>
                 ) : (
-                  actesRecus.map((acte) => (
-                    <tr key={acte.id}>
+                  actesATransmettre.map((acte) => (
+                    <tr key={acte.reference}>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.type_acte}</td>
                       <td><code>{acte.reference}</code></td>
                       <td>{acte.date_reception ? new Date(acte.date_reception).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
-                          <button className="btn-view" onClick={() => handleVoirActe(acte.id)}>
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                            👁️ Voir l'acte
+                          </button>
+                          <button 
+                            className="btn-transmettre-dpaf"
+                            onClick={() => {
+                              setSelectedActe(acte);
+                              setShowTransmettreActeModal(true);
+                            }}
+                          >
+                            📤 Transmettre au DPAF
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* SECTION 3: Actes signés à remettre aux agents */}
+        <div className="admin-section">
+          <h3>✅ Actes signés par le DPAF - À remettre aux agents</h3>
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Type d'acte</th>
+                  <th>Référence</th>
+                  <th>Date signature</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">⏳ Chargement...</td>
+                  </tr>
+                ) : actesARemettre.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">📭 Aucun acte à remettre</td>
+                  </tr>
+                ) : (
+                  actesARemettre.map((acte) => (
+                    <tr key={acte.reference}>
+                      <td>{acte.agent_nom} {acte.agent_prenom}</td>
+                      <td>{acte.type_acte}</td>
+                      <td><code>{acte.reference}</code></td>
+                      <td>{acte.date_signature ? new Date(acte.date_signature).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>
+                        <div className="action-buttons-cell">
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
                             👁️ Voir l'acte
                           </button>
                           <button 
                             className="btn-remettre"
-                            onClick={() => handleRemettreActe(acte.id)}
+                            onClick={() => handleRemettreActe(acte.reference)}
                           >
                             📋 Remettre à l'agent
                           </button>
@@ -302,7 +394,7 @@ export default function DashboardSecretaire() {
         </div>
       </main>
 
-      {/* MODAL TRANSMETTRE AU DPAF */}
+      {/* MODAL TRANSMETTRE DEMANDE AU DPAF */}
       {showTransmettreModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowTransmettreModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -320,6 +412,30 @@ export default function DashboardSecretaire() {
             <div className="modal-buttons">
               <button className="btn-cancel" onClick={() => setShowTransmettreModal(false)}>Annuler</button>
               <button className="btn-transmettre" onClick={() => handleTransmettreDPAF(selectedDemande.id)}>Transmettre</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL TRANSMETTRE ACTE AU DPAF */}
+      {showTransmettreActeModal && selectedActe && (
+        <div className="modal-overlay" onClick={() => setShowTransmettreActeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>📤 Transmettre l'acte au DPAF</h3>
+            <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
+            <p><strong>Référence:</strong> {selectedActe.reference}</p>
+            <div className="form-group">
+              <label>Commentaire (optionnel)</label>
+              <textarea
+                rows="3"
+                placeholder="Ajoutez un commentaire pour le DPAF..."
+                value={commentaire}
+                onChange={(e) => setCommentaire(e.target.value)}
+              />
+            </div>
+            <div className="modal-buttons">
+              <button className="btn-cancel" onClick={() => setShowTransmettreActeModal(false)}>Annuler</button>
+              <button className="btn-transmettre" onClick={() => handleTransmettreActeDPAF(selectedActe.reference)}>Transmettre</button>
             </div>
           </div>
         </div>
@@ -344,9 +460,9 @@ export default function DashboardSecretaire() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

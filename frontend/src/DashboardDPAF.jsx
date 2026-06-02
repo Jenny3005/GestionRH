@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version avec modal de suivi
+// DashboardDPAF.jsx - Version avec signature des actes
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,21 +15,26 @@ export default function DashboardDPAF() {
   // États
   const [demandesTransmises, setDemandesTransmises] = useState([]);
   const [demandesAssignees, setDemandesAssignees] = useState([]);
+  const [actesASigner, setActesASigner] = useState([]);
   const [agentsRH, setAgentsRH] = useState([]);
   
   // Modals
   const [showAssignerModal, setShowAssignerModal] = useState(false);
   const [showSuiviModal, setShowSuiviModal] = useState(false);
+  const [showSignerModal, setShowSignerModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
+  const [selectedActe, setSelectedActe] = useState(null);
   const [selectedAgentRH, setSelectedAgentRH] = useState('');
   const [commentaire, setCommentaire] = useState('');
+  const [signatureCommentaire, setSignatureCommentaire] = useState('');
   
   // Stats
   const [stats, setStats] = useState({
     a_assigner: 0,
     assignees: 0,
     en_cours: 0,
-    terminees: 0
+    terminees: 0,
+    actes_a_signer: 0
   });
 
   const matricule = localStorage.getItem('userMatricule');
@@ -43,6 +48,7 @@ export default function DashboardDPAF() {
     }
     fetchData();
     fetchAgentsRH();
+    fetchActesASigner();
   }, []);
 
   const fetchData = async () => {
@@ -66,18 +72,33 @@ export default function DashboardDPAF() {
         setDemandesAssignees(assigneesData);
       }
 
-      // 3. Mettre à jour les stats APRÈS avoir récupéré les données
+      // 3. Mettre à jour les stats
       setStats({
-        a_assigner: transmisesData.length,  // ← Utilise transmisesData, pas demandesTransmises
-        assignees: assigneesData.length,    // ← Utilise assigneesData, pas demandesAssignees
+        a_assigner: transmisesData.length,
+        assignees: assigneesData.length,
         en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
-        terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length
+        terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
+        actes_a_signer: actesASigner.length
       });
 
     } catch (error) {
       console.error('Erreur chargement:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActesASigner = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/dpaf/actes-a-signer/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✍️ Actes à signer:', data);
+        setActesASigner(data);
+        setStats(prev => ({ ...prev, actes_a_signer: data.length }));
+      }
+    } catch (error) {
+      console.error('Erreur chargement actes:', error);
     }
   };
 
@@ -128,6 +149,34 @@ export default function DashboardDPAF() {
     }
   };
 
+  const handleSignerActe = async (reference) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/dpaf/signer-acte/${reference}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dpaf_matricule: matricule,
+          commentaire: signatureCommentaire
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte signé avec succès !');
+        setShowSignerModal(false);
+        setSelectedActe(null);
+        setSignatureCommentaire('');
+        fetchActesASigner();
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la signature');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
   const handleVoirDetails = (demande) => {
     setSelectedDemande(demande);
     setShowAssignerModal(true);
@@ -138,26 +187,26 @@ export default function DashboardDPAF() {
     setShowSuiviModal(true);
   };
 
+  const handleVoirActe = (reference) => {
+    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
+  };
+
+  const handleSigner = (acte) => {
+    setSelectedActe(acte);
+    setShowSignerModal(true);
+  };
+
   const getStatusBadge = (statut) => {
     const badges = {
       'transmise_dpaf': <span className="badge-warning">📤 Transmise</span>,
       'assignee_rh': <span className="badge-info">👥 Assignée RH</span>,
       'en_cours_traitement': <span className="badge-info">⚙️ En cours</span>,
       'acte_genere': <span className="badge-success">📄 Acte généré</span>,
-      'termine': <span className="badge-success">✅ Terminé</span>
+      'termine': <span className="badge-success">✅ Terminé</span>,
+      'attente_signature_dpaf': <span className="badge-warning">✍️ En attente de signature</span>,
+      'signe': <span className="badge-success">✅ Signé</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
-  };
-
-  const getEtapeIcon = (statut) => {
-    switch(statut) {
-      case 'transmise_dpaf': return '📤';
-      case 'assignee_rh': return '👥';
-      case 'en_cours_traitement': return '⚙️';
-      case 'acte_genere': return '📄';
-      case 'termine': return '✅';
-      default: return '⏳';
-    }
   };
 
   if (permissionsLoading) {
@@ -180,7 +229,7 @@ export default function DashboardDPAF() {
         <section className="hero-banner-intranet">
           <div className="banner-content">
             <h2>📊 Tableau de bord - DPAF</h2>
-            <p>Gestion et assignment des demandes aux agents RH</p>
+            <p>Gestion et assignment des demandes aux agents RH et signature des actes</p>
           </div>
         </section>
 
@@ -201,6 +250,10 @@ export default function DashboardDPAF() {
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{stats.terminees}</div>
             <div className="stat-label">✅ Terminées</div>
+          </div>
+          <div className="stat-card" style={{ borderLeftColor: '#EF4444' }}>
+            <div className="stat-number">{stats.actes_a_signer}</div>
+            <div className="stat-label">✍️ Actes à signer</div>
           </div>
         </div>
 
@@ -243,8 +296,8 @@ export default function DashboardDPAF() {
                         >
                           👥 Assigner à un RH
                         </button>
-                       </td>
-                     </tr>
+                      </td>
+                    </tr>
                   ))
                 )}
               </tbody>
@@ -291,8 +344,59 @@ export default function DashboardDPAF() {
                         >
                           👁️ Voir suivi
                         </button>
-                       </td>
-                     </tr>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* SECTION 3: Actes à signer */}
+        <div className="admin-section">
+          <h3>✍️ Actes à signer</h3>
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Type d'acte</th>
+                  <th>Référence</th>
+                  <th>Date demande</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">⏳ Chargement...</td>
+                  </tr>
+                ) : actesASigner.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center">📭 Aucun acte à signer</td>
+                  </tr>
+                ) : (
+                  actesASigner.map((acte) => (
+                    <tr key={acte.reference}>
+                      <td>{acte.agent_nom} {acte.agent_prenom}</td>
+                      <td>{acte.type_acte}</td>
+                      <td><code>{acte.reference}</code></td>
+                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>
+                        <div className="action-buttons-cell">
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                            👁️ Voir l'acte
+                          </button>
+                          <button 
+                            className="btn-signer"
+                            onClick={() => handleSigner(acte)}
+                          >
+                            ✍️ Signer l'acte
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))
                 )}
               </tbody>
@@ -436,6 +540,43 @@ export default function DashboardDPAF() {
             
             <div className="modal-footer">
               <button className="btn-close-modal" onClick={() => setShowSuiviModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SIGNER ACTE */}
+      {showSignerModal && selectedActe && (
+        <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✍️ Signature de l'acte</h3>
+              <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
+              <p><strong>Référence:</strong> {selectedActe.reference}</p>
+              <p><strong>Type:</strong> {selectedActe.type_acte}</p>
+              
+              <div className="form-group">
+                <label>Commentaire (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez un commentaire pour la secrétaire..."
+                  value={signatureCommentaire}
+                  onChange={(e) => setSignatureCommentaire(e.target.value)}
+                />
+              </div>
+              
+              <div className="alert-info">
+                <p>ℹ️ En signant cet acte, vous confirmez son authenticité et autorisez sa remise à l'agent.</p>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowSignerModal(false)}>Annuler</button>
+              <button className="btn-signer" onClick={() => handleSignerActe(selectedActe.reference)}>✅ Signer l'acte</button>
             </div>
           </div>
         </div>
