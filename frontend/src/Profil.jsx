@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import PortalNav, { getRoleLabel } from './PortalNav';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function Profil() {
   const navigate = useNavigate();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -39,15 +39,6 @@ export default function Profil() {
     fetchUserInfo();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
 
   const fetchUserInfo = async () => {
     try {
@@ -114,10 +105,6 @@ export default function Profil() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -139,29 +126,7 @@ export default function Profil() {
         </div>
         <PortalNav />
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'U'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Utilisateur'}</span>
-                <span className="user-role">{getRoleLabel(userRole)}</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userInfo.email}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate(getDashboardPath(userRole))}>📊 Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 

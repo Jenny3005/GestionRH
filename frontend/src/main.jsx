@@ -20,6 +20,7 @@ import DashboardSecretaireDPAF from './DashboardSecretaireDPAF';
 import AdminTypesPiece from './AdminTypesPiece';
 import AdminPermissions from './AdminPermissions';
 import Profil from './Profil';
+import ChooseRole from './ChooseRole';
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte
@@ -41,6 +42,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/admin/roles" element={<AdminRoles />} />
       <Route path="/activate" element={<ActivateAccount />} />
       <Route path="/dashboard" element={<DashboardAgent />} />
+      <Route path="/choose-role" element={<ChooseRole />} />
       <Route path="/profil" element={<Profil />} />
       <Route path="/chef/dashboard" element={<DashboardChef />} />
       <Route path="/admin/types-demande" element={<AdminTypesDemande />} />

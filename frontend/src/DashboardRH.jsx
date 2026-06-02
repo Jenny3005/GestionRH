@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from './hooks/usePermissions';
 import * as XLSX from 'xlsx';
+import UserMenu from './UserMenu';
 import './App.css';
 
 export default function DashboardRH() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   
@@ -23,19 +23,31 @@ export default function DashboardRH() {
   const [stats, setStats] = useState({
     totalAgents: 0,
     demandesEnAttente: 0,
+    demandesEnCours: 0,
+    actesAEnvoyer: 0,
     documentsExpires: 0,
     annoncesActives: 0,
     dossiersIncomplets: 0,
     facturesATraiter: 0
   });
 
-  const [demandesRecentes, setDemandesRecentes] = useState([]);
+  const [demandesAssignees, setDemandesAssignees] = useState([]);
+  const [demandesEnCours, setDemandesEnCours] = useState([]);
+  const [demandesTerminees, setDemandesTerminees] = useState([]);
+  const [actesGeneres, setActesGeneres] = useState([]);
   const [agentsRecents, setAgentsRecents] = useState([]);
   const [vraisAgents, setVraisAgents] = useState([]);
-  const [documentsExpirant, setDocumentsExpirant] = useState([]);
   const [annonces, setAnnonces] = useState([]);
 
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
+  const [showGenererActeModal, setShowGenererActeModal] = useState(false);
+  const [selectedDemande, setSelectedDemande] = useState(null);
+  const [acteData, setActeData] = useState({
+    reference: '',
+    contenu: '',
+    observations: ''
+  });
+
   const [newAgent, setNewAgent] = useState({
     matricule: '',
     nom: '',
@@ -66,16 +78,6 @@ export default function DashboardRH() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
-
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -85,8 +87,7 @@ export default function DashboardRH() {
         const data = await statsRes.json();
         setStats(prev => ({
           ...prev,
-          totalAgents: data.total_agents || 0,
-          demandesEnAttente: data.demandes_en_attente || 0
+          totalAgents: data.total_agents || 0
         }));
       }
 
@@ -95,15 +96,38 @@ export default function DashboardRH() {
       if (agentsRes.ok) {
         const data = await agentsRes.json();
         setVraisAgents(data);
-        setAgentsRecents(data.slice(0, 5));
+        setAgentsRecents(data.slice(0, 10));
       }
 
-      // 3. Récupérer les demandes assignées à ce RH
-      const demandesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matricule}/`);
-      if (demandesRes.ok) {
-        const data = await demandesRes.json();
-        setDemandesRecentes(data.slice(0, 5));
+      // 3. Récupérer les demandes assignées (à traiter)
+      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matricule}/`);
+      if (assigneesRes.ok) {
+        const data = await assigneesRes.json();
+        setDemandesAssignees(data);
         setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
+      }
+
+      // 4. Récupérer les demandes en cours
+      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matricule}/`);
+      if (enCoursRes.ok) {
+        const data = await enCoursRes.json();
+        setDemandesEnCours(data);
+        setStats(prev => ({ ...prev, demandesEnCours: data.length }));
+      }
+
+      // 5. Récupérer les demandes terminées
+      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matricule}/`);
+      if (termineesRes.ok) {
+        const data = await termineesRes.json();
+        setDemandesTerminees(data);
+      }
+
+      // 6. Récupérer les actes générés à envoyer
+      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matricule}/`);
+      if (actesRes.ok) {
+        const data = await actesRes.json();
+        setActesGeneres(data);
+        setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
 
     } catch (error) {
@@ -113,23 +137,110 @@ export default function DashboardRH() {
     }
   };
 
+  const handleTraiterDemande = async (demandeId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/rh/commencer-traitement/${demandeId}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rh_matricule: matricule })
+      });
+      
+      if (response.ok) {
+        alert('✅ Traitement commencé, la demande passe en "En cours"');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors du début du traitement');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleGenererActe = (demande) => {
+    setSelectedDemande(demande);
+    // Générer une référence automatique
+    const annee = new Date().getFullYear();
+    const refNumber = `${annee}${Date.now()}`;
+    setActeData({
+      reference: `${refNumber}/MND/RH`,
+      contenu: '',
+      observations: ''
+    });
+    setShowGenererActeModal(true);
+  };
+
+  const handleSubmitActe = async () => {
+    if (!acteData.reference) {
+      alert('Veuillez saisir une référence pour l\'acte');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${selectedDemande.id}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rh_matricule: matricule,
+          reference: acteData.reference,
+          contenu: acteData.contenu,
+          observations: acteData.observations
+        })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte généré et stocké avec succès !');
+        setShowGenererActeModal(false);
+        setSelectedDemande(null);
+        setActeData({ reference: '', contenu: '', observations: '' });
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleEnvoyerSecretaire = async (acteId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${acteId}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rh_matricule: matricule })
+      });
+      
+      if (response.ok) {
+        alert('✅ Acte envoyé à la secrétaire !');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de l\'envoi');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleVoirActe = (acteId) => {
+    window.open(`http://localhost:8000/api/actes/${acteId}/download/`, '_blank');
+  };
+
   const getStatutBadge = (statut) => {
     const statusMap = {
-      'en_attente_chef': { class: 'status-pending', text: 'En attente chef' },
-      'assignee_rh': { class: 'status-pending', text: 'À traiter' },
-      'en_cours_traitement': { class: 'status-progress', text: 'En cours' },
+      'assignee_rh': { class: 'status-pending', text: '📋 À traiter' },
+      'en_cours_traitement': { class: 'status-progress', text: '⚙️ En cours' },
+      'acte_genere': { class: 'status-approved', text: '📄 Acte généré' },
+      'envoye_secretaire': { class: 'status-sent', text: '📤 Envoyé secrétaire' },
+      'termine': { class: 'status-approved', text: '✅ Terminé' },
       'valide': { class: 'status-approved', text: 'Validé' },
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
       'actif': { class: 'status-active', text: 'Actif' },
-      'inactif': { class: 'status-inactive', text: 'Inactif' },
-      'en_conge': { class: 'status-away', text: 'En congé' },
-      'En attente': { class: 'status-pending', text: 'En attente' },
-      'En cours': { class: 'status-progress', text: 'En cours' },
-      'Validé': { class: 'status-approved', text: 'Validé' },
-      'Active': { class: 'status-active', text: 'Active' },
-      'Clôturée': { class: 'status-closed', text: 'Clôturée' },
-      'Urgent': { class: 'status-urgent', text: '⚠️ Urgent' },
-      'Attention': { class: 'status-warning', text: '⚠️ Attention' }
+      'inactif': { class: 'status-inactive', text: 'Inactif' }
     };
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
     return <span className={`status-badge ${status.class}`}>{status.text}</span>;
@@ -141,43 +252,38 @@ export default function DashboardRH() {
   };
 
   const handleAddAgent = () => {
-  setShowAddAgentModal(true);
-  document.body.style.overflow = 'hidden';
-};
+    setShowAddAgentModal(true);
+    document.body.style.overflow = 'hidden';
+  };
 
-const closeAddAgentModal = () => {
-  setShowAddAgentModal(false);
-  document.body.style.overflow = '';
-  setNewAgent({
-    matricule: '', nom: '', prenom: '', email: '', telephone: '',
-    poste: 'Agent', direction: '', typecontrat: 'APE',
-    date_prise_service: new Date().toISOString().split('T')[0]
-  });
-};
-
-const handleSubmitNewAgent = async (e) => {
-  e.preventDefault();
-  
-  console.log('Données envoyées:', JSON.stringify(newAgent, null, 2));
-  
-  try {
-    const response = await fetch('http://localhost:8000/api/register/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newAgent)
+  const closeAddAgentModal = () => {
+    setShowAddAgentModal(false);
+    document.body.style.overflow = '';
+    setNewAgent({
+      matricule: '', nom: '', prenom: '', email: '', telephone: '',
+      poste: 'Agent', direction: '', typecontrat: 'APE',
+      date_prise_service: new Date().toISOString().split('T')[0]
     });
+  };
+
+  const handleSubmitNewAgent = async (e) => {
+    e.preventDefault();
     
-    const data = await response.json();
-      console.log('Réponse:', response.status, data);
+    try {
+      const response = await fetch('http://localhost:8000/api/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAgent)
+      });
+      
+      const data = await response.json();
       
       if (response.ok) {
         alert(`✅ Agent ${data.matricule} créé avec succès !`);
         closeAddAgentModal();
         fetchData();
       } else {
-        // Afficher l'erreur exacte
-        const errorMsg = data.error || data.message || JSON.stringify(data);
-        alert(`❌ Erreur: ${errorMsg}`);
+        alert(`❌ Erreur: ${data.error || 'Erreur lors de la création'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -215,26 +321,23 @@ const handleSubmitNewAgent = async (e) => {
             return agent;
           });
         } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        // ✅ Lire le fichier Excel
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawAgents = XLSX.utils.sheet_to_json(firstSheet);
-        
-        // ✅ Convertir les clés avec accents en clés sans accent
-        agents = rawAgents.map(agent => ({
-          matricule: agent.Matricule || agent.matricule || '',
-          nom: agent.Nom || agent.nom || '',
-          prenom: agent['Prénom'] || agent.Prénom || agent.prenom || '',
-          email: agent.Email || agent.email || agent['E-mail'] || '',
-          telephone: agent['Téléphone'] || agent.Téléphone || agent.telephone || '',
-          poste: agent.Poste || agent.poste || '',
-          direction: agent.Direction || agent.direction || '',
-          typecontrat: agent['Type de contrat'] || agent.typecontrat || 'APE',
-          date_prise_service: agent['Date de prise de service'] || agent.date_prise_service || '2024-01-01'
-        }));
-}
-        else {
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rawAgents = XLSX.utils.sheet_to_json(firstSheet);
+          
+          agents = rawAgents.map(agent => ({
+            matricule: agent.Matricule || agent.matricule || '',
+            nom: agent.Nom || agent.nom || '',
+            prenom: agent['Prénom'] || agent.Prénom || agent.prenom || '',
+            email: agent.Email || agent.email || '',
+            telephone: agent.Téléphone || agent.telephone || '',
+            poste: agent.Poste || agent.poste || '',
+            direction: agent.Direction || agent.direction || '',
+            typecontrat: agent['Type de contrat'] || agent.typecontrat || 'APE',
+            date_prise_service: agent['Date de prise de service'] || agent.date_prise_service || '2024-01-01'
+          }));
+        } else {
           alert('Format non supporté. Utilisez CSV, JSON ou Excel.');
           return;
         }
@@ -244,20 +347,18 @@ const handleSubmitNewAgent = async (e) => {
           return;
         }
         
-        console.log('Agents à importer:', agents);
-        
         const response = await fetch('http://localhost:8000/api/import-agents/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agents })
         });
         
-        const data = await response.json();
+        const result = await response.json();
         if (response.ok) {
-          alert(`✅ ${data.success_count} agents importés avec succès !`);
+          alert(`✅ ${result.success_count} agents importés avec succès !`);
           fetchData();
         } else {
-          alert(`❌ Erreur: ${data.error}`);
+          alert(`❌ Erreur: ${result.error}`);
         }
       } catch (error) {
         console.error('Erreur import:', error);
@@ -268,16 +369,8 @@ const handleSubmitNewAgent = async (e) => {
     input.click();
   };
 
-  const handleViewProfile = (matricule) => {
-    navigate(`/profil/${matricule}`);
-  };
-
-  const handleViewDocuments = (matricule) => {
-    navigate(`/rh/documents/${matricule}`);
-  };
-
-  const handleEditAgent = (matricule) => {
-    navigate(`/agent/edit/${matricule}`);
+  const handleViewDocuments = (agentMatricule) => {
+    navigate(`/rh/documents/${agentMatricule}`);
   };
 
   if (permissionsLoading || loading) {
@@ -307,29 +400,7 @@ const handleSubmitNewAgent = async (e) => {
           </a>
         </nav>
         <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userInfo.prenom?.charAt(0) || 'R'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName || 'Agent RH'}</span>
-                <span className="user-role">Ressources Humaines</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userInfo.email}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/rh/dashboard')}>📊 Tableau de bord RH</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
-                <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
-              </div>
-            )}
-          </div>
+          <UserMenu />
         </div>
       </header>
 
@@ -361,6 +432,20 @@ const handleSubmitNewAgent = async (e) => {
                 </div>
               </div>
               <div className="rh-stat-card">
+                <div className="rh-stat-icon">⚙️</div>
+                <div className="rh-stat-info">
+                  <span className="rh-stat-value">{stats.demandesEnCours}</span>
+                  <span className="rh-stat-label">Demandes en cours</span>
+                </div>
+              </div>
+              <div className="rh-stat-card">
+                <div className="rh-stat-icon">📄</div>
+                <div className="rh-stat-info">
+                  <span className="rh-stat-value">{stats.actesAEnvoyer}</span>
+                  <span className="rh-stat-label">Actes à envoyer</span>
+                </div>
+              </div>
+              <div className="rh-stat-card">
                 <div className="rh-stat-icon">⚠️</div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.documentsExpires}</span>
@@ -374,26 +459,12 @@ const handleSubmitNewAgent = async (e) => {
                   <span className="rh-stat-label">Annonces actives</span>
                 </div>
               </div>
-              <div className="rh-stat-card">
-                <div className="rh-stat-icon">📁</div>
-                <div className="rh-stat-info">
-                  <span className="rh-stat-value">{stats.dossiersIncomplets}</span>
-                  <span className="rh-stat-label">Dossiers incomplets</span>
-                </div>
-              </div>
-              <div className="rh-stat-card">
-                <div className="rh-stat-icon">💰</div>
-                <div className="rh-stat-info">
-                  <span className="rh-stat-value">{stats.facturesATraiter}</span>
-                  <span className="rh-stat-label">Factures à traiter</span>
-                </div>
-              </div>
             </div>
 
-            {/* Demandes récentes */}
+            {/* SECTION 1: Demandes assignées à traiter */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>📝 Demandes assignées à traiter</h3>
+                <h3>📋 Demandes assignées à traiter</h3>
                 <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tout →</button>
               </div>
               <div className="rh-table-container">
@@ -408,17 +479,17 @@ const handleSubmitNewAgent = async (e) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {demandesRecentes.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center">📭 Aucune demande assignée</td></tr>
+                    {demandesAssignees.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">📭 Aucune demande à traiter</td></tr>
                     ) : (
-                      demandesRecentes.map((demande) => (
+                      demandesAssignees.map((demande) => (
                         <tr key={demande.id}>
                           <td>{demande.agent_nom} {demande.agent_prenom}</td>
                           <td>{demande.type_demande}</td>
                           <td>{demande.date_assignation ? new Date(demande.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>{getStatutBadge(demande.statut)}</td>
                           <td>
-                            <button className="btn-traiter" onClick={() => alert(`Traiter la demande ${demande.id}`)}>
+                            <button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}>
                               ▶️ Traiter
                             </button>
                           </td>
@@ -430,7 +501,90 @@ const handleSubmitNewAgent = async (e) => {
               </div>
             </div>
 
-            {/* Derniers agents inscrits */}
+            {/* SECTION 2: Demandes en cours de traitement */}
+            <div className="rh-card full-width">
+              <div className="rh-card-header">
+                <h3>⚙️ Demandes en cours de traitement</h3>
+              </div>
+              <div className="rh-table-container">
+                <table className="rh-table">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Type</th>
+                      <th>Date début traitement</th>
+                      <th>Statut</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandesEnCours.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">📭 Aucune demande en cours</td></tr>
+                    ) : (
+                      demandesEnCours.map((demande) => (
+                        <tr key={demande.id}>
+                          <td>{demande.agent_nom} {demande.agent_prenom}</td>
+                          <td>{demande.type_demande}</td>
+                          <td>{demande.date_debut_traitement ? new Date(demande.date_debut_traitement).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>{getStatutBadge(demande.statut)}</td>
+                          <td>
+                            <button className="btn-generer" onClick={() => handleGenererActe(demande)}>
+                              📄 Générer l'acte
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 3: Actes générés à envoyer */}
+            <div className="rh-card full-width">
+              <div className="rh-card-header">
+                <h3>📄 Actes générés - En attente d'envoi</h3>
+              </div>
+              <div className="rh-table-container">
+                <table className="rh-table">
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Type d'acte</th>
+                      <th>Référence</th>
+                      <th>Date génération</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {actesGeneres.length === 0 ? (
+                      <tr><td colSpan="5" className="text-center">📭 Aucun acte en attente</td></tr>
+                    ) : (
+                      actesGeneres.map((acte) => (
+                        <tr key={acte.id}>
+                          <td>{acte.agent_nom} {acte.agent_prenom}</td>
+                          <td>{acte.type_acte}</td>
+                          <td><code>{acte.reference}</code></td>
+                          <td>{new Date(acte.date_generation).toLocaleDateString('fr-FR')}</td>
+                          <td>
+                            <div className="action-buttons-cell">
+                              <button className="btn-view" onClick={() => handleVoirActe(acte.id)}>
+                                👁️ Voir l'acte
+                              </button>
+                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.id)}>
+                                📤 Envoyer à la secrétaire
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECTION 4: Derniers agents inscrits */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>👥 Derniers agents inscrits</h3>
@@ -452,7 +606,7 @@ const handleSubmitNewAgent = async (e) => {
                     {agentsRecents.length === 0 ? (
                       <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
                     ) : (
-                      agentsRecents.map((agent) => (
+                      agentsRecents.slice(0, 5).map((agent) => (
                         <tr key={agent.matricule}>
                           <td>{agent.matricule}</td>
                           <td>{agent.nom} {agent.prenom}</td>
@@ -471,7 +625,6 @@ const handleSubmitNewAgent = async (e) => {
             </div>
           </>
         )}
-
 
         {/* ==================== ONGLET GESTION DES DOSSIERS ==================== */}
         {activeTab === 'dossiers' && (
@@ -532,7 +685,7 @@ const handleSubmitNewAgent = async (e) => {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td>
+                          <td className="rh-actions-cell">
                             <button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button>
                           </td>
                         </tr>
@@ -541,17 +694,6 @@ const handleSubmitNewAgent = async (e) => {
                   </tbody>
                 </table>
               </div>
-              {/* Pagination simple */}
-              {vraisAgents.length > 10 && (
-                <div className="rh-pagination">
-                  <button className="btn-rh-secondary" onClick={() => {
-                    // Afficher tous les agents
-                    setAgentsRecents(vraisAgents);
-                  }}>
-                    Voir tous les {vraisAgents.length} agents
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -603,50 +745,6 @@ const handleSubmitNewAgent = async (e) => {
                       <td className="rh-actions-cell">
                         <button className="btn-icon" title="Voir candidatures">👥</button>
                         <button className="btn-icon" title="Modifier">✏️</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Formation Excel avancé</td>
-                      <td>2026-05-01</td>
-                      <td>2026-05-20</td>
-                      <td>{getStatutBadge('Clôturée')}</td>
-                      <td>25</td>
-                      <td className="rh-actions-cell">
-                        <button className="btn-icon" title="Voir candidatures">👥</button>
-                        <button className="btn-icon" title="Dupliquer">📋</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="rh-card full-width">
-              <div className="rh-card-header">
-                <h3>📝 Candidatures reçues</h3>
-              </div>
-              <div className="rh-table-container">
-                <table className="rh-table">
-                  <thead>
-                    <tr>
-                      <th>Candidat</th>
-                      <th>Poste</th>
-                      <th>Date candidature</th>
-                      <th>Statut</th>
-                      <th>CV</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Amadou TRAORE</td>
-                      <td>Assistant RH</td>
-                      <td>2026-05-18</td>
-                      <td>{getStatutBadge('En attente')}</td>
-                      <td><button className="btn-link">📄 Télécharger</button></td>
-                      <td className="rh-actions-cell">
-                        <button className="btn-icon" title="Accepter">✅</button>
-                        <button className="btn-icon" title="Rejeter">❌</button>
                       </td>
                     </tr>
                   </tbody>
@@ -847,14 +945,64 @@ const handleSubmitNewAgent = async (e) => {
                 </div>
                 
                 <div className="modal-footer">
-                  <button type="button" className="btn-rh-secondary" onClick={closeAddAgentModal}>
-                    Annuler
-                  </button>
-                  <button type="submit" className="btn-rh-primary">
-                    ✅ Créer l'agent
-                  </button>
+                  <button type="button" className="btn-rh-secondary" onClick={closeAddAgentModal}>Annuler</button>
+                  <button type="submit" className="btn-rh-primary">✅ Créer l'agent</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL GÉNÉRER ACTE */}
+        {showGenererActeModal && selectedDemande && (
+          <div className="modal-overlay" onClick={() => setShowGenererActeModal(false)}>
+            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>📄 Générer l'acte administratif</h3>
+                <button className="modal-close" onClick={() => setShowGenererActeModal(false)}>✕</button>
+              </div>
+              
+              <div className="modal-body">
+                <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
+                <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
+                <p><strong>Période:</strong> {selectedDemande.date_debut} au {selectedDemande.date_fin}</p>
+                
+                <div className="form-group">
+                  <label>Référence de l'acte *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 2026-001/MND/RH"
+                    value={acteData.reference}
+                    onChange={(e) => setActeData({...acteData, reference: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Contenu de l'acte</label>
+                  <textarea
+                    rows="6"
+                    placeholder="Décrivez le contenu de l'acte..."
+                    value={acteData.contenu}
+                    onChange={(e) => setActeData({...acteData, contenu: e.target.value})}
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label>Observations (optionnel)</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Observations supplémentaires..."
+                    value={acteData.observations}
+                    onChange={(e) => setActeData({...acteData, observations: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => setShowGenererActeModal(false)}>Annuler</button>
+                <button type="button" className="btn-rh-primary" onClick={handleSubmitActe}>📄 Générer l'acte</button>
+              </div>
             </div>
           </div>
         )}

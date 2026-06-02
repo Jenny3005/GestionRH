@@ -18,6 +18,8 @@ urlpatterns = [
     path('import-agents/', views.import_agents, name='import_agents'),
     path('agent/<str:matricule>/', views.get_agent_by_matricule, name='get_agent'),
     path('agents/<str:matricule>/role/update/', views.update_agent_role_by_matricule, name='update_agent_role_by_matricule'),
+    path('agents/<str:agent_id>/role/add/', views.add_role_to_agent, name='add_role_to_agent'),
+    path('agents/<str:agent_id>/role/remove/', views.remove_role_from_agent, name='remove_role_from_agent'),
     
     # ==================== GESTION DES CONGÉS (M2) ====================
     path('conges/demander/', views.demande_conge, name='demande_conge'),
@@ -83,6 +85,7 @@ urlpatterns = [
    
 
     path('check-expiry/', views.check_expired_documents, name='check_expired_documents'),
-
+    path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
+    path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
 
 ] 
