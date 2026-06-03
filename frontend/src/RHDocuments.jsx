@@ -21,6 +21,9 @@ export default function RHDocuments() {
   const [expiredDocs, setExpiredDocs] = useState([]);
   const [expiringSoonDocs, setExpiringSoonDocs] = useState([]);
 
+  const [anomalies, setAnomalies] = useState([]);
+  const [scoreDossier, setScoreDossier] = useState(100);
+
   const rhMatricule = localStorage.getItem('userMatricule');
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function RHDocuments() {
   const loadDocuments = async () => {
     setLoading(true);
     try {
+      // 1. Charger les documents
       const response = await fetch(`/api/rh/documents/${matricule}/`, {
         headers: {
           'Content-Type': 'application/json',
@@ -45,30 +49,40 @@ export default function RHDocuments() {
         setMissingDocs(data.missing_documents || []);
         setDossierData(data.dossier);
 
-        // ✅ Détecter les documents expirés et ceux qui expirent bientôt
+        // 2. Détecter les documents expirés et ceux qui expirent bientôt
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const expired = [];
         const expiring = [];
 
         (data.documents || []).forEach(doc => {
-        if (doc.date_expiration) {
+          if (doc.date_expiration) {
             const expDate = new Date(doc.date_expiration);
             expDate.setHours(0, 0, 0, 0);
             const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
             
-            // ✅ Changé < 0 en <= 0 pour inclure aujourd'hui
             if (diffDays <= 0) {
-            expired.push({ ...doc, daysExpired: Math.abs(diffDays) });
+              expired.push({ ...doc, daysExpired: Math.abs(diffDays) });
             } else if (diffDays <= 30) {
-            expiring.push({ ...doc, daysUntilExpiry: diffDays });
+              expiring.push({ ...doc, daysUntilExpiry: diffDays });
             }
-        }
+          }
         });
 
         setExpiredDocs(expired);
         setExpiringSoonDocs(expiring);
       }
+
+      // 3. ✅ Charger les anomalies
+      const anomaliesRes = await fetch(`/api/anomalies/${matricule}/`, {
+        headers: { 'X-User-Matricule': rhMatricule }
+      });
+      if (anomaliesRes.ok) {
+        const anomalyData = await anomaliesRes.json();
+        setAnomalies(anomalyData.anomalies || []);
+        setScoreDossier(anomalyData.score || 100);
+      }
+
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
@@ -271,6 +285,41 @@ export default function RHDocuments() {
                         style={{ display: 'none' }}
                       />
                     </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ✅ ANOMALIES DÉTECTÉES PAR L'IA */}
+        {anomalies.length > 0 && (
+          <section className="alertes-section" style={{ margin: '0 20px' }}>
+            <div className="alertes-header">
+              <span className="alertes-icon">🔍</span>
+              <h3>
+                Anomalies détectées ({anomalies.length}) 
+                <span style={{ 
+                  marginLeft: '10px', 
+                  fontSize: '14px',
+                  color: scoreDossier >= 80 ? '#10B981' : scoreDossier >= 50 ? '#F59E0B' : '#EF4444'
+                }}>
+                  Score dossier : {scoreDossier}%
+                </span>
+              </h3>
+            </div>
+            <div className="alertes-list">
+              {anomalies.map((a, i) => (
+                <div 
+                  key={i} 
+                  className={`alerte-card ${a.severite === 'haute' ? 'urgent' : a.severite === 'moyenne' ? 'warning' : ''}`}
+                  style={a.severite === 'basse' ? { background: '#f8f9fa', borderLeft: '4px solid #6c757d' } : {}}
+                >
+                  <div className="alerte-icon">
+                    {a.severite === 'haute' ? '🔴' : a.severite === 'moyenne' ? '🟡' : '⚪'}
+                  </div>
+                  <div className="alerte-content">
+                    <div className="alerte-title">{a.message}</div>
                   </div>
                 </div>
               ))}
