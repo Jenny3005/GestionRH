@@ -2107,39 +2107,179 @@ def assigner_demande_rh(request, demande_id):
 @csrf_exempt
 @require_http_methods(["PUT"])
 def signer_acte_dpaf(request, reference):
-    """DPAF signe l'acte"""
+    """DPAF signe l'acte - Ajoute automatiquement signature et cachet au template"""
     try:
         data = json.loads(request.body)
         dpaf_matricule = data.get('dpaf_matricule')
+        commentaire = data.get('commentaire', '')
         
+        # Récupérer l'acte
         acte = ActeAdministratif.objects.get(reference=reference)
+        demande = acte.demande
         
+        # Récupérer le DPAF (avec sa signature et son cachet)
+        dpaf = Agent.objects.get(matricule=dpaf_matricule)
+        
+        # Récupérer la signature et le cachet du DPAF (stockés dans la base)
+        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') else None
+        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') else None
+        
+        # Générer le PDF avec signature et cachet
+        pdf_bytes = generer_acte_avec_signature_et_cachet(
+            acte=acte,
+            demande=demande,
+            dpaf=dpaf,
+            signature_base64=signature_base64,
+            cachet_base64=cachet_base64,
+            commentaire=commentaire
+        )
+        
+        # Mettre à jour l'acte
         acte.statut = 'signe'
+        acte.signe_par = f"{dpaf.prenom} {dpaf.nom}"
+        acte.signe_le = datetime.now()
+        acte.fichier_pdf_signe = base64.b64encode(pdf_bytes).decode('utf-8')
         acte.save()
         
+        # Notifier la secrétaire
         secretaire = Agent.objects.filter(
             agentrole__role__libelle='secretaire',
-            direction=acte.demande.agent.direction,
+            direction=demande.agent.direction,
             actif=1
         ).first()
         
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"✅ Acte signé par DPAF pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
+                message=f"✅ Acte signé par {dpaf.prenom} {dpaf.nom} (DPAF) - Réf: {reference}",
                 type_notification='acte_signe',
                 date_envoi=datetime.now().date(),
                 lue=0
             )
         
-        return JsonResponse({'success': True, 'message': 'Acte signé avec succès'})
+        return _create_pdf_response(pdf_bytes, f'Acte_Signe_{reference}')
         
     except ActeAdministratif.DoesNotExist:
         return JsonResponse({'error': 'Acte non trouvé'}, status=404)
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'DPAF non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR signer_acte_dpaf: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+
+def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=None, cachet_base64=None, commentaire=""):
+    """Génère le PDF de l'acte avec signature et cachet du DPAF"""
+    from docx import Document
+    from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io, base64
+    from io import BytesIO
+    
+    # Déterminer le template en fonction du type de demande
+    if demande.type_demande.libelle == 'Congé':
+        template_name = 'autorisation_conge_template.docx'
+    else:
+        template_name = 'autorisation_absence_template.docx'
+    
+    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
+    
+    if not os.path.exists(template_path):
+        raise Exception(f"Template {template_name} non trouvé")
+    
+    doc = Document(template_path)
+    
+    # Préparer les remplacements
+    date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+    date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+    nombre_jours = demande.demandeconge.nombrejours if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+    
+    replacements = {
+        '{{REFERENCE}}': acte.reference,
+        '{{AGENT_NOM}}': demande.agent.nom.upper(),
+        '{{AGENT_PRENOM}}': demande.agent.prenom,
+        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
+        '{{DATE_DEBUT}}': date_debut,
+        '{{DATE_FIN}}': date_fin,
+        '{{NOMBRE_JOURS}}': str(nombre_jours),
+        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+        '{{ANNE_CONGE}}': str(datetime.now().year)
+    }
+    
+    # Remplacer les placeholders dans le document
+    for paragraph in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in paragraph.text:
+                paragraph.text = paragraph.text.replace(key, value)
+    
+    # Ajouter la signature et le cachet à la fin du document
+    doc.add_paragraph()  # Saut de ligne
+    
+    # Créer un tableau pour la signature (2 lignes)
+    table = doc.add_table(rows=2, cols=2)
+    table.autofit = False
+    table.columns[0].width = Cm(8)
+    table.columns[1].width = Cm(8)
+    
+    # Ligne 1: Signature et Cachet
+    cell_signature = table.cell(0, 0)
+    cell_cachet = table.cell(0, 1)
+    cell_cachet.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    
+    # Ajouter la signature scannée si disponible
+    if signature_base64:
+        try:
+            # Nettoyer le base64
+            if ',' in signature_base64:
+                signature_base64 = signature_base64.split(',')[1]
+            signature_bytes = base64.b64decode(signature_base64)
+            signature_stream = BytesIO(signature_bytes)
+            run = cell_signature.paragraphs[0].add_run()
+            run.add_picture(signature_stream, width=Pt(120))
+        except Exception as e:
+            print(f"Erreur ajout signature: {e}")
+            cell_signature.paragraphs[0].text = f"Signé par: {dpaf.prenom} {dpaf.nom}"
+    else:
+        cell_signature.paragraphs[0].text = f"Signé par: {dpaf.prenom} {dpaf.nom}"
+        cell_signature.paragraphs[0].runs[0].bold = True
+    
+    # Ajouter le cachet si disponible
+    if cachet_base64:
+        try:
+            if ',' in cachet_base64:
+                cachet_base64 = cachet_base64.split(',')[1]
+            cachet_bytes = base64.b64decode(cachet_base64)
+            cachet_stream = BytesIO(cachet_bytes)
+            run = cell_cachet.paragraphs[0].add_run()
+            run.add_picture(cachet_stream, width=Pt(100))
+        except Exception as e:
+            print(f"Erreur ajout cachet: {e}")
+            cell_cachet.paragraphs[0].text = "[CACHET OFFICIEL]"
+    else:
+        cell_cachet.paragraphs[0].text = "[CACHET OFFICIEL]"
+    
+    # Ligne 2: Fonction et date
+    cell_fonction = table.cell(1, 0)
+    cell_fonction.paragraphs[0].text = dpaf.poste or "Directeur de la Planification, de l'Administration et des Finances"
+    
+    cell_date = table.cell(1, 1)
+    cell_date.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    cell_date.paragraphs[0].text = f"Fait à Cotonou, le {datetime.now().strftime('%d/%m/%Y')}"
+    
+    # Ajouter le commentaire si présent
+    if commentaire:
+        doc.add_paragraph()
+        doc.add_paragraph(f"Commentaire: {commentaire}")
+    
+    # Convertir en PDF
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    
+    # Fonction de conversion (à adapter selon votre config)
+    return _docx_bytes_to_pdf_bytes(output.getvalue())
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -3606,6 +3746,125 @@ def detect_anomalies(request, matricule):
             'total_anomalies': len(anomalies),
             'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé'
         })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+# ==================== SIGNATURE ET CACHET ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_signature_cachet(request, matricule):
+    """Récupérer la signature et le cachet d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        
+        return JsonResponse({
+            'signature': agent.signature if hasattr(agent, 'signature') else None,
+            'cachet': agent.cachet if hasattr(agent, 'cachet') else None
+        })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_signature(request, matricule):
+    """Upload de la signature d'un agent"""
+    try:
+        data = json.loads(request.body)
+        signature_base64 = data.get('signature')
+        
+        if not signature_base64:
+            return JsonResponse({'error': 'Signature requise'}, status=400)
+        
+        agent = Agent.objects.get(matricule=matricule)
+        agent.signature = signature_base64
+        agent.save()
+        
+        return JsonResponse({'success': True, 'message': 'Signature enregistrée avec succès'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"Erreur upload_signature: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_cachet(request, matricule):
+    """Upload du cachet d'un agent (DPAF, Chef, Admin uniquement)"""
+    try:
+        data = json.loads(request.body)
+        cachet_base64 = data.get('cachet')
+        
+        if not cachet_base64:
+            return JsonResponse({'error': 'Cachet requis'}, status=400)
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        # Vérifier si l'agent a le droit d'avoir un cachet (optionnel - vous pouvez enlever cette vérification)
+        # Récupérer le rôle de l'agent
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT r.libelle 
+                FROM agent_role ar
+                JOIN role r ON ar.role_id = r.id
+                WHERE ar.agent_id = %s
+            """, [agent.matricule])
+            roles = [row[0] for row in cursor.fetchall()]
+        
+        roles_avec_cachet = ['dpaf', 'chef', 'admin']
+        a_droit_cachet = any(role in roles_avec_cachet for role in roles)
+        
+        if not a_droit_cachet:
+            return JsonResponse({'error': 'Vous n\'avez pas le droit d\'avoir un cachet officiel'}, status=403)
+        
+        agent.cachet = cachet_base64
+        agent.save()
+        
+        return JsonResponse({'success': True, 'message': 'Cachet enregistré avec succès'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"Erreur upload_cachet: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_signature(request, matricule):
+    """Supprimer la signature d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        agent.signature = None
+        agent.save()
+        
+        return JsonResponse({'success': True, 'message': 'Signature supprimée'})
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_cachet(request, matricule):
+    """Supprimer le cachet d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        agent.cachet = None
+        agent.save()
+        
+        return JsonResponse({'success': True, 'message': 'Cachet supprimé'})
         
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)

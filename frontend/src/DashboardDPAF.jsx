@@ -546,37 +546,54 @@ export default function DashboardDPAF() {
       )}
 
       {/* MODAL SIGNER ACTE */}
+      {/* MODAL SIGNER ACTE - Version améliorée avec aperçu */}
       {showSignerModal && selectedActe && (
         <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✍️ Signature de l'acte</h3>
+              <h3>✍️ Signature officielle de l'acte</h3>
               <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
             </div>
             
             <div className="modal-body">
-              <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
-              <p><strong>Référence:</strong> {selectedActe.reference}</p>
-              <p><strong>Type:</strong> {selectedActe.type_acte}</p>
+              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <p><strong>📄 Acte N°:</strong> {selectedActe.reference}</p>
+                <p><strong>👤 Agent:</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
+                <p><strong>📋 Type:</strong> {selectedActe.type_acte}</p>
+              </div>
+              
+              <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <p><strong>Signataire :</strong> {userName}</p>
+                <p><strong>Fonction :</strong> Directeur de la Planification, de l'Administration et des Finances</p>
+                <p><strong>Date :</strong> {new Date().toLocaleDateString('fr-FR')}</p>
+                <p><strong>Heure :</strong> {new Date().toLocaleTimeString('fr-FR')}</p>
+              </div>
               
               <div className="form-group">
                 <label>Commentaire (optionnel)</label>
                 <textarea
-                  rows="3"
-                  placeholder="Ajoutez un commentaire pour la secrétaire..."
+                  rows="2"
+                  placeholder="Ajoutez un commentaire..."
                   value={signatureCommentaire}
                   onChange={(e) => setSignatureCommentaire(e.target.value)}
                 />
               </div>
               
-              <div className="alert-info">
-                <p>ℹ️ En signant cet acte, vous confirmez son authenticité et autorisez sa remise à l'agent.</p>
+              <div style={{ background: '#fff3cd', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #ffc107' }}>
+                <p>⚠️ En cliquant sur "Signer", votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
+                <p>Cette action est irréversible et engage votre responsabilité.</p>
               </div>
             </div>
             
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowSignerModal(false)}>Annuler</button>
-              <button className="btn-signer" onClick={() => handleSignerActe(selectedActe.reference)}>✅ Signer l'acte</button>
+              <button 
+                className="btn-signer" 
+                onClick={() => handleSignerActe(selectedActe.reference)}
+                style={{ background: '#dc3545' }}
+              >
+                🏛️ Signer avec mon cachet officiel
+              </button>
             </div>
           </div>
         </div>
