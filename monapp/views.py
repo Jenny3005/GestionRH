@@ -11,6 +11,7 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.http import HttpResponse
+from collections import Counter
 import io
 import os
 import subprocess
@@ -3542,17 +3543,6 @@ def detect_anomalies(request, matricule):
                     })
                     score -= 15
         
-        # 2. Vérifier les documents obligatoires manquants
-        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
-        for tp in types_obligatoires:
-            if not pieces.filter(type_piece=tp).exists():
-                anomalies.append({
-                    'type': 'document_manquant',
-                    'severite': 'moyenne',
-                    'message': f"Document obligatoire manquant : {tp.libelle}"
-                })
-                score -= 10
-        
         # 3. Vérifier les documents expirés
         today = date.today()
         for piece in pieces:
@@ -3565,20 +3555,29 @@ def detect_anomalies(request, matricule):
                 })
                 score -= 20 if jours > 30 else 10
         
-        # 4. Vérifier la cohérence des noms (si plusieurs documents)
-        noms_fichiers = [p.nom_fichier.lower() for p in pieces]
-        if len(noms_fichiers) != len(set(noms_fichiers)):
+        # 4. Vérifier les doublons de documents (même type de pièce uploadé plusieurs fois)
+        type_ids = [p.type_piece.id for p in pieces]
+        doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
+
+        for type_id in doublons:
+            pieces_doublons = pieces.filter(type_piece_id=type_id)
+            noms = [p.nom_fichier for p in pieces_doublons]
+            type_libelle = pieces_doublons.first().type_piece.libelle
+            
             anomalies.append({
                 'type': 'doublon',
-                'severite': 'basse',
-                'message': 'Possibles doublons de documents détectés'
+                'severite': 'moyenne',
+                'message': f'⚠️ Doublon : {len(noms)} versions de "{type_libelle}" - Fichiers : {", ".join(noms)}'
             })
-            score -= 5
+            score -= 10
         
         # 5. Vérifier l'ancienneté vs le grade (si disponible)
         if agent.date_prise_service and agent.echelon:
             anciennete = (today - agent.date_prise_service).days / 365
-            echelon_num = int(agent.echelon.split('-')[0]) if agent.echelon and '-' in agent.echelon else 1
+            try:
+                echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
+            except:
+                echelon_num = 1
             
             if anciennete > 10 and echelon_num < 3:
                 anomalies.append({

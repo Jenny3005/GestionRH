@@ -99,4 +99,5 @@ urlpatterns = [
     path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
     path('actes/<path:reference>/download/', views.download_acte, name='download_acte'),
     path('documents/expired-count/', views.get_all_expired_documents, name='get_all_expired_documents'),
+    path('anomalies/<str:matricule>/', views.detect_anomalies, name='detect_anomalies'),
 ]
