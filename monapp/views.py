@@ -7,7 +7,7 @@ from django.db import connection
 from django.db import models
 from django.db.models import Sum
 from django.core.mail import send_mail
-from django.template.loader import render_to_strin
+from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.http import HttpResponse
