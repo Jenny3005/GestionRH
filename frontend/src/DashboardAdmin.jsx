@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
+import { normalizeRole } from './PortalNav';
 import Can from './components/Can';
 import './App.css';
 
@@ -51,6 +52,7 @@ export default function DashboardAdmin() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
+  
 
   const fetchAgents = async () => {
     try {
@@ -116,6 +118,7 @@ export default function DashboardAdmin() {
       case 'rh': return '📋 RH';
       case 'chef': return '⭐ Chef de service';
       case 'secretaire': return '📝 Secrétaire DPAF';
+      case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
       default: return '👤 Agent';
     }
   };
@@ -126,6 +129,7 @@ export default function DashboardAdmin() {
       case 'rh': return 'role-badge rh';
       case 'chef': return 'role-badge chef';
       case 'secretaire': return 'role-badge secretaire';
+      case 'rh/secretaire': return 'role-badge rh-secretaire';
       default: return 'role-badge agent';
     }
   };
@@ -292,11 +296,20 @@ export default function DashboardAdmin() {
                       <td>
                         <div className="roles-multi">
                           {agent.roles && agent.roles.length > 0 ? (
-                            agent.roles.map((role, idx) => (
-                              <span key={idx} className={getRoleBadgeClass(role.libelle)}>
-                                {getRoleLabel(role.libelle)}
-                              </span>
-                            ))
+                            (() => {
+                              const normalized = agent.roles
+                                .map(role => {
+                                  const raw = (role && (role.libelle || role.name || role)) || '';
+                                  return normalizeRole(raw);
+                                })
+                                .filter(Boolean);
+                              const unique = Array.from(new Set(normalized));
+                              return unique.map((r, idx) => (
+                                <span key={idx} className={getRoleBadgeClass(r)}>
+                                  {getRoleLabel(r)}
+                                </span>
+                              ));
+                            })()
                           ) : (
                             <span className="role-badge agent">👤 Agent</span>
                           )}

@@ -123,7 +123,7 @@ export default function DashboardSecretaire() {
 
   const handleTransmettreActeDPAF = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-acte-dpaf/${reference}/`, {
+      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-acte-dpaf/${encodeURIComponent(reference)}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,7 +172,7 @@ export default function DashboardSecretaire() {
   };
 
   const handleVoirActe = (reference) => {
-    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
+    window.open(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`, '_blank');
   };
 
   const getStatusBadge = (statut) => {
