@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from docx import Document
 from django.contrib.auth.hashers import make_password, check_password
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -17,7 +16,6 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, date, timedelta
-from docx.shared import Pt
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif
@@ -29,6 +27,7 @@ import re
 
 try:
     from docx2pdf import convert as docx2pdf_convert
+    from docx.shared import Pt
 except ImportError:
     docx2pdf_convert = None
 
