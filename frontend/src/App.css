@@ -2840,6 +2840,15 @@ body {
   right: 0.5rem;
 }
 
+.notification-delete {
+  transition: opacity 0.2s;
+}
+
+.notification-delete:hover {
+  opacity: 1 !important;
+  transform: scale(1.2);
+}
+
 /* Avancement */
 .avancement-info {
   padding: 0.5rem 0;

@@ -2902,7 +2902,6 @@ def upload_document(request):
     """Uploader un document et le stocker en base de données"""
     try:
         import unicodedata
-        import unicodedata
         
         matricule = request.POST.get('matricule') or request.headers.get('X-User-Matricule')
         type_piece_id = request.POST.get('type_piece_id')
@@ -2954,13 +2953,6 @@ def upload_document(request):
         date_expiration = None
         if date_expiration_str:
             try:
-                match = re.search(r'(\d+)', type_piece.duree_validite)
-                if match:
-                    duree_annees = int(match.group(1))
-                    date_expiration = date.today() + timedelta(days=duree_annees * 365)
-                    print(f"Date d'expiration calculée: {date_expiration} ({duree_annees} ans)")
-            except Exception as e:
-                print(f"Impossible de calculer la date d'expiration: {e}")
                 date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
                 print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
             except:
@@ -3607,6 +3599,51 @@ def detect_anomalies(request, matricule):
             'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé'
         })
         
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_all_expired_documents(request):
+    """Compter tous les documents expirés de tous les agents"""
+    try:
+        today = date.today()
+        count = Piece.objects.filter(
+            date_expiration__lte=today,
+            valide=1
+        ).count()
+        
+        return JsonResponse({
+            'success': True,
+            'total_expired': count
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_notification(request, notification_id):
+    """Supprimer définitivement une notification"""
+    try:
+        notification = Notification.objects.get(id=notification_id)
+        notification.delete()
+        return JsonResponse({'success': True, 'message': 'Notification supprimée'})
+    except Notification.DoesNotExist:
+        return JsonResponse({'error': 'Notification non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_toutes_notifications(request, matricule):
+    """Supprimer toutes les notifications d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        deleted, _ = Notification.objects.filter(agent_id=agent.matricule).delete()
+        return JsonResponse({'success': True, 'message': f'{deleted} notification(s) supprimée(s)'})
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:

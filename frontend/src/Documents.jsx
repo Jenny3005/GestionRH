@@ -433,14 +433,15 @@ export default function Documents() {
 
   const missingDocumentsCount = missingDocs.length;
 
-  // ✅ Documents expirés (utilise documentTypes dynamique)
   const getExpiredDocuments = () => {
     const expired = [];
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     Object.entries(documents).forEach(([key, doc]) => {
       if (doc && doc.expiryDate) {
         const expiryDate = new Date(doc.expiryDate);
-        if (expiryDate < today) {
+        expiryDate.setHours(0, 0, 0, 0);
+        if (expiryDate <= today) {  // ✅ Déjà <= pour inclure aujourd'hui
           expired.push({ docDef: documentTypes[key], doc });
         }
       }
@@ -586,7 +587,17 @@ export default function Documents() {
                   <div className="alerte-icon">⚠️</div>
                   <div className="alerte-content">
                     <div className="alerte-title">
-                      {docDef.label} expiré depuis le {new Date(doc.expiryDate).toLocaleDateString('fr-FR')}
+                      {(() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const expDate = new Date(doc.expiryDate);
+                        expDate.setHours(0, 0, 0, 0);
+                        const diffDays = Math.ceil((today - expDate) / (1000 * 60 * 60 * 24));
+                        
+                        if (diffDays === 0) return `${docDef.label} expire aujourd'hui`;
+                        if (diffDays === 1) return `${docDef.label} a expiré hier`;
+                        return `${docDef.label} expiré depuis ${diffDays} jours (${expDate.toLocaleDateString('fr-FR')})`;
+                      })()}
                     </div>
                     <label className="alerte-action">
                       📤 Remplacer
