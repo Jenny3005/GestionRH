@@ -3243,6 +3243,283 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         
     except Exception as e:
         print(f"ERREUR get_actes_a_envoyer_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ==================== ATTESTATIONS ====================
+
+def nombre_en_toutes_lettres(n):
+    """Convertit un nombre en toutes lettres (1-30)"""
+    nombres = {
+        1: 'un', 2: 'deux', 3: 'trois', 4: 'quatre', 5: 'cinq',
+        6: 'six', 7: 'sept', 8: 'huit', 9: 'neuf', 10: 'dix',
+        11: 'onze', 12: 'douze', 13: 'treize', 14: 'quatorze', 15: 'quinze',
+        16: 'seize', 17: 'dix-sept', 18: 'dix-huit', 19: 'dix-neuf', 20: 'vingt',
+        21: 'vingt-et-un', 22: 'vingt-deux', 23: 'vingt-trois', 24: 'vingt-quatre', 25: 'vingt-cinq',
+        26: 'vingt-six', 27: 'vingt-sept', 28: 'vingt-huit', 29: 'vingt-neuf', 30: 'trente'
+    }
+    return nombres.get(n, str(n))
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_attestation_presence(request):
+    """Générer une attestation de présence au poste"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        nom_complet = f"{agent.nom} {agent.prenom}".upper()
+        poste = agent.poste or 'Ouvrier Spécialisé des Services Généraux de l\'Administration'
+        
+        if agent.date_prise_service:
+            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
+            mois_fr = {
+                'January': 'janvier', 'February': 'février', 'March': 'mars',
+                'April': 'avril', 'May': 'mai', 'June': 'juin',
+                'July': 'juillet', 'August': 'août', 'September': 'septembre',
+                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+            }
+            for en, fr in mois_fr.items():
+                date_prise_service = date_prise_service.replace(en, fr)
+        else:
+            date_prise_service = '02 février 2015'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        annee = datetime.now().year
+        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = f"{ref_number}/MND/DPAF/SRHDS/SA"
+        
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_presence_template.docx')
+        
+        if os.path.exists(template_path):
+            doc = Document(template_path)
+            
+            placeholders = {
+                '{{NOM_COMPLET}}': nom_complet,
+                '{{POSTE}}': poste,
+                '{{DATE_PRISE_SERVICE}}': date_prise_service,
+                '{{DATE_AUJOURD_HUI}}': date_aujourdhui,
+            }
+            
+            for paragraph in doc.paragraphs:
+                para_text = ''.join([r.text for r in paragraph.runs])
+                new_text = para_text
+                
+                if '{{REFERENCE}}' in new_text:
+                    if '/MND/DPAF/SRHDS/SA' in new_text:
+                        ref_display = ref_number
+                    else:
+                        ref_display = reference
+                    new_text = new_text.replace('{{REFERENCE}}', ref_display)
+                
+                for key, val in placeholders.items():
+                    if key in new_text:
+                        new_text = new_text.replace(key, val)
+                
+                if new_text != para_text:
+                    first_run = paragraph.runs[0] if paragraph.runs else None
+                    for r in paragraph.runs:
+                        r.text = ''
+                    new_run = paragraph.add_run(new_text)
+                    if first_run:
+                        try:
+                            new_run.font.name = first_run.font.name
+                            new_run.font.size = first_run.font.size
+                            new_run.bold = first_run.bold
+                            new_run.italic = first_run.italic
+                        except Exception:
+                            pass
+            
+            output = io.BytesIO()
+            doc.save(output)
+            output.seek(0)
+            
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Attestation_Presence_{agent.nom}_{agent.prenom}.docx"'
+            
+        else:
+            return JsonResponse({'error': 'Template non trouvé'}, status=500)
+        
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Attestation de présence au poste',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference
+        )
+        
+        return response
+        
+    except Exception as e:
+        print(f"ERREUR generer_attestation_presence: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_attestation_travail(request):
+    """Générer une attestation de travail à partir du template Word"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        nom_complet = f"{agent.nom} {agent.prenom}".upper()
+        poste = agent.poste or 'Administrateur'
+        
+        if agent.date_prise_service:
+            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
+            mois_fr = {
+                'January': 'janvier', 'February': 'février', 'March': 'mars',
+                'April': 'avril', 'May': 'mai', 'June': 'juin',
+                'July': 'juillet', 'August': 'août', 'September': 'septembre',
+                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+            }
+            for en, fr in mois_fr.items():
+                date_prise_service = date_prise_service.replace(en, fr)
+        else:
+            date_prise_service = 'date non renseignée'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        annee = datetime.now().year
+        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = f"{ref_number}/MND/DPAF/SGRHTE/SA"
+        
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_travail_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        doc = Document(template_path)
+        
+        for paragraph in doc.paragraphs:
+            if '{{NOM_COMPLET}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
+            if '{{POSTE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
+            if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
+            if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+            if '{{REFERENCE}}' in paragraph.text:
+                paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+        
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if '{{NOM_COMPLET}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
+                        if '{{POSTE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
+                        if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
+                        if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
+                        if '{{REFERENCE}}' in paragraph.text:
+                            paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
+        
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Attestation de travail',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference
+        )
+        
+        TypeDemande.objects.get_or_create(
+            libelle='Attestation',
+            defaults={'acte_generable': 1}
+        )
+        
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        response['Content-Disposition'] = f'attachment; filename="Attestation_Travail_{agent.nom}_{agent.prenom}.docx"'
+        return response
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR generer_attestation_travail: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_a_envoyer_rh(request, matricule_rh):
+    """Récupérer les actes générés non encore envoyés"""
+    try:
+        actes = ActeAdministratif.objects.filter(
+            demande__agent_rh__matricule=matricule_rh,
+            statut='genere'
+        ).select_related('demande__agent')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.id,
+                'agent_nom': acte.demande.agent.nom,
+                'agent_prenom': acte.demande.agent.prenom,
+                'type_acte': acte.type_acte,
+                'reference': acte.reference,
+                'date_generation': str(acte.date_generation)
+            })
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def envoyer_acte_secretaire(request, acte_id):
+    """Envoyer un acte à la secrétaire"""
+    try:
+        data = json.loads(request.body)
+        rh_matricule = data.get('rh_matricule')
+        
+        acte = ActeAdministratif.objects.get(id=acte_id)
+        acte.statut = 'envoye_secretaire'
+        acte.save()
+        
+        # Mettre à jour la demande
+        demande = acte.demande
+        demande.statut = 'envoye_secretaire'
+        demande.save()
+        
+        # Notification pour la secrétaire
+        secretaire = Agent.objects.filter(
+            agentrole__role__libelle='secretaire',
+            direction=demande.agent.direction,
+            actif=1
+        ).first()
+        
+        if secretaire:
+            Notification.objects.create(
+                agent_id=secretaire.matricule,
+                message=f"📄 Nouvel acte à remettre pour {demande.agent.nom} {demande.agent.prenom}",
+                type_notification='acte_recu',
+                date_envoi=datetime.now().date(),
+                lue=0
+            )
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
 
