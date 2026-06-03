@@ -39,6 +39,12 @@ export default function usePermissions() {
     
     fetchUserPermissions();
   }, []);
+  useEffect(() => {
+    if (userPermissions.length > 0) {
+      console.log('Permissions disponibles:', userPermissions);
+      console.log('A-t-il SUPPRIMER_PERMISSION ?', userPermissions.includes('SUPPRIMER_PERMISSION'));
+    }
+  }, [userPermissions]);
 
   // Vérifier si l'utilisateur a une permission spécifique
   const hasPermission = (permission) => {
