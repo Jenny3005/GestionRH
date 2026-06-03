@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version avec signature des actes
+// DashboardDPAF.jsx - Version corrigée (uniquement les agents avec rôle 'rh')
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -46,16 +46,66 @@ export default function DashboardDPAF() {
       navigate('/auth');
       return;
     }
-    fetchData();
+    fetchAllData();
     fetchAgentsRH();
-    fetchActesASigner();
   }, []);
 
-  const fetchData = async () => {
+  // Charger UNIQUEMENT les agents avec rôle 'rh'
+  const fetchAgentsRH = async () => {
+    try {
+      // Essayer d'abord l'endpoint spécifique
+      let response = await fetch('http://localhost:8000/api/agents/rh/');
+      
+      if (!response.ok) {
+        // Fallback: récupérer tous les agents et filtrer
+        response = await fetch('http://localhost:8000/api/agents/');
+        if (response.ok) {
+          const allAgents = await response.json();
+          console.log('👥 Tous les agents:', allAgents);
+          
+          // Filtrer pour ne garder que ceux avec rôle 'rh'
+          const agentsRHFiltered = allAgents.filter(agent => {
+            // Garder uniquement les agents avec rôle 'rh'
+            if (agent.role !== 'rh') return false;
+            
+            // Exclure l'utilisateur DPAF connecté (au cas où)
+            if (agent.matricule === matricule) return false;
+            
+            return true;
+          });
+          
+          console.log('✅ Agents RH disponibles (rôle = rh):', agentsRHFiltered);
+          setAgentsRH(agentsRHFiltered);
+          return;
+        }
+      } else {
+        const agentsRHData = await response.json();
+        console.log('👥 Agents RH (endpoint spécifique):', agentsRHData);
+        
+        // Filtrer aussi au cas où l'API retournerait autre chose
+        const agentsRHFiltered = agentsRHData.filter(agent => {
+          if (agent.matricule === matricule) return false;
+          return true;
+        });
+        
+        setAgentsRH(agentsRHFiltered);
+      }
+    } catch (error) {
+      console.error('Erreur chargement agents RH:', error);
+      setAgentsRH([]);
+    }
+  };
+
+  // Charger toutes les données en parallèle
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      // 1. Demandes transmises par la secrétaire (statut = 'transmise_dpaf')
-      const transmisesRes = await fetch(`http://localhost:8000/api/dpaf/demandes-transmises/${matricule}/`);
+      const [transmisesRes, assigneesRes, actesRes] = await Promise.all([
+        fetch(`http://localhost:8000/api/dpaf/demandes-transmises/${matricule}/`),
+        fetch(`http://localhost:8000/api/dpaf/demandes-assignees/${matricule}/`),
+        fetch(`http://localhost:8000/api/dpaf/actes-a-signer/${matricule}/`)
+      ]);
+      
       let transmisesData = [];
       if (transmisesRes.ok) {
         transmisesData = await transmisesRes.json();
@@ -63,8 +113,6 @@ export default function DashboardDPAF() {
         setDemandesTransmises(transmisesData);
       }
 
-      // 2. Demandes déjà assignées
-      const assigneesRes = await fetch(`http://localhost:8000/api/dpaf/demandes-assignees/${matricule}/`);
       let assigneesData = [];
       if (assigneesRes.ok) {
         assigneesData = await assigneesRes.json();
@@ -72,45 +120,26 @@ export default function DashboardDPAF() {
         setDemandesAssignees(assigneesData);
       }
 
-      // 3. Mettre à jour les stats
+      let actesData = [];
+      if (actesRes.ok) {
+        actesData = await actesRes.json();
+        console.log('✍️ Actes à signer:', actesData);
+        setActesASigner(actesData);
+      }
+
+      // Mettre à jour les stats avec toutes les données
       setStats({
         a_assigner: transmisesData.length,
         assignees: assigneesData.length,
         en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
         terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
-        actes_a_signer: actesASigner.length
+        actes_a_signer: actesData.length
       });
 
     } catch (error) {
       console.error('Erreur chargement:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchActesASigner = async () => {
-    try {
-      const response = await fetch(`http://localhost:8000/api/dpaf/actes-a-signer/${matricule}/`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✍️ Actes à signer:', data);
-        setActesASigner(data);
-        setStats(prev => ({ ...prev, actes_a_signer: data.length }));
-      }
-    } catch (error) {
-      console.error('Erreur chargement actes:', error);
-    }
-  };
-
-  const fetchAgentsRH = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/agents/rh/');
-      if (response.ok) {
-        const data = await response.json();
-        setAgentsRH(data);
-      }
-    } catch (error) {
-      console.error('Erreur chargement agents RH:', error);
     }
   };
 
@@ -139,7 +168,7 @@ export default function DashboardDPAF() {
         setSelectedDemande(null);
         setSelectedAgentRH('');
         setCommentaire('');
-        fetchData();
+        fetchAllData();
       } else {
         alert(data.error || 'Erreur lors de l\'assignation');
       }
@@ -165,8 +194,7 @@ export default function DashboardDPAF() {
         setShowSignerModal(false);
         setSelectedActe(null);
         setSignatureCommentaire('');
-        fetchActesASigner();
-        fetchData();
+        fetchAllData();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la signature');
@@ -382,7 +410,7 @@ export default function DashboardDPAF() {
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.type_acte}</td>
                       <td><code>{acte.reference}</code></td>
-                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
@@ -409,38 +437,52 @@ export default function DashboardDPAF() {
       {showAssignerModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowAssignerModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>👥 Assigner à un agent RH</h3>
-            <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-            <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
-            <p><strong>Période:</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
-            
-            <div className="form-group">
-              <label>Sélectionner un agent RH *</label>
-              <select 
-                value={selectedAgentRH} 
-                onChange={(e) => setSelectedAgentRH(e.target.value)}
-                required
-              >
-                <option value="">-- Choisir un agent RH --</option>
-                {agentsRH.map(agent => (
-                  <option key={agent.matricule} value={agent.matricule}>
-                    {agent.nom} {agent.prenom} - {agent.poste || 'Agent RH'}
-                  </option>
-                ))}
-              </select>
+            <div className="modal-header">
+              <h3>👥 Assigner à un agent RH</h3>
+              <button className="modal-close" onClick={() => setShowAssignerModal(false)}>✕</button>
             </div>
             
-            <div className="form-group">
-              <label>Instructions (optionnel)</label>
-              <textarea
-                rows="3"
-                placeholder="Ajoutez des instructions pour l'agent RH..."
-                value={commentaire}
-                onChange={(e) => setCommentaire(e.target.value)}
-              />
+            <div className="modal-body">
+              <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
+              <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
+              <p><strong>Période:</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
+              
+              <div className="form-group">
+                <label>Sélectionner un agent RH *</label>
+                <select 
+                  value={selectedAgentRH} 
+                  onChange={(e) => setSelectedAgentRH(e.target.value)}
+                  required
+                >
+                  <option value="">-- Choisir un agent RH --</option>
+                  {agentsRH.map(agent => (
+                    <option key={agent.matricule} value={agent.matricule}>
+                      {agent.nom} {agent.prenom} - {agent.poste || 'Agent RH'}
+                    </option>
+                  ))}
+                </select>
+                {agentsRH.length === 0 && (
+                  <p style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px' }}>
+                    ⚠️ Aucun agent RH disponible. Veuillez contacter l'administrateur.
+                  </p>
+                )}
+                <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
+                  📌 Seuls les agents avec le rôle "RH" peuvent être sélectionnés.
+                </small>
+              </div>
+              
+              <div className="form-group">
+                <label>Instructions (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez des instructions pour l'agent RH..."
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                />
+              </div>
             </div>
             
-            <div className="modal-buttons">
+            <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowAssignerModal(false)}>Annuler</button>
               <button className="btn-assigner" onClick={() => handleAssignerRH(selectedDemande.id)}>Assigner</button>
             </div>
@@ -546,12 +588,11 @@ export default function DashboardDPAF() {
       )}
 
       {/* MODAL SIGNER ACTE */}
-      {/* MODAL SIGNER ACTE - Version améliorée avec aperçu */}
       {showSignerModal && selectedActe && (
         <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
-          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✍️ Signature officielle de l'acte</h3>
+              <h3>✍️ Signature de l'acte</h3>
               <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
             </div>
             
