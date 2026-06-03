@@ -212,7 +212,7 @@ export default function DashboardRH() {
 
   const handleEnvoyerSecretaire = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${reference}/`, {
+      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${encodeURIComponent(reference)}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
@@ -232,7 +232,7 @@ export default function DashboardRH() {
   };
 
   const handleVoirActe = (reference) => {
-    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
+    window.open(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`, '_blank');
   };
 
   const getStatutBadge = (statut) => {
