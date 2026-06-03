@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
-import Can from './components/Can';
 import './App.css';
 
 export default function AdminPermissions() {
   const navigate = useNavigate();
-  const { hasPermission, loading: permissionsLoading, isAdmin } = usePermissions();
+  const { hasPermission, loading: permissionsLoading, isAdmin, userRoles } = usePermissions();
   const [permissions, setPermissions] = useState([]);
   const [roles, setRoles] = useState([]);
   const [rolePermissions, setRolePermissions] = useState({});
@@ -19,30 +18,63 @@ export default function AdminPermissions() {
   const userNom = localStorage.getItem('userNom');
   const userPrenom = localStorage.getItem('userPrenom');
   const userEmail = localStorage.getItem('userEmail');
+  const userMatricule = localStorage.getItem('userMatricule');
   const userName = `${userPrenom} ${userNom}`;
+
+  // Fonction locale pour vérifier si l'utilisateur est admin
+  const checkIsAdmin = () => {
+    // Méthode 1: via le hook
+    if (isAdmin && typeof isAdmin === 'function' && isAdmin()) {
+      return true;
+    }
+    
+    // Méthode 2: via les rôles stockés dans localStorage
+    const storedRoles = localStorage.getItem('userRoles');
+    if (storedRoles) {
+      try {
+        const roles = JSON.parse(storedRoles);
+        if (roles.includes('admin') || roles.includes('Administrateur')) {
+          return true;
+        }
+      } catch(e) {}
+    }
+    
+    // Méthode 3: via l'email ou matricule admin par défaut
+    const adminEmails = ['admin@mnd.bj', 'admin@example.com'];
+    if (adminEmails.includes(userEmail)) {
+      return true;
+    }
+    
+    return false;
+  };
 
   // Vérifier les droits d'accès
   useEffect(() => {
-    if (!localStorage.getItem('userMatricule')) {
+    if (!userMatricule) {
       navigate('/auth');
       return;
     }
-    // Vérifier si l'utilisateur a la permission de gérer les permissions
-    if (!permissionsLoading && !hasPermission('GERER_PERMISSIONS') && !isAdmin()) {
-      navigate('/admin/dashboard');
-      return;
+    
+    // Attendre que les permissions soient chargées
+    if (!permissionsLoading) {
+      const isUserAdmin = checkIsAdmin();
+      const hasGererPermissions = hasPermission && hasPermission('GERER_PERMISSIONS');
+      
+      if (!isUserAdmin && !hasGererPermissions) {
+        navigate('/admin/dashboard');
+        return;
+      }
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, userMatricule, navigate, hasPermission]);
 
   useEffect(() => {
-    if (!localStorage.getItem('userMatricule')) {
-      navigate('/auth');
-      return;
+    if (userMatricule) {
+      fetchPermissions();
+      fetchRoles();
+      fetchRolePermissions();
     }
-    fetchPermissions();
-    fetchRoles();
-    fetchRolePermissions();
-  }, []);
+  }, [userMatricule]);
+  
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -95,8 +127,8 @@ export default function AdminPermissions() {
   const handleAddPermission = async (e) => {
     e.preventDefault();
     
-    // Vérifier la permission d'ajouter
-    if (!hasPermission('AJOUTER_PERMISSION') && !isAdmin()) {
+    const isUserAdmin = checkIsAdmin();
+    if (!isUserAdmin && !hasPermission('AJOUTER_PERMISSION')) {
       alert("Vous n'avez pas la permission d'ajouter des permissions");
       return;
     }
@@ -129,19 +161,20 @@ export default function AdminPermissions() {
   };
 
   const handleDeletePermission = async (code) => {
-    // Vérifier la permission de supprimer
-    if (!hasPermission('SUPPRIMER_PERMISSION') && !isAdmin()) {
+    const isUserAdmin = checkIsAdmin();
+    
+    if (!isUserAdmin && !hasPermission('SUPPRIMER_PERMISSION')) {
       alert("Vous n'avez pas la permission de supprimer des permissions");
       return;
     }
     
-    if (window.confirm(`Supprimer la permission "${code}" ?`)) {
+    if (window.confirm(`⚠️ Êtes-vous sûr de vouloir supprimer la permission "${code}" ?\n\nCette action est irréversible et peut affecter les droits des utilisateurs.`)) {
       try {
         const response = await fetch(`http://localhost:8000/api/permissions/${code}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Permission supprimée');
+          alert('✅ Permission supprimée avec succès');
           fetchPermissions();
           fetchRolePermissions();
         } else {
@@ -156,8 +189,9 @@ export default function AdminPermissions() {
   };
 
   const handleTogglePermission = async (roleId, permissionCode, isChecked) => {
-    // Vérifier la permission d'attribuer
-    if (!hasPermission('ATTRIBUER_PERMISSION') && !isAdmin()) {
+    const isUserAdmin = checkIsAdmin();
+    
+    if (!isUserAdmin && !hasPermission('ATTRIBUER_PERMISSION')) {
       alert("Vous n'avez pas la permission d'attribuer des permissions aux rôles");
       return;
     }
@@ -191,13 +225,18 @@ export default function AdminPermissions() {
     navigate('/');
   };
 
-  // Permissions système à ne pas supprimer
-  const SYSTEM_PERMISSIONS = ['GERER_PERMISSIONS', 'AJOUTER_PERMISSION', 'SUPPRIMER_PERMISSION', 'ATTRIBUER_PERMISSION', 'VOIR_AGENTS', 'AJOUTER_AGENT', 'MODIFIER_ROLE', 'EXPORTER_AGENTS', 'IMPORTER_AGENTS', 'SOUMETTRE_DEMANDE', 'DEPOSER_PIECE', 'ACTIVER_COMPTE'];
+  // Vérifier si l'utilisateur peut supprimer une permission
+  const canDeletePermission = () => {
+    return checkIsAdmin() || (hasPermission && hasPermission('SUPPRIMER_PERMISSION'));
+  };
 
   // Affichage du chargement des permissions
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
   }
+
+  const isUserAdminFinal = checkIsAdmin();
+  const canDelete = isUserAdminFinal || (hasPermission && hasPermission('SUPPRIMER_PERMISSION'));
 
   return (
     <div className="intranet-home">
@@ -247,13 +286,13 @@ export default function AdminPermissions() {
 
         <div className="admin-actions-bar">
           <div className="action-buttons">
-            <Can permission="AJOUTER_PERMISSION">
+            {(isUserAdminFinal || (hasPermission && hasPermission('AJOUTER_PERMISSION'))) && (
               <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter une permission</button>
-            </Can>
+            )}
           </div>
         </div>
 
-        {/* Liste des permissions */}
+        {/* Liste des permissions avec colonne Actions */}
         <div className="permissions-list">
           <h3>📋 Liste des permissions</h3>
           <div className="admin-table-container">
@@ -262,32 +301,32 @@ export default function AdminPermissions() {
                 <tr>
                   <th>Code</th>
                   <th>Description</th>
-                  <th>Actions</th>
+                  <th style={{ width: '140px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="3">Chargement...</td></tr>
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: 'center' }}>Chargement...</td>
+                  </tr>
                 ) : permissions.length === 0 ? (
-                  <tr><td colSpan="3">Aucune permission trouvée</td></tr>
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: 'center' }}>Aucune permission trouvée</td>
+                  </tr>
                 ) : (
                   permissions.map((perm) => (
                     <tr key={perm.code}>
                       <td><code>{perm.code}</code></td>
                       <td>{perm.description}</td>
-                      <td>
-                        <Can permission="SUPPRIMER_PERMISSION">
-                          {!SYSTEM_PERMISSIONS.includes(perm.code) ? (
-                            <button 
-                              className="btn-delete"
-                              onClick={() => handleDeletePermission(perm.code)}
-                            >
-                              🗑️ Supprimer
-                            </button>
-                          ) : (
-                            <span className="system-badge-small">Système</span>
-                          )}
-                        </Can>
+                      <td style={{ textAlign: 'center' }}>
+                        <button 
+                          onClick={() => handleDeletePermission(perm.code)}
+                          className="btn-delete"
+                          title="Supprimer la permission"
+                          disabled={!canDelete}
+                        >
+                          🗑️ Supprimer
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -321,7 +360,6 @@ export default function AdminPermissions() {
                         value={perm.code}
                         checked={rolePermissions[role.id]?.includes(perm.code) || false}
                         onChange={(e) => handleTogglePermission(role.id, perm.code, e.target.checked)}
-                        disabled={role.libelle === 'admin' && perm.code === 'GERER_PERMISSIONS'}
                       />
                       <span className="permission-code">{perm.code}</span>
                       <span className="permission-desc">{perm.description}</span>

@@ -737,6 +737,7 @@ export default function Demarches() {
       )}
 
       {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
+      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE - CORRIGÉ */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
