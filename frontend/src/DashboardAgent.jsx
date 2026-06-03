@@ -26,6 +26,7 @@ export default function DashboardAgent() {
   const [loading, setLoading] = useState(true);
   const [showSoldeModal, setShowSoldeModal] = useState(false);
   const [tauxCompletude, setTauxCompletude] = useState(0);
+  const [expiryChecked, setExpiryChecked] = useState(false);
 
   const matricule = localStorage.getItem('userMatricule');
 
@@ -37,6 +38,7 @@ export default function DashboardAgent() {
     fetchUserInfo();
     fetchDemandesRecentes();
     fetchSoldeConge();
+    checkExpiryOnce();
     fetchAllNotifications();
     fetchTauxCompletude();
   }, []);
@@ -61,23 +63,27 @@ export default function DashboardAgent() {
     }
   };
 
-  // Fusionner notifications BD + alertes documents expirés
+  // Vérifier les expirations une seule fois par session
+  const checkExpiryOnce = async () => {
+    if (expiryChecked) return;
+    try {
+      await fetch(`http://localhost:8000/api/check-expiry/`);
+      setExpiryChecked(true);
+    } catch (error) {
+      console.error('Erreur check-expiry:', error);
+    }
+  };
+
+  // Récupérer les notifications
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
-      // ✅ 1. D'abord, appeler check-expiry pour créer les notifications dans la BD
-      await fetch(`http://localhost:8000/api/check-expiry/`);
-      
-      // ✅ 2. Ensuite, récupérer les notifications de la base
       const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
       let notifs = [];
       if (notifResponse.ok) {
         notifs = await notifResponse.json();
       }
-
-      // ✅ 3. Afficher les notifications telles quelles (elles viennent de la BD)
       setNotifications(notifs.slice(0, 20));
-      
     } catch (error) {
       console.error('Erreur chargement notifications:', error);
     } finally {
@@ -168,6 +174,38 @@ export default function DashboardAgent() {
       } catch (error) {
         console.error('Erreur:', error);
       }
+    }
+  };
+
+  const supprimerNotification = async (notificationId, e) => {
+    e.stopPropagation();
+    
+    // Supprimer immédiatement de l'affichage local
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    
+    try {
+      await fetch(`http://localhost:8000/api/notifications/${notificationId}/supprimer/`, { 
+        method: 'DELETE' 
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      fetchAllNotifications();
+    }
+  };
+
+  const handleSupprimerToutesNotifications = async () => {
+    if (!window.confirm('Supprimer définitivement toutes les notifications ?')) return;
+    
+    // Vider immédiatement l'affichage
+    setNotifications([]);
+    
+    try {
+      await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/supprimer-toutes/`, { 
+        method: 'DELETE' 
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      fetchAllNotifications();
     }
   };
 
@@ -311,7 +349,10 @@ export default function DashboardAgent() {
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>🔔 Notifications</h3>
-              <button className="agent-card-btn" onClick={() => marquerNotificationLue('all')}>Marquer tout lu →</button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="agent-card-btn" onClick={() => marquerNotificationLue('all')}>Marquer tout lu</button>
+                <button className="agent-card-btn" onClick={handleSupprimerToutesNotifications} style={{ color: '#dc3545' }}>🗑️ Tout supprimer</button>
+              </div>
             </div>
             <div className="notifications-list">
               {notifications.length === 0 ? (
@@ -330,19 +371,29 @@ export default function DashboardAgent() {
                       {notif.type === 'warning' && '⏰'}
                       {notif.type === 'danger' && '⚠️'}
                       {notif.type === 'document' && '📄'}
+                      {notif.type === 'expiration' && '⚠️'}
+                      {notif.type === 'validation_conge' && '✅'}
+                      {notif.type === 'demande_conge' && '📋'}
+                      {notif.type === 'assignation' && '📌'}
                     </div>
                     <div className="notification-content">
                       <div className="notification-message">{notif.message}</div>
-                      <div className="notification-date">
-                        {notif.isDocAlert ? 'Alerte document' : notif.date_envoi}
-                      </div>
+                      <div className="notification-date">{notif.date_envoi}</div>
                     </div>
-                    {!notif.lue && !notif.isDocAlert && (
+                    {!notif.lue && (
                       <div className="notification-badge" onClick={(e) => {
                         e.stopPropagation();
                         marquerNotificationLue(notif.id);
                       }}></div>
                     )}
+                    <div 
+                      className="notification-delete" 
+                      onClick={(e) => supprimerNotification(notif.id, e)}
+                      title="Supprimer"
+                      style={{ cursor: 'pointer', marginLeft: '10px', opacity: 0.5, fontSize: '14px' }}
+                    >
+                      🗑️
+                    </div>
                   </div>
                 ))
               )}
