@@ -63,7 +63,7 @@ export default function DashboardRH() {
     }
     
     const role = localStorage.getItem('userRole');
-    if (role !== 'rh') {
+    if (role !== 'rh' && role !== 'admin') {
       navigate('/dashboard');
       return;
     }
@@ -74,39 +74,68 @@ export default function DashboardRH() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Demandes validées par le chef (statut = 'valide')
-      const valideesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-validees/${matricule}/`);
-      if (valideesRes.ok) {
-        const data = await valideesRes.json();
-        console.log('📋 Demandes validées:', data);
-        setDemandesValidees(data);
+      const matriculeRH = localStorage.getItem('userMatricule');
+      
+      // 1. CHARGER LES AGENTS
+      console.log('🔍 Chargement des agents...');
+      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      if (agentsRes.ok) {
+        const agentsData = await agentsRes.json();
+        console.log('✅ Agents chargés:', agentsData.length);
+        setVraisAgents(agentsData);
+        setAgentsRecents(agentsData.slice(0, 10));
+        setStats(prev => ({ ...prev, totalAgents: agentsData.length }));
+      } else {
+        console.error('❌ Erreur chargement agents:', agentsRes.status);
       }
 
-      // 2. Demandes déjà transmises au DPAF
-      const transmisesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-transmises/${matricule}/`);
-      if (transmisesRes.ok) {
-        const data = await transmisesRes.json();
-        console.log('📤 Demandes transmises:', data);
-        setDemandesTransmises(data);
+      // 2. Demandes assignées au RH (statut = 'assignee_rh')
+      console.log('🔍 Chargement demandes assignées...');
+      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matriculeRH}/`);
+      if (assigneesRes.ok) {
+        const data = await assigneesRes.json();
+        console.log('📋 Demandes assignées:', data.length);
+        setDemandesAssignees(data);
+        setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
       }
 
-      // 3. Actes reçus des RH
-      const actesRes = await fetch(`http://localhost:8000/api/secretaire/actes-recus/${matricule}/`);
+      // 3. Demandes en cours de traitement (statut = 'en_cours_traitement')
+      console.log('🔍 Chargement demandes en cours...');
+      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matriculeRH}/`);
+      if (enCoursRes.ok) {
+        const data = await enCoursRes.json();
+        console.log('⚙️ Demandes en cours:', data.length);
+        setDemandesEnCours(data);
+        setStats(prev => ({ ...prev, demandesEnCours: data.length }));
+      }
+
+      // 4. Actes générés à envoyer (statut = 'genere')
+      console.log('🔍 Chargement actes générés...');
+      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
-        console.log('📄 Actes reçus:', data);
-        setActesRecus(data);
+        console.log('📄 Actes à envoyer:', data.length);
+        setActesGeneres(data);
+        setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
 
-      // Mettre à jour les stats
-      setStats({
-        a_transmettre: demandesValidees.length,
-        transmises: demandesTransmises.length,
-        actes_recus: actesRecus.length
-      });
+      // 5. Demandes terminées
+      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matriculeRH}/`);
+      if (termineesRes.ok) {
+        const data = await termineesRes.json();
+        console.log('✅ Demandes terminées:', data.length);
+        setDemandesTerminees(data);
+      }
+
+      // 6. Vérifier les documents expirés
+      const expiredRes = await fetch('http://localhost:8000/api/documents/check-expired/');
+      if (expiredRes.ok) {
+        const data = await expiredRes.json();
+        setStats(prev => ({ ...prev, documentsExpires: data.notifications_created || 0 }));
+      }
 
     } catch (error) {
-      console.error('Erreur chargement:', error);
+      console.error('❌ Erreur chargement:', error);
     } finally {
       setLoading(false);
     }
@@ -133,7 +162,6 @@ export default function DashboardRH() {
     }
   };
 
-  // Génération directe de l'acte sans modal
   const handleGenererActe = async (demande) => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -142,7 +170,6 @@ export default function DashboardRH() {
     
     setLoading(true);
     try {
-      // Générer une référence automatique
       const annee = new Date().getFullYear();
       const refNumber = `${annee}${Date.now()}`;
       const reference = `${refNumber}/MND/RH`;
@@ -159,7 +186,6 @@ export default function DashboardRH() {
       });
       
       if (response.ok) {
-        // Télécharger le fichier Word directement
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -194,7 +220,7 @@ export default function DashboardRH() {
       
       if (response.ok) {
         alert('✅ Acte envoyé à la secrétaire !');
-        fetchData(); // Recharger les données
+        fetchData();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de l\'envoi');
@@ -206,7 +232,6 @@ export default function DashboardRH() {
   };
 
   const handleVoirActe = (reference) => {
-    // L'URL doit correspondre à celle que tu as ajoutée dans urls.py
     window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
   };
 
@@ -545,13 +570,13 @@ export default function DashboardRH() {
                           <td>{acte.agent_nom} {acte.agent_prenom}</td>
                           <td>{acte.type_acte}</td>
                           <td><code>{acte.reference}</code></td>
-                          <td>{new Date(acte.date_generation).toLocaleDateString('fr-FR')}</td>
+                          <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <div className="action-buttons-cell">
-                              <button className="btn-view" onClick={() => handleVoirActe(acte.id)}>
+                              <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
                                 👁️ Voir l'acte
                               </button>
-                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.id)}>
+                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.reference)}>
                                 📤 Envoyer à la secrétaire
                               </button>
                             </div>
@@ -586,7 +611,7 @@ export default function DashboardRH() {
                     {agentsRecents.length === 0 ? (
                       <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
                     ) : (
-                      agentsRecents.slice(0, 5).map((agent) => (
+                      agentsRecents.map((agent) => (
                         <tr key={agent.matricule}>
                           <td>{agent.matricule}</td>
                           <td>{agent.nom} {agent.prenom}</td>
@@ -953,9 +978,9 @@ export default function DashboardRH() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
