@@ -23,6 +23,7 @@ export default function RHDocuments() {
 
   const [anomalies, setAnomalies] = useState([]);
   const [scoreDossier, setScoreDossier] = useState(100);
+  const [aiAnalysis, setAiAnalysis] = useState('');
 
   const rhMatricule = localStorage.getItem('userMatricule');
 
@@ -81,6 +82,7 @@ export default function RHDocuments() {
         const anomalyData = await anomaliesRes.json();
         setAnomalies(anomalyData.anomalies || []);
         setScoreDossier(anomalyData.score || 100);
+        setAiAnalysis(anomalyData.ai_analysis || '');
       }
 
     } catch (error) {
@@ -292,7 +294,7 @@ export default function RHDocuments() {
           </section>
         )}
 
-        {/* ✅ ANOMALIES DÉTECTÉES PAR L'IA */}
+        {/* ✅ ANOMALIES DÉTECTÉES */}
         {anomalies.length > 0 && (
           <section className="alertes-section" style={{ margin: '0 20px' }}>
             <div className="alertes-header">
@@ -325,6 +327,18 @@ export default function RHDocuments() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* ✅ ANALYSE IA */}
+        {aiAnalysis && (
+          <div className="rh-card full-width" style={{ margin: '20px' }}>
+            <div className="rh-card-header">
+              <h3>🤖 Analyse IA du dossier</h3>
+            </div>
+            <div style={{ padding: '20px', whiteSpace: 'pre-line', fontSize: '14px', lineHeight: '1.6', background: '#f8f9fa', borderRadius: '8px' }}>
+              {aiAnalysis}
+            </div>
+          </div>
         )}
 
         {/* Documents manquants avec bouton d'ajout */}

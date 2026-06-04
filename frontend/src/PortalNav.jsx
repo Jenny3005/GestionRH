@@ -3,7 +3,24 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 export function normalizeRole(role) {
   if (!role || typeof role !== 'string') return '';
-  return role.trim().toLowerCase();
+  // trim and lowercase
+  let r = role.trim().toLowerCase();
+  try {
+    // remove accents (é -> e)
+    r = r.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  } catch (e) {
+    // ignore if normalize is not supported
+  }
+  // convert spaces, underscores or backslashes to slash for consistent delim
+  r = r.replace(/[\s_\\]+/g, '/');
+  // remove any non-alphanumeric, non-slash, non-hyphen characters
+  r = r.replace(/[^a-z0-9\/-]/g, '');
+  // collapse multiple slashes
+  r = r.replace(/\/+/, '/');
+  // canonicalize common combined role names
+  if (r.includes('rh') && r.includes('secretaire')) return 'rh/secretaire';
+  // fallback: return cleaned role
+  return r;
 }
 
 export function getDashboardPath(role = localStorage.getItem('userRole')) {

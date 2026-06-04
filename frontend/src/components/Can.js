@@ -2,10 +2,14 @@ import React from 'react';
 import usePermissions from '../hooks/usePermissions';
 
 export default function Can({ children, permission, anyPermission, allPermissions, fallback = null }) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, loading } = usePermissions();
+  const { hasPermission, hasAnyPermission, hasAllPermissions, loading, isAdmin } = usePermissions();
 
   if (loading) {
     return null; // ou un spinner de chargement
+  }
+
+  if (isAdmin()) {
+    return children;
   }
 
   if (permission && hasPermission(permission)) {
