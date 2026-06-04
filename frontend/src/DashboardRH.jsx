@@ -130,11 +130,11 @@ export default function DashboardRH() {
         setDemandesTerminees(data);
       }
 
-      // 6. Vérifier les documents expirés
-      const expiredRes = await fetch('http://localhost:8000/api/documents/check-expired/');
+      // 6. Compter tous les documents expirés de tous les agents
+      const expiredRes = await fetch('http://localhost:8000/api/documents/expired-count/');
       if (expiredRes.ok) {
         const data = await expiredRes.json();
-        setStats(prev => ({ ...prev, documentsExpires: data.notifications_created || 0 }));
+        setStats(prev => ({ ...prev, documentsExpires: data.total_expired || 0 }));
       }
 
     } catch (error) {
@@ -738,8 +738,25 @@ export default function DashboardRH() {
                   </tbody>
                 </table>
               </div>
+              {/* ✅ PAGINATION */}
+                {vraisAgents.length > 10 && (
+                  <div className="rh-pagination" style={{ padding: '15px', textAlign: 'center', borderTop: '1px solid #eee' }}>
+                    {agentsRecents.length < vraisAgents.length ? (
+                      <button className="btn-rh-secondary" onClick={() => setAgentsRecents(vraisAgents)}>
+                        Voir tous les {vraisAgents.length} agents
+                      </button>
+                    ) : (
+                      <button className="btn-rh-secondary" onClick={() => setAgentsRecents(vraisAgents.slice(0, 10))}>
+                        Afficher moins (10 premiers)
+                      </button>
+                    )}
+                    <span style={{ marginLeft: '15px', color: '#666', fontSize: '13px' }}>
+                      Affichage : {agentsRecents.length} / {vraisAgents.length} agents
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
         )}
 
         {/* ==================== ONGLET ANNONCES & CANDIDATURES ==================== */}

@@ -47,6 +47,8 @@ urlpatterns = [
     path('notifications/<str:matricule>/', views.get_notifications, name='get_notifications'),
     path('notifications/<str:matricule>/lues/', views.marquer_toutes_notifications_lues, name='marquer_toutes_notifications_lues'),
     path('notifications/<int:notification_id>/lue/', views.marquer_notification_lue, name='marquer_notification_lue'),
+    path('notifications/<int:notification_id>/supprimer/', views.supprimer_notification, name='supprimer_notification'),
+    path('notifications/<str:matricule>/supprimer-toutes/', views.supprimer_toutes_notifications, name='supprimer_toutes_notifications'),
 
     # ==================== GESTION DES DOCUMENTS ====================
     path('documents/', views.get_documents, name='get_documents'),
@@ -97,4 +99,6 @@ urlpatterns = [
     path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
     path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
     path('actes/<path:reference>/download/', views.download_acte, name='download_acte'),
+    path('documents/expired-count/', views.get_all_expired_documents, name='get_all_expired_documents'),
+    path('anomalies/<str:matricule>/', views.detect_anomalies, name='detect_anomalies'),
 ]
