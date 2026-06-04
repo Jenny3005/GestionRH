@@ -739,15 +739,22 @@ export default function Demarches() {
       {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             
-            <div className="modal-header-absence">
+            {/* En-tête fixe */}
+            <div className="modal-header-absence" style={{ flexShrink: 0 }}>
               <h3>
                 <span>⏰</span> Demande d'absence exceptionnelle
               </h3>
             </div>
             
-            <div style={{ padding: '0 0.5rem' }}>
+            {/* Corps scrollable */}
+            <div style={{ 
+              padding: '1rem 1.5rem', 
+              overflowY: 'auto', 
+              flex: 1,
+              maxHeight: 'calc(90vh - 120px)'
+            }}>
               
               <div className="limite-card">
                 <div className="limite-title">📋 RÈGLEMENTATION</div>
@@ -835,22 +842,53 @@ export default function Demarches() {
                 <span>ℹ️</span>
                 <span>Cette demande sera soumise à la validation de votre supérieur hiérarchique. Vous serez notifié de la décision.</span>
               </div>
-              
-              <div className="modal-buttons" style={{ marginTop: '1rem' }}>
-                <button 
-                  onClick={() => setShowAbsenceForm(false)} 
-                  style={{ background: '#e2e8f0', color: '#334155' }}
-                >
-                  Annuler
-                </button>
-                <button 
-                  onClick={soumettreDemandeAbsence} 
-                  disabled={loading}
-                  style={{ background: '#f59e0b', color: 'white' }}
-                >
-                  {loading ? 'Envoi en cours...' : '📤 Envoyer la demande'}
-                </button>
-              </div>
+            </div>
+            
+            {/* Pied de page fixe avec les boutons */}
+            <div className="modal-footer" style={{ 
+              flexShrink: 0, 
+              display: 'flex', 
+              justifyContent: 'flex-end', 
+              gap: '1rem',
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid #e2e8f0',
+              background: 'white',
+              borderRadius: '0 0 16px 16px'
+            }}>
+              <button 
+                type="button"
+                className="btn-cancel" 
+                onClick={() => setShowAbsenceForm(false)}
+                style={{
+                  background: '#e2e8f0',
+                  color: '#334155',
+                  border: 'none',
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Annuler
+              </button>
+              <button 
+                type="button"
+                className="btn-submit" 
+                onClick={soumettreDemandeAbsence} 
+                disabled={loading}
+                style={{
+                  background: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  opacity: loading ? 0.6 : 1
+                }}
+              >
+                {loading ? 'Envoi en cours...' : '📤 Envoyer la demande'}
+              </button>
             </div>
           </div>
         </div>
