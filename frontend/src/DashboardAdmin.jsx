@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
-import { normalizeRole } from './PortalNav';
+import { normalizeRole, getRoleLabel } from './PortalNav';  // ← Import des fonctions
 import Can from './components/Can';
 import './App.css';
 
@@ -52,7 +52,6 @@ export default function DashboardAdmin() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
-  
 
   const fetchAgents = async () => {
     try {
@@ -112,16 +111,8 @@ export default function DashboardAdmin() {
     navigate('/'); 
   };
 
-  const getRoleLabel = (role) => {
-    switch(role) {
-      case 'admin': return '👑 Administrateur';
-      case 'rh': return '📋 RH';
-      case 'chef': return '⭐ Chef de service';
-      case 'secretaire': return '📝 Secrétaire DPAF';
-      case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
-      default: return '👤 Agent';
-    }
-  };
+  // Utilise la fonction getRoleLabel importée depuis PortalNav
+  // const getRoleLabel = (role) => { ... }  ← Supprime cette fonction locale
 
   const getRoleBadgeClass = (role) => {
     switch(role) {
@@ -132,6 +123,21 @@ export default function DashboardAdmin() {
       case 'rh/secretaire': return 'role-badge rh-secretaire';
       default: return 'role-badge agent';
     }
+  };
+
+  // Fonction pour obtenir les rôles uniques normalisés
+  const getUniqueNormalizedRoles = (agentRoles) => {
+    if (!agentRoles || agentRoles.length === 0) return ['agent'];
+    
+    const normalized = agentRoles
+      .map(role => {
+        const raw = (role && (role.libelle || role.name || role)) || '';
+        return normalizeRole(raw);  // ← Utilise normalizeRole de PortalNav
+      })
+      .filter(role => role !== '' && role !== null);
+    
+    // Dédupliquer et garder l'ordre
+    return [...new Set(normalized)];
   };
 
   // Affichage du chargement des permissions
@@ -286,52 +292,42 @@ export default function DashboardAdmin() {
                 ) : agents.length === 0 ? (
                   <tr><td colSpan="8" className="text-center">📭 Aucun agent trouvé</td></tr>
                 ) : (
-                  agents.map((agent) => (
-                    <tr key={agent.id}>
-                      <td>{agent.matricule}</td>
-                      <td>{agent.nom}</td>
-                      <td>{agent.prenom}</td>
-                      <td>{agent.email}</td>
-                      <td>{agent.telephone || '-'}</td>
-                      <td>
-                        <div className="roles-multi">
-                          {agent.roles && agent.roles.length > 0 ? (
-                            (() => {
-                              const normalized = agent.roles
-                                .map(role => {
-                                  const raw = (role && (role.libelle || role.name || role)) || '';
-                                  return normalizeRole(raw);
-                                })
-                                .filter(Boolean);
-                              const unique = Array.from(new Set(normalized));
-                              return unique.map((r, idx) => (
-                                <span key={idx} className={getRoleBadgeClass(r)}>
-                                  {getRoleLabel(r)}
-                                </span>
-                              ));
-                            })()
-                          ) : (
-                            <span className="role-badge agent">👤 Agent</span>
-                          )}
-                        </div>
-                       </td>
-                      <td>
-                        <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
-                          {agent.actif ? '✅ Actif' : '❌ Inactif'}
-                        </span>
-                       </td>
-                      <td>
-                        <Can permission="ACTIVER_AGENT">
-                          <button 
-                            className="btn-table-toggle"
-                            onClick={() => toggleAgentStatus(agent.id, agent.actif)}
-                          >
-                            {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
-                          </button>
-                        </Can>
-                       </td>
-                    </tr>
-                  ))
+                  agents.map((agent) => {
+                    const normalizedRoles = getUniqueNormalizedRoles(agent.roles);
+                    return (
+                      <tr key={agent.id}>
+                        <td>{agent.matricule}</td>
+                        <td>{agent.nom}</td>
+                        <td>{agent.prenom}</td>
+                        <td>{agent.email}</td>
+                        <td>{agent.telephone || '-'}</td>
+                        <td>
+                          <div className="roles-multi">
+                            {normalizedRoles.map((r, idx) => (
+                              <span key={idx} className={getRoleBadgeClass(r)}>
+                                {getRoleLabel(r)}  {/* ← Utilise getRoleLabel de PortalNav */}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
+                            {agent.actif ? '✅ Actif' : '❌ Inactif'}
+                          </span>
+                        </td>
+                        <td>
+                          <Can permission="ACTIVER_AGENT">
+                            <button 
+                              className="btn-table-toggle"
+                              onClick={() => toggleAgentStatus(agent.id, agent.actif)}
+                            >
+                              {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
+                            </button>
+                          </Can>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
