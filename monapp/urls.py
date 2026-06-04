@@ -54,6 +54,7 @@ urlpatterns = [
     path('documents/download/<int:piece_id>/', views.download_document, name='download_document'),
     path('documents/delete/<int:piece_id>/', views.delete_document, name='delete_document'),
     path('rh/documents/<str:matricule>/', views.get_documents_by_matricule, name='get_documents_by_matricule'),
+    path('documents/check-expired/', views.check_expired_documents, name='check_expired_documents'),
 
     # ==================== GESTION DES PERMISSIONS ====================
     path('permissions/', views.get_permissions, name='get_permissions'),
