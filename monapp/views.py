@@ -24,6 +24,7 @@ from .models import (
 import json
 import random
 import base64
+import ollama
 import re
 
 try:
@@ -3458,23 +3459,23 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
 
 # ==================== GESTION DES ANOMALIES ====================
 
-# Dans views.py, ajoutez cette fonction
 @csrf_exempt
 @require_http_methods(["GET"])
 def detect_anomalies(request, matricule):
-    """Détecte les anomalies dans le dossier d'un agent"""
+    """Détecte les anomalies dans le dossier d'un agent avec IA (Ollama)"""
     try:
         agent = Agent.objects.get(matricule=matricule)
         dossier = DossierAgent.objects.filter(agent=agent).first()
         
         if not dossier:
-            return JsonResponse({'anomalies': [], 'score': 100})
+            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': 'Aucun dossier trouvé.'})
         
         pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
         anomalies = []
         score = 100
+        today = date.today()
         
-        # 1. Vérifier les dates incohérentes
+        # 1. Dates incohérentes
         for piece in pieces:
             if piece.date_expiration and piece.date_upload:
                 if piece.date_expiration < piece.date_upload:
@@ -3485,27 +3486,13 @@ def detect_anomalies(request, matricule):
                     })
                     score -= 15
         
-        # 3. Vérifier les documents expirés
-        today = date.today()
-        for piece in pieces:
-            if piece.date_expiration and piece.date_expiration < today:
-                jours = (today - piece.date_expiration).days
-                anomalies.append({
-                    'type': 'document_expire',
-                    'severite': 'haute' if jours > 30 else 'moyenne',
-                    'message': f"{piece.type_piece.libelle} expiré depuis {jours} jours"
-                })
-                score -= 20 if jours > 30 else 10
-        
-        # 4. Vérifier les doublons de documents (même type de pièce uploadé plusieurs fois)
+        # 3. Doublons
         type_ids = [p.type_piece.id for p in pieces]
         doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
-
         for type_id in doublons:
             pieces_doublons = pieces.filter(type_piece_id=type_id)
             noms = [p.nom_fichier for p in pieces_doublons]
             type_libelle = pieces_doublons.first().type_piece.libelle
-            
             anomalies.append({
                 'type': 'doublon',
                 'severite': 'moyenne',
@@ -3513,14 +3500,13 @@ def detect_anomalies(request, matricule):
             })
             score -= 10
         
-        # 5. Vérifier l'ancienneté vs le grade (si disponible)
+        # 4. Ancienneté vs grade
         if agent.date_prise_service and agent.echelon:
             anciennete = (today - agent.date_prise_service).days / 365
             try:
                 echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
             except:
                 echelon_num = 1
-            
             if anciennete > 10 and echelon_num < 3:
                 anomalies.append({
                     'type': 'anciennete_grade',
@@ -3531,13 +3517,57 @@ def detect_anomalies(request, matricule):
         
         score = max(0, min(100, score))
         
+        # 5. Analyse IA avec Ollama
+        resume = f"""Agent: {agent.prenom} {agent.nom}
+            Matricule: {agent.matricule}
+            Poste: {agent.poste or 'Non renseigné'}
+            Direction: {agent.direction or 'Non renseignée'}
+            Ancienneté: {(today - agent.date_prise_service).days // 365} ans
+            Taux de complétude: {dossier.taux_completude or 0}%
+
+            Documents importés ({pieces.count()}):
+            """
+        for p in pieces:
+            statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "Valide"
+            expiration = f" - Expire le {p.date_expiration}" if p.date_expiration else ""
+            resume += f"- {p.type_piece.libelle}: {statut}{expiration}\n"
+        
+        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
+        manquants = types_obligatoires.exclude(id__in=pieces.values('type_piece_id'))
+        if manquants.exists():
+            resume += "\nDocuments obligatoires manquants:\n"
+            for tp in manquants:
+                resume += f"- {tp.libelle}\n"
+        
+        try:
+            ai_response = ollama.chat(
+                model='llama3.2:3b',
+                messages=[{
+                    'role': 'system',
+                    'content': """Tu es un expert en ressources humaines. Analyse ce dossier et donne :
+                        - Un résumé global (2-3 phrases)
+                        - Les points critiques
+                        - Des recommandations concrètes
+                        - Une note de conformité sur 10
+                        Réponds en français, avec des tirets."""
+                }, {
+                    'role': 'user',
+                    'content': f"Analyse ce dossier administratif :\n\n{resume}"
+                }]
+            )
+            ai_analysis = ai_response['message']['content']
+        except Exception as e:
+            print(f"Erreur Ollama: {e}")
+            ai_analysis = "Analyse IA indisponible (Ollama non lancé)."
+        
         return JsonResponse({
             'success': True,
             'agent': f"{agent.prenom} {agent.nom}",
             'anomalies': anomalies,
             'score': score,
             'total_anomalies': len(anomalies),
-            'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé'
+            'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé',
+            'ai_analysis': ai_analysis
         })
         
     except Agent.DoesNotExist:
