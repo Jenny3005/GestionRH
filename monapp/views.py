@@ -3031,6 +3031,8 @@ def upload_document(request):
             try:
                 date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
                 print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
+            except:
+                print(f"Format de date invalide: {date_expiration_str}")
         
         anciennes_pieces = Piece.objects.filter(
             dossier_agent=dossier,
