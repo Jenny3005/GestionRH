@@ -12,6 +12,9 @@ export default function DashboardRH() {
   const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
   
   const [userInfo, setUserInfo] = useState({
     nom: localStorage.getItem('userNom') || '',
@@ -174,7 +177,7 @@ export default function DashboardRH() {
     try {
       const annee = new Date().getFullYear();
       const refNumber = `${annee}${Date.now()}`;
-      const reference = `${refNumber}/MND/RH`;
+      const reference = `${refNumber}`;
       
       const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
@@ -188,11 +191,29 @@ export default function DashboardRH() {
       });
       
       if (response.ok) {
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = '';
+        
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="(.+?)"/);
+          if (match && match[1]) {
+            filename = match[1];
+            console.log("📥 Nom du fichier depuis le serveur:", filename);
+          }
+        }
+        
+        // Fallback si le header n'est pas trouvé
+        if (!filename) {
+          const prefix = demande.type_demande?.toLowerCase() === 'absence' ? 'Autorisation_Absence' : 'Autorisation_Conge';
+          filename = `${prefix}_${demande.agent_nom || ''}_${demande.agent_prenom || ''}.pdf`;
+          console.log("📥 Nom du fichier généré (fallback):", filename);
+        }
+        
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Autorisation_Conge_${demande.agent_nom}_${demande.agent_prenom}.pdf`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -233,8 +254,26 @@ export default function DashboardRH() {
     }
   };
 
-  const handleVoirActe = (reference) => {
-     window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
+  const handleVoirActe = async (reference, acte) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setPreviewTitle(`Acte ${reference}`);
+        setShowPreviewModal(true);
+      } else {
+        alert('Erreur lors du chargement de l\'acte');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatutBadge = (statut) => {
@@ -811,7 +850,7 @@ export default function DashboardRH() {
                           <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <div className="action-buttons-cell">
-                              <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                              <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                                 👁️ Voir l'acte
                               </button>
                               <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.reference)}>
@@ -1209,6 +1248,56 @@ export default function DashboardRH() {
                   <button type="submit" className="btn-rh-primary">✅ Créer l'agent</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL APERÇU PDF */}
+        {showPreviewModal && (
+          <div className="modal-overlay" onClick={() => {
+            setShowPreviewModal(false);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl('');
+          }}>
+            <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header preview-modal-header">
+                <h3>📄 {previewTitle}</h3>
+                <button className="modal-close" onClick={() => {
+                  setShowPreviewModal(false);
+                  if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl('');
+                }}>✕</button>
+              </div>
+              <div className="modal-body preview-modal-body">
+                {previewUrl ? (
+                  <iframe 
+                    src={previewUrl} 
+                    title={previewTitle}
+                    className="pdf-preview-iframe"
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="loading-preview">Chargement de l'aperçu...</div>
+                )}
+              </div>
+              <div className="modal-footer preview-modal-footer">
+                <button 
+                  className="btn-download" 
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = previewUrl;
+                    link.download = previewTitle;
+                    link.click();
+                  }}
+                >
+                  ⬇️ Télécharger
+                </button>
+                <button className="btn-close" onClick={() => {
+                  setShowPreviewModal(false);
+                  if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl('');
+                }}>Fermer</button>
+              </div>
             </div>
           </div>
         )}
