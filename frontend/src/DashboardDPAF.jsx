@@ -449,97 +449,170 @@ export default function DashboardDPAF() {
       )}
 
       {/* MODAL SUIVI DE LA DEMANDE */}
+      {/* MODAL SUIVI DE LA DEMANDE - VERSION AMÉLIORÉE */}
       {showSuiviModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowSuiviModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>📋 Suivi de la demande</h3>
+          <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header suivi-modal-header">
+              <div className="header-icon-wrapper">
+                <span className="header-icon">📋</span>
+                <h3>Suivi de la demande</h3>
+              </div>
               <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
             </div>
             
-            <div className="modal-body">
-              <div className="suivi-info-agent">
-                <h4>Agent concerné</h4>
-                <p><strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-                <p>Matricule: {selectedDemande.agent_matricule}</p>
+            <div className="modal-body suivi-modal-body">
+              {/* Carte Agent */}
+              <div className="suivi-agent-card">
+                <div className="agent-avatar">
+                  <span>{selectedDemande.agent_prenom?.charAt(0)}{selectedDemande.agent_nom?.charAt(0)}</span>
+                </div>
+                <div className="agent-info-card">
+                  <h4>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</h4>
+                  <p className="agent-matricule">Matricule: {selectedDemande.agent_matricule}</p>
+                </div>
               </div>
-              
-              <div className="suivi-info-demande">
-                <h4>Détails de la demande</h4>
-                <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
-                <p><strong>Période:</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
-                <p><strong>Date d'assignation:</strong> {selectedDemande.date_assignation ? new Date(selectedDemande.date_assignation).toLocaleDateString('fr-FR') : '-'}</p>
-              </div>
-              
-              <div className="suivi-timeline">
-                <h4>📅 Chronologie</h4>
-                
-                <div className="timeline-step">
-                  <div className={`timeline-icon ${selectedDemande.statut !== 'transmise_dpaf' ? 'completed' : 'current'}`}>
-                    {selectedDemande.statut !== 'transmise_dpaf' ? '✓' : '📤'}
-                  </div>
-                  <div className="timeline-content">
-                    <strong>Transmission au DPAF</strong>
-                    <span className="timeline-date">Par la secrétaire</span>
-                    <p>Demande transmise pour assignment</p>
+
+              {/* Carte Détails Demande */}
+              <div className="suivi-details-card">
+                <div className="detail-item">
+                  <span className="detail-icon">📌</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Type de demande</span>
+                    <strong className="detail-value">{selectedDemande.type_demande}</strong>
                   </div>
                 </div>
-                
-                <div className="timeline-step">
-                  <div className={`timeline-icon ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'pending' : ''}`}>
-                    {selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? '✓' : '👥'}
-                  </div>
-                  <div className="timeline-content">
-                    <strong>Assignation à un agent RH</strong>
-                    <span className="timeline-date">Agent: {selectedDemande.agent_rh_nom} {selectedDemande.agent_rh_prenom}</span>
-                    <p>Demande assignée pour traitement</p>
+                <div className="detail-item">
+                  <span className="detail-icon">📅</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Période</span>
+                    <strong className="detail-value">{selectedDemande.date_debut} → {selectedDemande.date_fin}</strong>
                   </div>
                 </div>
-                
-                <div className="timeline-step">
-                  <div className={`timeline-icon ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'current' : 'pending'}`}>
-                    {selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? '✓' : '⚙️'}
-                  </div>
-                  <div className="timeline-content">
-                    <strong>Traitement par l'agent RH</strong>
-                    <span className="timeline-date">En cours</span>
-                    <p>L'agent RH traite la demande</p>
+                <div className="detail-item">
+                  <span className="detail-icon">👥</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Assigné à</span>
+                    <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
                   </div>
                 </div>
-                
-                <div className="timeline-step">
-                  <div className={`timeline-icon ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : 'pending'}`}>
-                    {selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? '✓' : '📄'}
-                  </div>
-                  <div className="timeline-content">
-                    <strong>Génération de l'acte</strong>
-                    <span className="timeline-date">Par l'agent RH</span>
-                    <p>Acte généré et envoyé à la secrétaire</p>
-                  </div>
-                </div>
-                
-                <div className="timeline-step">
-                  <div className={`timeline-icon ${selectedDemande.statut === 'termine' ? 'completed' : 'pending'}`}>
-                    {selectedDemande.statut === 'termine' ? '✓' : '✅'}
-                  </div>
-                  <div className="timeline-content">
-                    <strong>Remise à l'agent</strong>
-                    <span className="timeline-date">Par la secrétaire</span>
-                    <p>Acte remis à l'agent concerné</p>
+                <div className="detail-item">
+                  <span className="detail-icon">📅</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Date d'assignation</span>
+                    <strong className="detail-value">
+                      {selectedDemande.date_assignation 
+                        ? new Date(selectedDemande.date_assignation).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                        : '-'}
+                    </strong>
                   </div>
                 </div>
               </div>
-              
+
+              {/* Timeline moderne */}
+              <div className="suivi-timeline-modern">
+                <h4 className="timeline-title">📅 Chronologie du traitement</h4>
+                
+                <div className="timeline-modern">
+                  {/* Étape 1 */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut !== 'transmise_dpaf' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'active' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📤</span>
+                        <span className="step-title">Transmission au DPAF</span>
+                        <span className="step-status">Par la secrétaire</span>
+                      </div>
+                      <p className="step-description">Demande transmise pour assignment à un agent RH</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 2 */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'pending' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">👥</span>
+                        <span className="step-title">Assignation à un agent RH</span>
+                        <span className="step-status">Agent: {selectedDemande.agent_rh_nom || 'En attente'} {selectedDemande.agent_rh_prenom || ''}</span>
+                      </div>
+                      <p className="step-description">Demande assignée pour traitement par les RH</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 3 */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">⚙️</span>
+                        <span className="step-title">Traitement par l'agent RH</span>
+                        <span className="step-status">En cours de traitement</span>
+                      </div>
+                      <p className="step-description">L'agent RH vérifie et traite la demande</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 4 */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📄</span>
+                        <span className="step-title">Génération de l'acte</span>
+                        <span className="step-status">Par l'agent RH</span>
+                      </div>
+                      <p className="step-description">Acte généré et envoyé à la secrétaire</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 5 */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'termine' ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">✅</span>
+                        <span className="step-title">Remise à l'agent</span>
+                        <span className="step-status">Par la secrétaire</span>
+                      </div>
+                      <p className="step-description">Acte remis à l'agent concerné</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commentaire DPAF */}
               {selectedDemande.commentaire_dpaf && (
-                <div className="suivi-commentaire">
-                  <h4>📝 Instructions du DPAF</h4>
-                  <p>{selectedDemande.commentaire_dpaf}</p>
+                <div className="suivi-commentaire-card">
+                  <div className="commentaire-header">
+                    <span className="commentaire-icon">📝</span>
+                    <h4>Instructions du DPAF</h4>
+                  </div>
+                  <div className="commentaire-content">
+                    <p>{selectedDemande.commentaire_dpaf}</p>
+                  </div>
                 </div>
               )}
             </div>
             
-            <div className="modal-footer">
-              <button className="btn-close-modal" onClick={() => setShowSuiviModal(false)}>Fermer</button>
+            <div className="modal-footer suivi-modal-footer">
+              <button className="btn-fermer" onClick={() => setShowSuiviModal(false)}>
+                Fermer
+              </button>
             </div>
           </div>
         </div>
