@@ -138,6 +138,8 @@ export default function Documents() {
         
         setDocumentTypes(typesMap);
         setCategoryNames(categoriesMap);
+        console.log("📋 Catégories:", categoryNames);
+        console.log("📋 Types de documents:", typesMap);
       }
     } catch (error) {
       console.error('Erreur chargement types:', error);
