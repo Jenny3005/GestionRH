@@ -2,6 +2,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+import pythoncom
 from django.views.decorators.http import require_http_methods
 from django.db import connection
 from django.db import models
@@ -129,40 +130,33 @@ def _set_document_font(doc, font_name='Times New Roman', font_size_pt=12):
                             pass
 
 
+
 def _docx_bytes_to_pdf_bytes(docx_bytes):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        docx_path = os.path.join(tmpdir, 'document.docx')
-        pdf_path = os.path.join(tmpdir, 'document.pdf')
-        with open(docx_path, 'wb') as f:
-            f.write(docx_bytes)
-
-        if docx2pdf_convert is not None:
-            try:
-                docx2pdf_convert(docx_path, pdf_path)
-            except Exception as e:
-                raise RuntimeError(f'Impossible de convertir DOCX en PDF avec docx2pdf: {e}')
-        else:
-            try:
-                subprocess.run([
-                    'soffice',
-                    '--headless',
-                    '--convert-to',
-                    'pdf',
-                    '--outdir',
-                    tmpdir,
-                    docx_path
-                ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except FileNotFoundError:
-                raise RuntimeError('LibreOffice/soffice introuvable. Installez LibreOffice ou docx2pdf.')
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f'Erreur de conversion PDF: {e.stderr.decode(errors="ignore")}')
-
-        if not os.path.exists(pdf_path):
-            raise RuntimeError('Échec de la conversion en PDF: fichier de sortie introuvable.')
-
-        with open(pdf_path, 'rb') as f:
-            return f.read()
-
+    """Convertit un fichier DOCX (bytes) en PDF (bytes)"""
+    import tempfile
+    import os
+    import pythoncom
+    from docx2pdf import convert
+    
+    pythoncom.CoInitialize()  # Initialiser COM
+    
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'document.docx')
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            
+            with open(docx_path, 'wb') as f:
+                f.write(docx_bytes)
+            
+            convert(docx_path, pdf_path)
+            
+            if os.path.exists(pdf_path):
+                with open(pdf_path, 'rb') as f:
+                    return f.read()
+            else:
+                raise RuntimeError("Conversion échouée")
+    finally:
+        pythoncom.CoUninitialize()  # Nettoyer COM
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
@@ -2240,7 +2234,7 @@ def generer_acte_rh(request, demande_id):
     """RH génère un acte pour une demande"""
     try:
         data = json.loads(request.body)
-        reference = data.get('reference')  # Ex: "20260603123456"
+        reference = data.get('reference')
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
@@ -2273,7 +2267,7 @@ def generer_acte_rh(request, demande_id):
             date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
             nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
             motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
-            filename_prefix = 'Autorisation_Absence'  # ← CORRECTION 1: Bon nom pour absence
+            filename_prefix = 'Autorisation_Absence'  # ← Correction importante !
         else:
             return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
 
@@ -2284,12 +2278,9 @@ def generer_acte_rh(request, demande_id):
         
         doc = Document(template_path)
 
-        # CORRECTION 2: Ne passer que le NUMERO, pas la référence complète
-        # Le template contient déjà "/MND/DPAF/SRHDS/SA"
-        numero_seul = reference  # Ex: "20260603123456"
-        
+        # Préparer les remplacements
         replacements = {
-            '{{REFERENCE}}': numero_seul,  # ← On passe juste le numéro
+            '{{REFERENCE}}': reference,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
             '{{AGENT_PRENOM}}': demande.agent.prenom,
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
@@ -2301,9 +2292,7 @@ def generer_acte_rh(request, demande_id):
             '{{ANNEE}}': str(datetime.now().year)
         }
 
-        # Remplacer les placeholders dans le document
-        _replace_placeholders_in_doc(doc, replacements, reference_number=None)  # ← Pas de reference_number ici
-        
+        _replace_placeholders_in_doc(doc, replacements, reference_number=reference.split('/')[0])
         _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
 
         output = io.BytesIO()
@@ -2319,11 +2308,8 @@ def generer_acte_rh(request, demande_id):
 
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
-        # Stocker la référence COMPLÈTE dans la base de données
-        reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
-        
         acte = ActeAdministratif.objects.create(
-            reference=reference_complete,  # ← Stocker la référence complète
+            reference=reference,
             demande=demande,
             type_acte=type_acte,
             statut='genere',
@@ -2335,10 +2321,11 @@ def generer_acte_rh(request, demande_id):
         print(f"✅ Acte créé: {acte.reference} - Type: {type_acte}")
 
         demande.statut = 'acte_genere'
-        demande.reference_acte = reference_complete
+        demande.reference_acte = reference
         demande.date_generation_acte = datetime.now().date()
         demande.save()
 
+        # Utiliser filename_prefix qui est déjà défini correctement
         return _create_pdf_response(pdf_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
         
     except Demande.DoesNotExist:
@@ -2348,7 +2335,6 @@ def generer_acte_rh(request, demande_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 def envoyer_acte_secretaire(request, reference):
