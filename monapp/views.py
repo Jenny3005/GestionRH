@@ -13,12 +13,12 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from django.http import HttpResponse
+from collections import Counter
 import io
 import os
 import subprocess
 import tempfile
 from datetime import datetime, date, timedelta
-from docx.shared import Pt
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif
@@ -30,6 +30,7 @@ import re
 
 try:
     from docx2pdf import convert as docx2pdf_convert
+    from docx.shared import Pt
 except ImportError:
     docx2pdf_convert = None
 
@@ -3028,13 +3029,6 @@ def upload_document(request):
         date_expiration = None
         if date_expiration_str:
             try:
-                match = re.search(r'(\d+)', type_piece.duree_validite)
-                if match:
-                    duree_annees = int(match.group(1))
-                    date_expiration = date.today() + timedelta(days=duree_annees * 365)
-                    print(f"Date d'expiration calculée: {date_expiration} ({duree_annees} ans)")
-            except Exception as e:
-                print(f"Impossible de calculer la date d'expiration: {e}")
                 date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
                 print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
         
@@ -3314,17 +3308,6 @@ def detect_anomalies(request, matricule):
                     })
                     score -= 15
         
-        # 2. Vérifier les documents obligatoires manquants
-        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
-        for tp in types_obligatoires:
-            if not pieces.filter(type_piece=tp).exists():
-                anomalies.append({
-                    'type': 'document_manquant',
-                    'severite': 'moyenne',
-                    'message': f"Document obligatoire manquant : {tp.libelle}"
-                })
-                score -= 10
-        
         # 3. Vérifier les documents expirés
         today = date.today()
         for piece in pieces:
@@ -3337,20 +3320,29 @@ def detect_anomalies(request, matricule):
                 })
                 score -= 20 if jours > 30 else 10
         
-        # 4. Vérifier la cohérence des noms (si plusieurs documents)
-        noms_fichiers = [p.nom_fichier.lower() for p in pieces]
-        if len(noms_fichiers) != len(set(noms_fichiers)):
+        # 4. Vérifier les doublons de documents (même type de pièce uploadé plusieurs fois)
+        type_ids = [p.type_piece.id for p in pieces]
+        doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
+
+        for type_id in doublons:
+            pieces_doublons = pieces.filter(type_piece_id=type_id)
+            noms = [p.nom_fichier for p in pieces_doublons]
+            type_libelle = pieces_doublons.first().type_piece.libelle
+            
             anomalies.append({
                 'type': 'doublon',
-                'severite': 'basse',
-                'message': 'Possibles doublons de documents détectés'
+                'severite': 'moyenne',
+                'message': f'⚠️ Doublon : {len(noms)} versions de "{type_libelle}" - Fichiers : {", ".join(noms)}'
             })
-            score -= 5
+            score -= 10
         
         # 5. Vérifier l'ancienneté vs le grade (si disponible)
         if agent.date_prise_service and agent.echelon:
             anciennete = (today - agent.date_prise_service).days / 365
-            echelon_num = int(agent.echelon.split('-')[0]) if agent.echelon and '-' in agent.echelon else 1
+            try:
+                echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
+            except:
+                echelon_num = 1
             
             if anciennete > 10 and echelon_num < 3:
                 anomalies.append({
@@ -3371,6 +3363,51 @@ def detect_anomalies(request, matricule):
             'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé'
         })
         
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_all_expired_documents(request):
+    """Compter tous les documents expirés de tous les agents"""
+    try:
+        today = date.today()
+        count = Piece.objects.filter(
+            date_expiration__lte=today,
+            valide=1
+        ).count()
+        
+        return JsonResponse({
+            'success': True,
+            'total_expired': count
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_notification(request, notification_id):
+    """Supprimer définitivement une notification"""
+    try:
+        notification = Notification.objects.get(id=notification_id)
+        notification.delete()
+        return JsonResponse({'success': True, 'message': 'Notification supprimée'})
+    except Notification.DoesNotExist:
+        return JsonResponse({'error': 'Notification non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_toutes_notifications(request, matricule):
+    """Supprimer toutes les notifications d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        deleted, _ = Notification.objects.filter(agent_id=agent.matricule).delete()
+        return JsonResponse({'success': True, 'message': f'{deleted} notification(s) supprimée(s)'})
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
