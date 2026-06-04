@@ -15,7 +15,7 @@ class ActeAdministratif(models.Model):
     statut = models.CharField(max_length=50)
     date_generation = models.DateField()
     contenu = models.TextField(blank=True, null=True)
-    fichier_pdf = models.TextField(blank=True, null=True)
+    fichier_pdf = models.TextField(blank=True, null=True) 
 
     class Meta:
         managed = False
@@ -37,6 +37,8 @@ class Agent(models.Model):
     corps = models.CharField(max_length=100, blank=True, null=True)
     echelon = models.CharField(max_length=20, blank=True, null=True)
     actif = models.IntegerField(blank=True, null=True)
+    signature = models.TextField(null=True, blank=True)   # Stocke l'image de signature en base64
+    cachet = models.TextField(null=True, blank=True)     # Nouveau champ pour stocker le rôle de l'agent
 
     class Meta:
         managed = False
