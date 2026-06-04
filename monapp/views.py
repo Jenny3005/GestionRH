@@ -2036,26 +2036,27 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_agents_rh(request):
-    """Récupérer tous les agents ayant le rôle RH"""
+    """Récupérer tous les agents ayant un rôle RH ou RH/Secrétaire"""
     try:
         print(f"=== get_agents_rh called")
         
-        role_rh = Role.objects.get(libelle='rh')
-        agents_rh = Agent.objects.filter(agentrole__role=role_rh, actif=1)
+        agents_rh = Agent.objects.filter(
+            agentrole__role__libelle__in=['rh'],
+            actif=1
+        ).select_related('agentrole__role')
         
         result = [{
             'matricule': a.matricule,
             'nom': a.nom,
             'prenom': a.prenom,
             'poste': a.poste or 'Agent RH',
+            'role': getattr(getattr(a, 'agentrole', None), 'role', None).libelle if getattr(a, 'agentrole', None) else None,
             'email': a.email
         } for a in agents_rh]
         
         print(f"✅ {len(result)} agents RH trouvés")
         return JsonResponse(result, safe=False)
         
-    except Role.DoesNotExist:
-        return JsonResponse({'error': 'Rôle RH non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -2239,31 +2240,70 @@ def generer_acte_rh(request, demande_id):
     """RH génère un acte pour une demande"""
     try:
         data = json.loads(request.body)
-        reference = data.get('reference')
+        reference = data.get('reference')  # Ex: "20260603123456"
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
+
+        demande_type_label = demande.type_demande.libelle if demande.type_demande else ''
+        demande_type_lower = demande_type_label.lower()
+        is_conge = demande_type_lower == 'congé' or demande_type_lower == 'conge'
+        is_absence = 'absence' in demande_type_lower
+
+        # Variables communes
+        date_debut = ''
+        date_fin = ''
+        nombre_jours = ''
+        motif = ''
+        type_acte = ''
+        filename_prefix = ''
         
-        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'autorisation_conge_template.docx')
+        if is_conge:
+            template_name = 'autorisation_conge_template.docx'
+            type_acte = 'Autorisation de jouissance de congé administratif'
+            date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+            date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+            nombre_jours = demande.demandeconge.nombrejours if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
+            motif = ''
+            filename_prefix = 'Autorisation_Conge'
+        elif is_absence:
+            template_name = 'autorisation_absence_template.docx'
+            type_acte = "Autorisation d'absence exceptionnelle"
+            date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
+            date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
+            nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
+            motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
+            filename_prefix = 'Autorisation_Absence'  # ← CORRECTION 1: Bon nom pour absence
+        else:
+            return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
+
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
         
         if not os.path.exists(template_path):
-            return JsonResponse({'error': 'Template non trouvé'}, status=500)
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
         
         doc = Document(template_path)
 
-        date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
-        date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+        # CORRECTION 2: Ne passer que le NUMERO, pas la référence complète
+        # Le template contient déjà "/MND/DPAF/SRHDS/SA"
+        numero_seul = reference  # Ex: "20260603123456"
+        
         replacements = {
-            '{{REFERENCE}}': reference,
-            '{{AGENT_NOM}}': demande.agent.nom,
+            '{{REFERENCE}}': numero_seul,  # ← On passe juste le numéro
+            '{{AGENT_NOM}}': demande.agent.nom.upper(),
             '{{AGENT_PRENOM}}': demande.agent.prenom,
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
             '{{DATE_DEBUT}}': date_debut,
             '{{DATE_FIN}}': date_fin,
-            '{{NOMBRE_JOURS}}': str(demande.demandeconge.nombrejours)
+            '{{NOMBRE_JOURS}}': str(nombre_jours),
+            '{{MOTIF}}': motif,
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+            '{{ANNEE}}': str(datetime.now().year)
         }
 
-        _replace_placeholders_in_doc(doc, replacements, reference_number=reference.split('/')[0])
+        # Remplacer les placeholders dans le document
+        _replace_placeholders_in_doc(doc, replacements, reference_number=None)  # ← Pas de reference_number ici
+        
         _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
 
         output = io.BytesIO()
@@ -2279,24 +2319,27 @@ def generer_acte_rh(request, demande_id):
 
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
+        # Stocker la référence COMPLÈTE dans la base de données
+        reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
+        
         acte = ActeAdministratif.objects.create(
-            reference=reference,
+            reference=reference_complete,  # ← Stocker la référence complète
             demande=demande,
-            type_acte='Autorisation de jouissance de congé administratif',
+            type_acte=type_acte,
             statut='genere',
             date_generation=datetime.now().date(),
             contenu='Acte généré automatiquement',
             fichier_pdf=fichier_base64
         )
 
-        print(f"✅ Acte créé: {acte.reference}")
+        print(f"✅ Acte créé: {acte.reference} - Type: {type_acte}")
 
         demande.statut = 'acte_genere'
-        demande.reference_acte = reference
+        demande.reference_acte = reference_complete
         demande.date_generation_acte = datetime.now().date()
         demande.save()
 
-        return _create_pdf_response(pdf_bytes, f'Autorisation_Conge_{demande.agent.nom}_{demande.agent.prenom}')
+        return _create_pdf_response(pdf_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
         
     except Demande.DoesNotExist:
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
@@ -2305,7 +2348,6 @@ def generer_acte_rh(request, demande_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["PUT"])
