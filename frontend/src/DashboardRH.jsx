@@ -172,7 +172,7 @@ export default function DashboardRH() {
     try {
       const annee = new Date().getFullYear();
       const refNumber = `${annee}${Date.now()}`;
-      const reference = `${refNumber}/MND/RH`;
+      const reference = `${refNumber}`;
       
       const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
@@ -186,11 +186,29 @@ export default function DashboardRH() {
       });
       
       if (response.ok) {
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = '';
+        
+        if (contentDisposition) {
+          const match = contentDisposition.match(/filename="(.+?)"/);
+          if (match && match[1]) {
+            filename = match[1];
+            console.log("📥 Nom du fichier depuis le serveur:", filename);
+          }
+        }
+        
+        // Fallback si le header n'est pas trouvé
+        if (!filename) {
+          const prefix = demande.type_demande?.toLowerCase() === 'absence' ? 'Autorisation_Absence' : 'Autorisation_Conge';
+          filename = `${prefix}_${demande.agent_nom || ''}_${demande.agent_prenom || ''}.pdf`;
+          console.log("📥 Nom du fichier généré (fallback):", filename);
+        }
+        
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Autorisation_Conge_${demande.agent_nom}_${demande.agent_prenom}.pdf`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
