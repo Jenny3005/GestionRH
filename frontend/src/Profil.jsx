@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PortalNav, { getRoleLabel } from './PortalNav';
+import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import './App.css';
 
@@ -10,6 +10,15 @@ export default function Profil() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // États pour la signature et le cachet
+  const [signaturePreview, setSignaturePreview] = useState(null);
+  const [cachetPreview, setCachetPreview] = useState(null);
+  const [signatureLoading, setSignatureLoading] = useState(false);
+  const [cachetLoading, setCachetLoading] = useState(false);
+  
+  const signatureInputRef = useRef(null);
+  const cachetInputRef = useRef(null);
   
   const [userInfo, setUserInfo] = useState({
     matricule: localStorage.getItem('userMatricule') || '',
@@ -29,7 +38,9 @@ export default function Profil() {
 
   const matricule = localStorage.getItem('userMatricule');
   const userRole = localStorage.getItem('userRole');
-  const userName = `${userInfo.prenom} ${userInfo.nom}`.trim();
+  
+  // Vérifier si l'utilisateur peut avoir un cachet (DPAF, Chef, Admin)
+  const hasCachetRight = ['dpaf', 'chef', 'admin'].includes(userRole);
 
   useEffect(() => {
     if (!matricule) {
@@ -37,8 +48,8 @@ export default function Profil() {
       return;
     }
     fetchUserInfo();
+    fetchSignatureCachet();
   }, []);
-
 
   const fetchUserInfo = async () => {
     try {
@@ -66,6 +77,155 @@ export default function Profil() {
     }
   };
 
+  // Récupérer la signature et le cachet existants
+  const fetchSignatureCachet = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/agent/signature-cachet/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.signature) setSignaturePreview(data.signature);
+        if (data.cachet) setCachetPreview(data.cachet);
+      }
+    } catch (error) {
+      console.error('Erreur chargement signature:', error);
+    }
+  };
+
+  // Upload de la signature
+  const handleSignatureUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.match('image.*')) {
+      alert('Veuillez sélectionner une image (PNG, JPEG)');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('L\'image ne doit pas dépasser 2MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      setSignaturePreview(base64);
+      setSignatureLoading(true);
+      
+      try {
+        const response = await fetch(`http://localhost:8000/api/agent/upload-signature/${matricule}/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signature: base64 })
+        });
+        
+        if (response.ok) {
+          setSuccessMessage('✅ Signature enregistrée avec succès');
+          setTimeout(() => setSuccessMessage(''), 3000);
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Erreur lors de l\'enregistrement');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+      } finally {
+        setSignatureLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Upload du cachet
+  const handleCachetUpload = async (e) => {
+    if (!hasCachetRight) {
+      alert('⚠️ Seuls les DPAF, Chefs et Admins peuvent avoir un cachet officiel');
+      return;
+    }
+    
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.match('image.*')) {
+      alert('Veuillez sélectionner une image (PNG, JPEG)');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert('L\'image ne doit pas dépasser 2MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      setCachetPreview(base64);
+      setCachetLoading(true);
+      
+      try {
+        const response = await fetch(`http://localhost:8000/api/agent/upload-cachet/${matricule}/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cachet: base64 })
+        });
+        
+        if (response.ok) {
+          setSuccessMessage('✅ Cachet officiel enregistré avec succès');
+          setTimeout(() => setSuccessMessage(''), 3000);
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Erreur lors de l\'enregistrement');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+      } finally {
+        setCachetLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Supprimer la signature
+  const handleDeleteSignature = async () => {
+    if (window.confirm('Voulez-vous vraiment supprimer votre signature ?')) {
+      try {
+        const response = await fetch(`http://localhost:8000/api/agent/delete-signature/${matricule}/`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          setSignaturePreview(null);
+          setSuccessMessage('✅ Signature supprimée');
+          setTimeout(() => setSuccessMessage(''), 3000);
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+      }
+    }
+  };
+
+  // Supprimer le cachet
+  const handleDeleteCachet = async () => {
+    if (window.confirm('Voulez-vous vraiment supprimer votre cachet ?')) {
+      try {
+        const response = await fetch(`http://localhost:8000/api/agent/delete-cachet/${matricule}/`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          setCachetPreview(null);
+          setSuccessMessage('✅ Cachet supprimé');
+          setTimeout(() => setSuccessMessage(''), 3000);
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+      }
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setUserInfo(prev => ({ ...prev, [name]: value }));
@@ -85,15 +245,11 @@ export default function Profil() {
       
       if (response.ok) {
         setSuccessMessage('Informations mises à jour avec succès !');
-        
-        // Mettre à jour le localStorage
         localStorage.setItem('userNom', userInfo.nom);
         localStorage.setItem('userPrenom', userInfo.prenom);
         localStorage.setItem('userEmail', userInfo.email);
-        
         setIsEditing(false);
         setTimeout(() => setSuccessMessage(''), 3000);
-        fetchUserInfo();
       } else {
         const data = await response.json();
         setErrorMessage(data.error || 'Erreur lors de la mise à jour');
@@ -104,7 +260,6 @@ export default function Profil() {
       setLoading(false);
     }
   };
-
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -138,7 +293,7 @@ export default function Profil() {
           </div>
         </section>
 
-        {/* Bouton Modifier en haut à droite */}
+        {/* Bouton Modifier */}
         <div className="profil-actions-top">
           {!isEditing ? (
             <button className="btn-edit-profil-top" onClick={() => setIsEditing(true)}>
@@ -159,7 +314,7 @@ export default function Profil() {
           )}
         </div>
 
-        {/* Messages de notification */}
+        {/* Messages */}
         {successMessage && (
           <div className="alert-success">
             <span className="alert-icon">✅</span>
@@ -174,7 +329,6 @@ export default function Profil() {
         )}
 
         <div className="agent-profile-section">
-          {/* Grille d'informations */}
           <div className="agent-info-grid">
             
             {/* Carte 1: Informations personnelles */}
@@ -323,6 +477,97 @@ export default function Profil() {
               </div>
             </div>
           </div>
+
+          {/* Carte 4: Signature et Cachet */}
+          <div className="signature-cachet-card">
+            <div className="card-header">
+              <h3>✍️ Signature & Cachet officiel</h3>
+            </div>
+            <div className="signature-cachet-grid">
+              
+              {/* Signature */}
+              <div className="signature-box">
+                <h4>📝 Ma signature</h4>
+                <div className="preview-area">
+                  {signaturePreview ? (
+                    <div className="preview-container">
+                      <img src={signaturePreview} alt="Signature" className="signature-img" />
+                      <button 
+                        className="btn-delete"
+                        onClick={handleDeleteSignature}
+                        disabled={signatureLoading}
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="empty-preview">
+                      <span>✍️</span>
+                      <p>Aucune signature</p>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  className="btn-upload"
+                  onClick={() => signatureInputRef.current.click()}
+                  disabled={signatureLoading}
+                >
+                  {signatureLoading ? 'Chargement...' : (signaturePreview ? '📤 Changer' : '📤 Télécharger')}
+                </button>
+                <input
+                  type="file"
+                  ref={signatureInputRef}
+                  accept="image/png,image/jpeg,image/jpg"
+                  onChange={handleSignatureUpload}
+                  style={{ display: 'none' }}
+                />
+                <p className="help-text">PNG/JPEG, max 2MB (fond transparent recommandé)</p>
+              </div>
+
+              {/* Cachet - uniquement pour DPAF, Chef, Admin */}
+              {hasCachetRight && (
+                <div className="cachet-box">
+                  <h4>🏛️ Mon cachet officiel</h4>
+                  <div className="preview-area">
+                    {cachetPreview ? (
+                      <div className="preview-container">
+                        <img src={cachetPreview} alt="Cachet" className="cachet-img" />
+                        <button 
+                          className="btn-delete"
+                          onClick={handleDeleteCachet}
+                          disabled={cachetLoading}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="empty-preview">
+                        <span>🏛️</span>
+                        <p>Aucun cachet</p>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    className="btn-upload"
+                    onClick={() => cachetInputRef.current.click()}
+                    disabled={cachetLoading}
+                  >
+                    {cachetLoading ? 'Chargement...' : (cachetPreview ? '📤 Changer' : '📤 Télécharger')}
+                  </button>
+                  <input
+                    type="file"
+                    ref={cachetInputRef}
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleCachetUpload}
+                    style={{ display: 'none' }}
+                  />
+                  <p className="help-text warning">⚠️ Le cachet engage officiellement votre service</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </main>
 
@@ -345,9 +590,9 @@ export default function Profil() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

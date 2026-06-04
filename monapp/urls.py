@@ -99,6 +99,13 @@ urlpatterns = [
     path('attestations/presence/', views.generer_attestation_presence, name='generer_attestation_presence'),
     path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
     path('actes/<path:reference>/download/', views.download_acte, name='download_acte'),
+
+    # ==================== SIGNATURE ET CACHET ====================
+    path('agent/signature-cachet/<str:matricule>/', views.get_signature_cachet, name='get_signature_cachet'),
+    path('agent/upload-signature/<str:matricule>/', views.upload_signature, name='upload_signature'),
+    path('agent/upload-cachet/<str:matricule>/', views.upload_cachet, name='upload_cachet'),
+    path('agent/delete-signature/<str:matricule>/', views.delete_signature, name='delete_signature'),
+    path('agent/delete-cachet/<str:matricule>/', views.delete_cachet, name='delete_cachet'),
     path('documents/expired-count/', views.get_all_expired_documents, name='get_all_expired_documents'),
     path('anomalies/<str:matricule>/', views.detect_anomalies, name='detect_anomalies'),
 ]
