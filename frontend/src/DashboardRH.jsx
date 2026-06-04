@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import usePermissions from './hooks/usePermissions';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import UserMenu from './UserMenu';
 import './App.css';
 
@@ -233,7 +235,7 @@ export default function DashboardRH() {
 
   const handleEnvoyerSecretaire = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${encodeURIComponent(reference)}/`, {
+      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
@@ -411,6 +413,242 @@ export default function DashboardRH() {
     };
     
     input.click();
+  };
+
+  // ✅ Export des données
+  const handleExportExcel = async (type) => {
+    try {
+      let data = [];
+      let filename = '';
+      
+      if (type === 'agents') {
+        const res = await fetch('http://localhost:8000/api/agents/');
+        if (res.ok) {
+          const agents = await res.json();
+          // ✅ Formater les agents avec les rôles et Oui/Non
+          data = agents.map(agent => formatAgentForExport(agent));
+          filename = 'Liste_Agents.xlsx';
+        }
+      } else if (type === 'stats') {
+        const res = await fetch('http://localhost:8000/api/stats/');
+        if (res.ok) {
+          const statsData = await res.json();
+          data = [statsData];
+          filename = 'Statistiques_RH.xlsx';
+        }
+      } else if (type === 'dossiers') {
+        // Récupérer tous les agents avec leur taux de complétude
+        const res = await fetch('http://localhost:8000/api/agents/');
+        if (res.ok) {
+          const agents = await res.json();
+          for (let agent of agents) {
+            try {
+              const docRes = await fetch(`/api/rh/documents/${agent.matricule}/`, {
+                headers: { 'X-User-Matricule': matricule }
+              });
+              if (docRes.ok) {
+                const docData = await docRes.json();
+                data.push({
+                  matricule: agent.matricule,
+                  nom: agent.nom,
+                  prenom: agent.prenom,
+                  direction: agent.direction,
+                  taux_completude: docData.dossier?.taux_completude || 0,
+                  documents_importes: docData.documents?.length || 0,
+                  documents_manquants: docData.missing_documents?.length || 0
+                });
+              }
+            } catch (e) {}
+          }
+          filename = 'Etat_Dossiers.xlsx';
+        }
+      }
+      
+      if (data.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Données');
+        XLSX.writeFile(wb, filename);
+      } else {
+        alert('Aucune donnée à exporter');
+      }
+    } catch (error) {
+      console.error('Erreur export:', error);
+      alert('Erreur lors de l\'export');
+    }
+  };
+
+  const handleExportPDF = async (type) => {
+    try {
+      const doc = new jsPDF();
+      
+      // ✅ Gros logo en haut à gauche
+      const logoUrl = '/logo_MND.png';
+      doc.addImage(logoUrl, 'PNG', 10, 1, 60, 60);  // y=5 pour le remonter
+      
+      // Texte aligné au milieu du logo (y=25 environ)
+      doc.setFontSize(16);
+      doc.setTextColor(0, 51, 102);
+      doc.text('Ministère du Numérique et de la Digitalisation', 75, 30);
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text('République du Bénin', 75, 38);
+
+      // ✅ Type de document AVANT la ligne
+      doc.setFontSize(13);
+      doc.setTextColor(100, 100, 100);
+      doc.text(type === 'agents' ? 'Liste des agents' : type === 'stats' ? 'Statistiques RH' : 'État des dossiers agents', 14, 65);
+      
+      // Ligne de séparation sous le logo
+      doc.setDrawColor(0, 123, 255);
+      doc.setLineWidth(0.5);
+      doc.line(14, 70, 196, 70);  // Sous le logo de 60px
+      
+      if (type === 'agents') {
+        const res = await fetch('http://localhost:8000/api/agents/');
+        if (res.ok) {
+          const agents = await res.json();
+          const formatted = agents.map(agent => formatAgentForExport(agent));
+          
+          doc.setFontSize(14);
+          doc.setTextColor(0, 0, 0);
+          
+          autoTable(doc, {
+            startY: 85,
+            head: [['Matricule', 'Nom', 'Prénom', 'Email', 'Poste', 'Direction', 'Rôle(s)', 'Actif']],
+            body: formatted.map(a => [a.Matricule, a.Nom, a['Prénom'], a.Email, a.Poste, a.Direction, a['Rôle(s)'], a.Actif]),
+            theme: 'grid',
+            headStyles: { fillColor: [0, 123, 255] },
+            styles: { fontSize: 7 }
+          });
+          
+          const pageCount = doc.internal.getNumberOfPages();
+          for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(128, 128, 128);
+            doc.text(`Page ${i} / ${pageCount} - Généré le ${new Date().toLocaleDateString('fr-FR')}`, 14, 290);
+          }
+          
+          doc.save('Liste_Agents.pdf');
+        }
+      } else if (type === 'stats') {
+        const res = await fetch('http://localhost:8000/api/stats/');
+        if (res.ok) {
+          const stats = await res.json();
+          
+          doc.setFontSize(14);
+          doc.setTextColor(0, 0, 0);
+          
+          autoTable(doc, {
+            startY: 85,
+            head: [['Indicateur', 'Valeur']],
+            body: [
+              ['Total agents', stats.total_agents],
+              ['Agents actifs', stats.agents_actifs],
+              ['Total rôles', stats.total_roles],
+              ['Types de demande', stats.total_types_demande],
+              ['Types de pièces', stats.total_types_piece],
+              ['Total demandes', stats.total_demandes]
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [0, 123, 255] }
+          });
+          
+          doc.save('Statistiques_RH.pdf');
+        }
+      } else if (type === 'dossiers') {
+        const res = await fetch('http://localhost:8000/api/agents/');
+        if (res.ok) {
+          const agents = await res.json();
+          const dossiers = [];
+          
+          for (let agent of agents.slice(0, 20)) {
+            try {
+              const docRes = await fetch(`/api/rh/documents/${agent.matricule}/`, {
+                headers: { 'X-User-Matricule': matricule }
+              });
+              if (docRes.ok) {
+                const docData = await docRes.json();
+                dossiers.push([
+                  agent.matricule,
+                  `${agent.nom} ${agent.prenom}`,
+                  agent.direction || '-',
+                  `${docData.dossier?.taux_completude || 0}%`,
+                  docData.documents?.length || 0,
+                  docData.missing_documents?.length || 0
+                ]);
+              }
+            } catch (e) {}
+          }
+          
+          doc.setFontSize(14);
+          doc.setTextColor(0, 0, 0);
+          
+          autoTable(doc, {
+            startY: 85,
+            head: [['Matricule', 'Agent', 'Direction', 'Complétude', 'Docs', 'Manquants']],
+            body: dossiers,
+            theme: 'grid',
+            headStyles: { fillColor: [0, 123, 255] },
+            styles: { fontSize: 8 }
+          });
+          
+          doc.save('Etat_Dossiers.pdf');
+        }
+      }
+    } catch (error) {
+      console.error('Erreur export PDF:', error);
+      alert('Erreur lors de l\'export PDF');
+    }
+  };
+
+  const handleExportCSV = async (type) => {
+    try {
+      let data = [];
+      let filename = '';
+      
+      if (type === 'agents') {
+        const res = await fetch('http://localhost:8000/api/agents/');
+        if (res.ok) {
+          const agents = await res.json();
+          // ✅ Formater les agents
+          data = agents.map(agent => formatAgentForExport(agent));
+          filename = 'Liste_Agents.csv';
+        }
+      }
+      
+      if (data.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const csv = XLSX.utils.sheet_to_csv(ws);
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+      }
+    } catch (error) {
+      console.error('Erreur export:', error);
+      alert('Erreur lors de l\'export');
+    }
+  };
+
+  const formatAgentForExport = (agent) => {
+    // Convertir les rôles en chaîne lisible
+    const roles = agent.roles?.map(r => r.libelle).join(', ') || 'agent';
+    
+    return {
+      'Matricule': agent.matricule,
+      'Nom': agent.nom,
+      'Prénom': agent.prenom,
+      'Email': agent.email,
+      'Téléphone': agent.telephone,
+      'Poste': agent.poste || 'Agent',
+      'Direction': agent.direction || 'À renseigner',
+      'Rôle(s)': roles,
+      'Actif': agent.actif === 1 ? 'Oui' : 'Non'
+    };
   };
 
   const handleViewDocuments = (agentMatricule) => {
@@ -819,14 +1057,14 @@ export default function DashboardRH() {
         {activeTab === 'rapports' && (
           <div className="rh-section">
             <div className="rh-stats-grid">
-              <div className="rh-stat-card clickable">
+              <div className="rh-stat-card clickable" onClick={() => handleExportExcel('stats')}>
                 <div className="rh-stat-icon">📊</div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">Rapport mensuel</span>
                   <span className="rh-stat-label">Mai 2026</span>
                 </div>
               </div>
-              <div className="rh-stat-card clickable">
+              <div className="rh-stat-card clickable" onClick={() => handleExportExcel('agents')}>
                 <div className="rh-stat-icon">👥</div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">Effectifs par direction</span>
@@ -855,28 +1093,28 @@ export default function DashboardRH() {
               </div>
               <div className="rh-export-options">
                 <div className="export-option">
-                  <h4>Liste des agents</h4>
+                  <h4>📋 Liste des agents</h4>
                   <p>Export complet des agents avec leurs informations</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel">📊 Excel</button>
-                    <button className="btn-export-pdf">📄 PDF</button>
-                    <button className="btn-export-csv">📝 CSV</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}>📊 Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('agents')}>📄 PDF</button>
+                    <button className="btn-export-csv" onClick={() => handleExportCSV('agents')}>📝 CSV</button>
                   </div>
                 </div>
                 <div className="export-option">
-                  <h4>Statistiques RH</h4>
+                  <h4>📊 Statistiques RH</h4>
                   <p>Effectifs, recrutements, départs, congés</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel">📊 Excel</button>
-                    <button className="btn-export-pdf">📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}>📊 Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('stats')}>📄 PDF</button>
                   </div>
                 </div>
                 <div className="export-option">
-                  <h4>Dossiers agents</h4>
-                  <p>État des dossiers et documents manquants</p>
+                  <h4>📁 État des dossiers</h4>
+                  <p>Complétude et documents manquants par agent</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel">📊 Excel</button>
-                    <button className="btn-export-pdf">📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}>📊 Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('dossiers')}>📄 PDF</button>
                   </div>
                 </div>
               </div>

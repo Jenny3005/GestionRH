@@ -29,32 +29,28 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
     let parsedRoles = [];
     try {
       const raw = JSON.parse(savedRoles || '[]');
-      // 🔍 AJOUTE ICI
-      console.log('raw after parse:', raw);
-      console.log('is array?', Array.isArray(raw));
-      
       if (Array.isArray(raw)) {
         parsedRoles = raw.map(normalizeRole).filter(Boolean);
-        // 🔍 AJOUTE ICI
-        console.log('parsedRoles after map+filter:', parsedRoles);
+        // remove duplicates while preserving order
+        parsedRoles = Array.from(new Set(parsedRoles));
       }
     } catch (error) {
       console.error('Error parsing roles:', error);
       parsedRoles = [];
     }
 
+    // If no parsed roles but a currentRole exists, use it (normalized)
+    const normalizedCurrent = normalizeRole(currentRole) || '';
     if (parsedRoles.length > 0) {
       setUserRoles(parsedRoles);
-      setUserRole(currentRole || parsedRoles[0]);
-    } else if (currentRole) {
-      setUserRoles([currentRole]);
-      setUserRole(currentRole);
+      setUserRole(normalizedCurrent || parsedRoles[0]);
+    } else if (normalizedCurrent) {
+      setUserRoles([normalizedCurrent]);
+      setUserRole(normalizedCurrent);
+    } else {
+      setUserRoles(['agent']);
+      setUserRole('agent');
     }
-    
-    // 🔍 AJOUTE ICI
-    console.log('userRoles state will be:', parsedRoles);
-    console.log('userRole state will be:', currentRole || (parsedRoles[0] || 'agent'));
-    console.log('=== FIN DEBUG ===');
   }, []);
 
   useEffect(() => {
