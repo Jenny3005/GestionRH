@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version corrigée (uniquement les agents avec rôle 'rh')
+// DashboardDPAF.jsx - Version corrigée avec aperçu PDF dans modal
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -22,11 +22,14 @@ export default function DashboardDPAF() {
   const [showAssignerModal, setShowAssignerModal] = useState(false);
   const [showSuiviModal, setShowSuiviModal] = useState(false);
   const [showSignerModal, setShowSignerModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [selectedActe, setSelectedActe] = useState(null);
   const [selectedAgentRH, setSelectedAgentRH] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [signatureCommentaire, setSignatureCommentaire] = useState('');
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
   
   // Stats
   const [stats, setStats] = useState({
@@ -53,41 +56,26 @@ export default function DashboardDPAF() {
   // Charger UNIQUEMENT les agents avec rôle 'rh'
   const fetchAgentsRH = async () => {
     try {
-      // Essayer d'abord l'endpoint spécifique
-      let response = await fetch('http://localhost:8000/api/agents/rh/');
+      let response = await fetch('/api/agents/rh/');
       
       if (!response.ok) {
-        // Fallback: récupérer tous les agents et filtrer
-        response = await fetch('http://localhost:8000/api/agents/');
+        response = await fetch('/api/agents/');
         if (response.ok) {
           const allAgents = await response.json();
-          console.log('👥 Tous les agents:', allAgents);
-          
-          // Filtrer pour ne garder que ceux avec rôle 'rh'
           const agentsRHFiltered = allAgents.filter(agent => {
-            // Garder uniquement les agents avec rôle 'rh'
             if (agent.role !== 'rh') return false;
-            
-            // Exclure l'utilisateur DPAF connecté (au cas où)
             if (agent.matricule === matricule) return false;
-            
             return true;
           });
-          
-          console.log('✅ Agents RH disponibles (rôle = rh):', agentsRHFiltered);
           setAgentsRH(agentsRHFiltered);
           return;
         }
       } else {
         const agentsRHData = await response.json();
-        console.log('👥 Agents RH (endpoint spécifique):', agentsRHData);
-        
-        // Filtrer aussi au cas où l'API retournerait autre chose
         const agentsRHFiltered = agentsRHData.filter(agent => {
           if (agent.matricule === matricule) return false;
           return true;
         });
-        
         setAgentsRH(agentsRHFiltered);
       }
     } catch (error) {
@@ -101,33 +89,29 @@ export default function DashboardDPAF() {
     setLoading(true);
     try {
       const [transmisesRes, assigneesRes, actesRes] = await Promise.all([
-        fetch(`http://localhost:8000/api/dpaf/demandes-transmises/${matricule}/`),
-        fetch(`http://localhost:8000/api/dpaf/demandes-assignees/${matricule}/`),
-        fetch(`http://localhost:8000/api/dpaf/actes-a-signer/${matricule}/`)
+        fetch(`/api/dpaf/demandes-transmises/${matricule}/`),
+        fetch(`/api/dpaf/demandes-assignees/${matricule}/`),
+        fetch(`/api/dpaf/actes-a-signer/${matricule}/`)
       ]);
       
       let transmisesData = [];
       if (transmisesRes.ok) {
         transmisesData = await transmisesRes.json();
-        console.log('📋 Demandes transmises:', transmisesData);
         setDemandesTransmises(transmisesData);
       }
 
       let assigneesData = [];
       if (assigneesRes.ok) {
         assigneesData = await assigneesRes.json();
-        console.log('📋 Demandes assignées:', assigneesData);
         setDemandesAssignees(assigneesData);
       }
 
       let actesData = [];
       if (actesRes.ok) {
         actesData = await actesRes.json();
-        console.log('✍️ Actes à signer:', actesData);
         setActesASigner(actesData);
       }
 
-      // Mettre à jour les stats avec toutes les données
       setStats({
         a_assigner: transmisesData.length,
         assignees: assigneesData.length,
@@ -150,7 +134,7 @@ export default function DashboardDPAF() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/dpaf/assigner-rh/${demandeId}/`, {
+      const response = await fetch(`/api/dpaf/assigner-rh/${demandeId}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,7 +164,8 @@ export default function DashboardDPAF() {
 
   const handleSignerActe = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/dpaf/signer-acte/${reference}/`, {
+      setLoading(true);
+      const response = await fetch(`/api/dpaf/signer-acte/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -190,6 +175,17 @@ export default function DashboardDPAF() {
       });
       
       if (response.ok) {
+        // 🔥 Récupérer le PDF
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Acte_Signe_${reference}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
         alert('✅ Acte signé avec succès !');
         setShowSignerModal(false);
         setSelectedActe(null);
@@ -202,6 +198,8 @@ export default function DashboardDPAF() {
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -215,8 +213,26 @@ export default function DashboardDPAF() {
     setShowSuiviModal(true);
   };
 
-  const handleVoirActe = (reference) => {
-    window.open(`http://localhost:8000/api/actes/${reference}/download/`, '_blank');
+  const handleVoirActe = async (reference, acte) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setPreviewTitle(`Acte ${reference}`);
+        setShowPreviewModal(true);
+      } else {
+        alert('Erreur lors du chargement de l\'acte');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSigner = (acte) => {
@@ -302,13 +318,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center">⏳ Chargement...</td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
                 ) : demandesTransmises.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="text-center">📭 Aucune demande à assigner</td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center">📭 Aucune demande à assigner</td></tr>
                 ) : (
                   demandesTransmises.map((d) => (
                     <tr key={d.id}>
@@ -318,10 +330,7 @@ export default function DashboardDPAF() {
                       <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
                       <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
-                        <button 
-                          className="btn-assigner"
-                          onClick={() => handleVoirDetails(d)}
-                        >
+                        <button className="btn-assigner" onClick={() => handleVoirDetails(d)}>
                           👥 Assigner à un RH
                         </button>
                       </td>
@@ -350,13 +359,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center">⏳ Chargement...</td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
                 ) : demandesAssignees.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="text-center">📭 Aucune demande assignée</td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center">📭 Aucune demande assignée</td></tr>
                 ) : (
                   demandesAssignees.map((d) => (
                     <tr key={d.id}>
@@ -366,10 +371,7 @@ export default function DashboardDPAF() {
                       <td>{getStatusBadge(d.statut)}</td>
                       <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
-                        <button 
-                          className="btn-view"
-                          onClick={() => handleVoirSuivi(d)}
-                        >
+                        <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
                           👁️ Voir suivi
                         </button>
                       </td>
@@ -397,13 +399,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="5" className="text-center">⏳ Chargement...</td>
-                  </tr>
+                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
                 ) : actesASigner.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à signer</td>
-                  </tr>
+                  <tr><td colSpan="5" className="text-center">📭 Aucun acte à signer</td></tr>
                 ) : (
                   actesASigner.map((acte) => (
                     <tr key={acte.reference}>
@@ -413,13 +411,10 @@ export default function DashboardDPAF() {
                       <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
-                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                             👁️ Voir l'acte
                           </button>
-                          <button 
-                            className="btn-signer"
-                            onClick={() => handleSigner(acte)}
-                          >
+                          <button className="btn-signer" onClick={() => handleSigner(acte)}>
                             ✍️ Signer l'acte
                           </button>
                         </div>
@@ -490,7 +485,6 @@ export default function DashboardDPAF() {
         </div>
       )}
 
-      {/* MODAL SUIVI DE LA DEMANDE */}
       {/* MODAL SUIVI DE LA DEMANDE - VERSION AMÉLIORÉE */}
       {showSuiviModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowSuiviModal(false)}>
@@ -708,6 +702,56 @@ export default function DashboardDPAF() {
               >
                 🏛️ Signer avec mon cachet officiel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL APERÇU PDF */}
+      {showPreviewModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowPreviewModal(false);
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl('');
+        }}>
+          <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header preview-modal-header">
+              <h3>📄 {previewTitle}</h3>
+              <button className="modal-close" onClick={() => {
+                setShowPreviewModal(false);
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl('');
+              }}>✕</button>
+            </div>
+            <div className="modal-body preview-modal-body">
+              {previewUrl ? (
+                <iframe 
+                  src={previewUrl} 
+                  title={previewTitle}
+                  className="pdf-preview-iframe"
+                  frameBorder="0"
+                />
+              ) : (
+                <div className="loading-preview">Chargement de l'aperçu...</div>
+              )}
+            </div>
+            <div className="modal-footer preview-modal-footer">
+              <button 
+                className="btn-download" 
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = previewUrl;
+                  link.download = previewTitle;
+                  link.click();
+                }}
+              >
+                ⬇️ Télécharger
+              </button>
+              <button className="btn-close" onClick={() => {
+                setShowPreviewModal(false);
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl('');
+              }}>Fermer</button>
             </div>
           </div>
         </div>

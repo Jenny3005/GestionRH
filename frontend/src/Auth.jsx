@@ -55,6 +55,7 @@ export default function Auth({ onLogin }) {
               password: formData.password
             })
           });
+          console.log("🔍 Tentative de connexion avec:", formData.matricule);
 
           const data = await response.json();
 
@@ -88,7 +89,7 @@ export default function Auth({ onLogin }) {
             alert(data.error || 'Erreur de connexion');
           }
         } catch (error) {
-          console.error('Erreur:', error);
+          console.error("❌ Erreur détaillée:", error);
           alert('Impossible de se connecter au serveur.');
         }
       }
