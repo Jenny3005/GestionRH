@@ -99,6 +99,9 @@ urlpatterns = [
     path('attestations/travail/', views.generer_attestation_travail, name='generer_attestation_travail'),
     path('actes/<path:reference>/download/', views.download_acte, name='download_acte'),
     path('actes/agent/<str:matricule>/', views.get_actes_by_agent, name='get_actes_by_agent'),
+    path('attestations/validite-services/', views.generer_attestation_validite_services, name='attestation_validite_services'),
+    path('certificats/non-jouissance/', views.generer_certificat_non_jouissance, name='certificat_non_jouissance'),
+    path('certificats/verifier/<str:matricule>/<int:annee>/', views.verifier_conge_par_annee, name='verifier_conge_annee'),
     # ==================== SIGNATURE ET CACHET ====================
     path('agent/signature-cachet/<str:matricule>/', views.get_signature_cachet, name='get_signature_cachet'),
     path('agent/upload-signature/<str:matricule>/', views.upload_signature, name='upload_signature'),

@@ -39,8 +39,8 @@ export default function Profil() {
   const matricule = localStorage.getItem('userMatricule');
   const userRole = localStorage.getItem('userRole');
   
-  // Vérifier si l'utilisateur peut avoir un cachet (DPAF, Chef, Admin)
-  const hasCachetRight = ['dpaf', 'chef', 'admin'].includes(userRole);
+  // ✅ Vérifier si l'utilisateur est DPAF (seul le DPAF voit la section signature/cachet)
+  const isDPAF = userRole === 'dpaf';
 
   useEffect(() => {
     if (!matricule) {
@@ -48,12 +48,14 @@ export default function Profil() {
       return;
     }
     fetchUserInfo();
-    fetchSignatureCachet();
+    if (isDPAF) {
+      fetchSignatureCachet();
+    }
   }, []);
 
   const fetchUserInfo = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/`);
+      const response = await fetch(`/api/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setUserInfo({
@@ -80,7 +82,7 @@ export default function Profil() {
   // Récupérer la signature et le cachet existants
   const fetchSignatureCachet = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/agent/signature-cachet/${matricule}/`);
+      const response = await fetch(`/api/agent/signature-cachet/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         if (data.signature) setSignaturePreview(data.signature);
@@ -93,6 +95,8 @@ export default function Profil() {
 
   // Upload de la signature
   const handleSignatureUpload = async (e) => {
+    if (!isDPAF) return;
+    
     const file = e.target.files[0];
     if (!file) return;
     
@@ -113,7 +117,7 @@ export default function Profil() {
       setSignatureLoading(true);
       
       try {
-        const response = await fetch(`http://localhost:8000/api/agent/upload-signature/${matricule}/`, {
+        const response = await fetch(`/api/agent/upload-signature/${matricule}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ signature: base64 })
@@ -138,10 +142,7 @@ export default function Profil() {
 
   // Upload du cachet
   const handleCachetUpload = async (e) => {
-    if (!hasCachetRight) {
-      alert('⚠️ Seuls les DPAF, Chefs et Admins peuvent avoir un cachet officiel');
-      return;
-    }
+    if (!isDPAF) return;
     
     const file = e.target.files[0];
     if (!file) return;
@@ -163,7 +164,7 @@ export default function Profil() {
       setCachetLoading(true);
       
       try {
-        const response = await fetch(`http://localhost:8000/api/agent/upload-cachet/${matricule}/`, {
+        const response = await fetch(`/api/agent/upload-cachet/${matricule}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cachet: base64 })
@@ -188,9 +189,11 @@ export default function Profil() {
 
   // Supprimer la signature
   const handleDeleteSignature = async () => {
+    if (!isDPAF) return;
+    
     if (window.confirm('Voulez-vous vraiment supprimer votre signature ?')) {
       try {
-        const response = await fetch(`http://localhost:8000/api/agent/delete-signature/${matricule}/`, {
+        const response = await fetch(`/api/agent/delete-signature/${matricule}/`, {
           method: 'DELETE'
         });
         
@@ -208,9 +211,11 @@ export default function Profil() {
 
   // Supprimer le cachet
   const handleDeleteCachet = async () => {
+    if (!isDPAF) return;
+    
     if (window.confirm('Voulez-vous vraiment supprimer votre cachet ?')) {
       try {
-        const response = await fetch(`http://localhost:8000/api/agent/delete-cachet/${matricule}/`, {
+        const response = await fetch(`/api/agent/delete-cachet/${matricule}/`, {
           method: 'DELETE'
         });
         
@@ -237,7 +242,7 @@ export default function Profil() {
     setErrorMessage('');
     
     try {
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/`, {
+      const response = await fetch(`/api/agent/${matricule}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userInfo)
@@ -478,55 +483,56 @@ export default function Profil() {
             </div>
           </div>
 
-          {/* Carte 4: Signature et Cachet */}
-          <div className="signature-cachet-card">
-            <div className="card-header">
-              <h3>✍️ Signature & Cachet officiel</h3>
-            </div>
-            <div className="signature-cachet-grid">
-              
-              {/* Signature */}
-              <div className="signature-box">
-                <h4>📝 Ma signature</h4>
-                <div className="preview-area">
-                  {signaturePreview ? (
-                    <div className="preview-container">
-                      <img src={signaturePreview} alt="Signature" className="signature-img" />
-                      <button 
-                        className="btn-delete"
-                        onClick={handleDeleteSignature}
-                        disabled={signatureLoading}
-                        title="Supprimer"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="empty-preview">
-                      <span>✍️</span>
-                      <p>Aucune signature</p>
-                    </div>
-                  )}
-                </div>
-                <button 
-                  className="btn-upload"
-                  onClick={() => signatureInputRef.current.click()}
-                  disabled={signatureLoading}
-                >
-                  {signatureLoading ? 'Chargement...' : (signaturePreview ? '📤 Changer' : '📤 Télécharger')}
-                </button>
-                <input
-                  type="file"
-                  ref={signatureInputRef}
-                  accept="image/png,image/jpeg,image/jpg"
-                  onChange={handleSignatureUpload}
-                  style={{ display: 'none' }}
-                />
-                <p className="help-text">PNG/JPEG, max 2MB (fond transparent recommandé)</p>
+          {/* ✅ SECTION SIGNATURE & CACHET - UNIQUEMENT POUR DPAF (cachée pour les autres) */}
+          {isDPAF && (
+            <div className="signature-cachet-card">
+              <div className="card-header">
+                <h3>✍️ Signature & Cachet officiel</h3>
+                <p className="card-subtitle">Espace réservé au Directeur DPAF</p>
               </div>
+              <div className="signature-cachet-grid">
+                
+                {/* Signature */}
+                <div className="signature-box">
+                  <h4>📝 Ma signature</h4>
+                  <div className="preview-area">
+                    {signaturePreview ? (
+                      <div className="preview-container">
+                        <img src={signaturePreview} alt="Signature" className="signature-img" />
+                        <button 
+                          className="btn-delete"
+                          onClick={handleDeleteSignature}
+                          disabled={signatureLoading}
+                          title="Supprimer"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="empty-preview">
+                        <span>✍️</span>
+                        <p>Aucune signature</p>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    className="btn-upload"
+                    onClick={() => signatureInputRef.current.click()}
+                    disabled={signatureLoading}
+                  >
+                    {signatureLoading ? 'Chargement...' : (signaturePreview ? '📤 Changer' : '📤 Télécharger')}
+                  </button>
+                  <input
+                    type="file"
+                    ref={signatureInputRef}
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleSignatureUpload}
+                    style={{ display: 'none' }}
+                  />
+                  <p className="help-text">PNG/JPEG, max 2MB (fond transparent recommandé)</p>
+                </div>
 
-              {/* Cachet - uniquement pour DPAF, Chef, Admin */}
-              {hasCachetRight && (
+                {/* Cachet */}
                 <div className="cachet-box">
                   <h4>🏛️ Mon cachet officiel</h4>
                   <div className="preview-area">
@@ -565,9 +571,9 @@ export default function Profil() {
                   />
                   <p className="help-text warning">⚠️ Le cachet engage officiellement votre service</p>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
 
