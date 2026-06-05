@@ -17,6 +17,12 @@ export default function Documents() {
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(true);
   
+  // États pour les actes
+  const [mesActes, setMesActes] = useState([]);
+  const [showActePreviewModal, setShowActePreviewModal] = useState(false);
+  const [previewActeUrl, setPreviewActeUrl] = useState('');
+  const [previewActeTitle, setPreviewActeTitle] = useState('');
+  
   // ✅ Types de pièces chargés dynamiquement
   const [documentTypes, setDocumentTypes] = useState({});
   const [categoryNames, setCategoryNames] = useState({});
@@ -45,12 +51,125 @@ export default function Documents() {
       setUserEmail(savedEmail);
       setUserRole(savedRole);
       setUserMatricule(savedMatricule);
-      loadDocumentTypes(); // ✅ Charger les types d'abord
+      loadDocumentTypes();
       loadDocumentsFromAPI(savedMatricule);
+      fetchMesActes(savedMatricule);
     } else {
       navigate('/auth');
     }
   }, [navigate]);
+
+  // Récupérer les actes générés de l'agent
+  const fetchMesActes = async (matricule) => {
+    try {
+      // Récupérer tous les actes liés aux demandes de l'agent
+      const response = await fetch(`/api/actes/agent/${matricule}/`);
+      
+      if (response.ok) {
+        const actesData = await response.json();
+        console.log("📋 Actes reçus de l'API:", actesData);
+        
+        if (actesData && actesData.length > 0) {
+          const actes = actesData.map(acte => ({
+            id: acte.id,
+            reference: acte.reference,
+            type_acte: acte.type_acte,
+            statut: acte.statut,
+            date_generation: acte.date_generation,
+            agent_nom: localStorage.getItem('userNom'),
+            agent_prenom: localStorage.getItem('userPrenom')
+          }));
+          setMesActes(actes);
+        } else {
+          setMesActes([]);
+        }
+      } else {
+        console.log("❌ API actes non disponible, tentative avec les demandes...");
+        // Fallback: récupérer via les demandes
+        const demandesRes = await fetch(`/api/conges/mes-demandes/${matricule}/`);
+        if (demandesRes.ok) {
+          const demandes = await demandesRes.json();
+          console.log("📋 Demandes reçues:", demandes);
+          
+          // Filtrer les demandes qui ont des actes générés (statut = 'acte_genere' ou 'signe')
+          const actes = demandes
+            .filter(d => d.statut === 'acte_genere' || d.statut === 'signe')
+            .map(d => ({
+              id: d.id,
+              reference: d.reference || `ACTE-${d.id}`,
+              type_acte: d.type_demande === 'Congé' ? 'Autorisation de congé administratif' : 'Autorisation d\'absence exceptionnelle',
+              statut: d.statut,
+              date_generation: d.date_soumission,
+              agent_nom: localStorage.getItem('userNom'),
+              agent_prenom: localStorage.getItem('userPrenom')
+            }));
+          
+          setMesActes(actes);
+          console.log("📋 Actes construits depuis les demandes:", actes);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement actes:', error);
+      setMesActes([]);
+    }
+  };
+
+  // Voir l'acte dans un modal
+  const handleVoirActe = async (reference) => {
+    if (!reference) {
+      showNotification('Référence de l\'acte non disponible', 'error');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPreviewActeUrl(url);
+        setPreviewActeTitle(`Acte ${reference}`);
+        setShowActePreviewModal(true);
+      } else {
+        showNotification('Erreur lors du chargement de l\'acte', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      showNotification('Erreur de connexion', 'error');
+    }
+  };
+
+  // Télécharger l'acte
+  const handleTelechargerActe = async (reference, type_acte, agent_nom, agent_prenom) => {
+    if (!reference) {
+      showNotification('Référence de l\'acte non disponible', 'error');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const prefix = type_acte.includes('Congé') ? 'Autorisation_Conge' : 'Autorisation_Absence';
+        const filename = `${prefix}_${agent_nom}_${agent_prenom}.pdf`;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showNotification('Acte téléchargé avec succès', 'success');
+      } else {
+        showNotification('Erreur lors du téléchargement', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      showNotification('Erreur de connexion', 'error');
+    }
+  };
 
   // ✅ Charger les types de pièces depuis la base de données
   const loadDocumentTypes = async () => {
@@ -63,7 +182,6 @@ export default function Documents() {
         const categoriesMap = {};
         
         types.forEach(type => {
-          // Déterminer la catégorie et l'icône selon le libellé
           let category = 'identity';
           let icon = '📄';
           const libelle = type.libelle.toLowerCase();
@@ -103,14 +221,12 @@ export default function Documents() {
             icon: icon
           };
           
-          // Construire les catégories
           if (!categoriesMap[category]) {
             categoriesMap[category] = { title: '', description: '', docs: [] };
           }
           categoriesMap[category].docs.push(type.id);
         });
         
-        // Nommer les catégories
         if (categoriesMap['identity']) {
           categoriesMap['identity'].title = "Pièces d'identité & État civil";
           categoriesMap['identity'].description = "Documents officiels prouvant votre identité";
@@ -138,8 +254,6 @@ export default function Documents() {
         
         setDocumentTypes(typesMap);
         setCategoryNames(categoriesMap);
-        console.log("📋 Catégories:", categoryNames);
-        console.log("📋 Types de documents:", typesMap);
       }
     } catch (error) {
       console.error('Erreur chargement types:', error);
@@ -224,7 +338,6 @@ export default function Documents() {
     if (!allowedTypes.includes(file.type)) { showNotification('Format non supporté (PDF, JPG, PNG uniquement)', 'error'); return; }
     if (file.size > 5 * 1024 * 1024) { showNotification('Fichier trop volumineux (max 5MB)', 'error'); return; }
     
-    // ✅ Ouvrir le modal pour demander la date
     setPendingUpload({ documentKey, file });
     setExpiryDate('');
     setShowExpiryModal(true);
@@ -244,7 +357,6 @@ export default function Documents() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        // Formater la date en YYYY-MM-DD
         const dateParts = expiryDate.split('-');
         const formattedDate = `${dateParts[0]}-${dateParts[1]}-${dateParts[2]}`;
         
@@ -324,7 +436,8 @@ export default function Documents() {
 
   const handleLogout = () => { localStorage.clear(); navigate('/'); };
   const isRH = userRole === 'RH' || userRole === 'ADMIN' || userRole === 'rh' || userRole === 'admin';
-  // ✅ Rendu des cartes dynamique
+  
+  // Rendu des cartes dynamique
   const renderDocumentCards = (category) => {
     const catInfo = categoryNames[category];
     if (!catInfo || !catInfo.docs || catInfo.docs.length === 0) return null;
@@ -417,7 +530,7 @@ export default function Documents() {
     );
   };
 
-  // ✅ Stats dynamiques
+  // Stats dynamiques
   const getUploadedCount = () => Object.keys(documents).length;
   
   const getRequiredUploadedCount = () => {
@@ -443,7 +556,7 @@ export default function Documents() {
       if (doc && doc.expiryDate) {
         const expiryDate = new Date(doc.expiryDate);
         expiryDate.setHours(0, 0, 0, 0);
-        if (expiryDate <= today) {  // ✅ Déjà <= pour inclure aujourd'hui
+        if (expiryDate <= today) {
           expired.push({ docDef: documentTypes[key], doc });
         }
       }
@@ -468,7 +581,6 @@ export default function Documents() {
 
   const expiredDocuments = getExpiredDocuments();
   const expiringSoon = getExpiringSoon();
-
 
   if (!isLoggedIn) {
     return null;
@@ -495,14 +607,12 @@ export default function Documents() {
 
   return (
     <div className="intranet-home">
-      {/* Notification */}
       {notification && (
         <div className={`notification-toast ${notification.type}`}>
           {notification.message}
         </div>
       )}
       
-      {/* BARRE DE NAVIGATION */}
       <header className="intranet-navbar">
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
@@ -551,7 +661,6 @@ export default function Documents() {
 
       <main className="intranet-main">
         
-        {/* BANDEAU */}
         <section className="documents-hero">
           <div className="documents-hero-content">
             <h1>Mes Documents administratifs</h1>
@@ -576,7 +685,6 @@ export default function Documents() {
           </div>
         </section>
 
-        {/* ALERTES D'EXPIRATION */}
         {(expiredDocuments.length > 0 || expiringSoon.length > 0) && (
           <section className="alertes-section">
             <div className="alertes-header">
@@ -595,7 +703,6 @@ export default function Documents() {
                         const expDate = new Date(doc.expiryDate);
                         expDate.setHours(0, 0, 0, 0);
                         const diffDays = Math.ceil((today - expDate) / (1000 * 60 * 60 * 24));
-                        
                         if (diffDays === 0) return `${docDef.label} expire aujourd'hui`;
                         if (diffDays === 1) return `${docDef.label} a expiré hier`;
                         return `${docDef.label} expiré depuis ${diffDays} jours (${expDate.toLocaleDateString('fr-FR')})`;
@@ -603,12 +710,7 @@ export default function Documents() {
                     </div>
                     <label className="alerte-action">
                       📤 Remplacer
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])}
-                        style={{ display: 'none' }}
-                      />
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
                 </div>
@@ -623,12 +725,7 @@ export default function Documents() {
                     </div>
                     <label className="alerte-action secondary">
                       📤 Remplacer
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])}
-                        style={{ display: 'none' }}
-                      />
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
                 </div>
@@ -637,7 +734,6 @@ export default function Documents() {
           </section>
         )}
 
-        {/* RAPPEL DOCUMENTS MANQUANTS */}
         {missingDocs.length > 0 && (
           <section className="missing-reminder-section">
             <div className="missing-reminder-card">
@@ -655,12 +751,7 @@ export default function Documents() {
                     <span className="missing-doc-name">{doc.libelle}</span>
                     <label className="missing-doc-upload">
                       📤 Importer
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => handleFileUpload(doc.id, e.target.files[0])}
-                        style={{ display: 'none' }}
-                      />
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(doc.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
                 ))}
@@ -669,13 +760,59 @@ export default function Documents() {
           </section>
         )}
 
-        {/* TOUTES LES SECTIONS DE DOCUMENTS */}
         {renderDocumentCards('identity')}
         {renderDocumentCards('academic')}
         {renderDocumentCards('career')}
         {renderDocumentCards('medical')}
         {renderDocumentCards('leave')}
         {renderDocumentCards('attestations')}
+
+        {/* SECTION MES ACTES GÉNÉRÉS */}
+        <section className="docs-section actes-section">
+          <div className="section-header-with-icon">
+            <div className="header-icon">📄</div>
+            <div>
+              <h2>Mes actes générés</h2>
+              <p>Consultez et téléchargez vos autorisations de congé et d'absence</p>
+            </div>
+          </div>
+          
+          <div className="actes-container">
+            {mesActes.length === 0 ? (
+              <div className="empty-actes">
+                <div className="empty-icon">📭</div>
+                <p>Aucun acte généré pour le moment</p>
+                <small>Les actes apparaîtront ici après validation de vos demandes</small>
+              </div>
+            ) : (
+              <div className="actes-grid">
+                {mesActes.map((acte) => (
+                  <div key={acte.id} className="acte-card">
+                    <div className="acte-card-header">
+                      <span className="acte-icon">📄</span>
+                      <span className={`acte-status ${acte.statut === 'signe' ? 'status-signed' : 'status-generated'}`}>
+                        {acte.statut === 'signe' ? '✅ Signé' : '📝 Généré'}
+                      </span>
+                    </div>
+                    <div className="acte-card-body">
+                      <h4>{acte.type_acte}</h4>
+                      <p className="acte-reference">Réf: {acte.reference}</p>
+                      <p className="acte-date">Date: {new Date(acte.date_generation).toLocaleDateString('fr-FR')}</p>
+                    </div>
+                    <div className="acte-card-footer">
+                      <button className="btn-view-acte" onClick={() => handleVoirActe(acte.reference)}>
+                        👁️ Voir l'acte
+                      </button>
+                      <button className="btn-download-acte" onClick={() => handleTelechargerActe(acte.reference, acte.type_acte, acte.agent_nom, acte.agent_prenom)}>
+                        ⬇️ Télécharger
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* SECTION RH */}
         {isRH && (
@@ -731,9 +868,58 @@ export default function Documents() {
           </div>
         )}
 
+        {/* MODAL APERÇU ACTE PDF */}
+        {showActePreviewModal && (
+          <div className="modal-overlay" onClick={() => {
+            setShowActePreviewModal(false);
+            if (previewActeUrl) URL.revokeObjectURL(previewActeUrl);
+            setPreviewActeUrl('');
+          }}>
+            <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header preview-modal-header">
+                <h3>📄 {previewActeTitle}</h3>
+                <button className="modal-close" onClick={() => {
+                  setShowActePreviewModal(false);
+                  if (previewActeUrl) URL.revokeObjectURL(previewActeUrl);
+                  setPreviewActeUrl('');
+                }}>✕</button>
+              </div>
+              <div className="modal-body preview-modal-body">
+                {previewActeUrl ? (
+                  <iframe 
+                    src={previewActeUrl} 
+                    title={previewActeTitle}
+                    className="pdf-preview-iframe"
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="loading-preview">Chargement de l'aperçu...</div>
+                )}
+              </div>
+              <div className="modal-footer preview-modal-footer">
+                <button 
+                  className="btn-download" 
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = previewActeUrl;
+                    link.download = previewActeTitle;
+                    link.click();
+                  }}
+                >
+                  ⬇️ Télécharger
+                </button>
+                <button className="btn-close" onClick={() => {
+                  setShowActePreviewModal(false);
+                  if (previewActeUrl) URL.revokeObjectURL(previewActeUrl);
+                  setPreviewActeUrl('');
+                }}>Fermer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
-      {/* FOOTER */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
