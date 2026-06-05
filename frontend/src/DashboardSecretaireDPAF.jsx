@@ -16,6 +16,9 @@ export default function DashboardSecretaire() {
   const [demandesTransmises, setDemandesTransmises] = useState([]);  // Demandes transmises au DPAF
   const [actesATransmettre, setActesATransmettre] = useState([]);  // Actes reçus des RH à transmettre au DPAF
   const [actesARemettre, setActesARemettre] = useState([]);  // Actes signés à remettre aux agents
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
   
   // Modals
   const [showTransmettreModal, setShowTransmettreModal] = useState(false);
@@ -48,43 +51,47 @@ export default function DashboardSecretaire() {
     setLoading(true);
     try {
       // 1. Demandes validées par le chef (statut = 'valide')
-      const valideesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-validees/${matricule}/`);
+      const valideesRes = await fetch(`/api/secretaire/demandes-validees/${matricule}/`);
+      let valideesData = [];
       if (valideesRes.ok) {
-        const data = await valideesRes.json();
-        console.log('📋 Demandes validées:', data);
-        setDemandesValidees(data);
+        valideesData = await valideesRes.json();
+        console.log('📋 Demandes validées:', valideesData);
+        setDemandesValidees(valideesData);
       }
 
       // 2. Demandes déjà transmises au DPAF
-      const transmisesRes = await fetch(`http://localhost:8000/api/secretaire/demandes-transmises/${matricule}/`);
+      const transmisesRes = await fetch(`/api/secretaire/demandes-transmises/${matricule}/`);
+      let transmisesData = [];
       if (transmisesRes.ok) {
-        const data = await transmisesRes.json();
-        console.log('📤 Demandes transmises:', data);
-        setDemandesTransmises(data);
+        transmisesData = await transmisesRes.json();
+        console.log('📤 Demandes transmises:', transmisesData);
+        setDemandesTransmises(transmisesData);
       }
 
       // 3. Actes à transmettre au DPAF (statut = 'envoye_secretaire')
-      const actesATransmettreRes = await fetch(`http://localhost:8000/api/secretaire/actes-a-transmettre/${matricule}/`);
+      const actesATransmettreRes = await fetch(`/api/secretaire/actes-a-transmettre/${matricule}/`);
+      let actesATransmettreData = [];
       if (actesATransmettreRes.ok) {
-        const data = await actesATransmettreRes.json();
-        console.log('📄 Actes à transmettre au DPAF:', data);
-        setActesATransmettre(data);
+        actesATransmettreData = await actesATransmettreRes.json();
+        console.log('📄 Actes à transmettre au DPAF:', actesATransmettreData);
+        setActesATransmettre(actesATransmettreData);
       }
 
       // 4. Actes signés à remettre aux agents (statut = 'signe')
-      const actesARemettreRes = await fetch(`http://localhost:8000/api/secretaire/actes-a-remettre/${matricule}/`);
+      const actesARemettreRes = await fetch(`/api/secretaire/actes-a-remettre/${matricule}/`);
+      let actesARemettreData = [];
       if (actesARemettreRes.ok) {
-        const data = await actesARemettreRes.json();
-        console.log('📄 Actes à remettre aux agents:', data);
-        setActesARemettre(data);
+        actesARemettreData = await actesARemettreRes.json();
+        console.log('📄 Actes à remettre aux agents:', actesARemettreData);
+        setActesARemettre(actesARemettreData);
       }
 
-      // Mettre à jour les stats
+      // ✅ Calculer les stats avec les données reçues
       setStats({
-        a_transmettre: demandesValidees.length,
-        transmises: demandesTransmises.length,
-        actes_a_transmettre: actesATransmettre.length,
-        actes_a_remettre: actesARemettre.length
+        a_transmettre: valideesData.length,
+        transmises: transmisesData.length,
+        actes_a_transmettre: actesATransmettreData.length,
+        actes_a_remettre: actesARemettreData.length
       });
 
     } catch (error) {
@@ -96,7 +103,7 @@ export default function DashboardSecretaire() {
 
   const handleTransmettreDPAF = async (demandeId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-dpaf/${demandeId}/`, {
+      const response = await fetch(`/api/secretaire/transmettre-dpaf/${demandeId}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,7 +130,7 @@ export default function DashboardSecretaire() {
 
   const handleTransmettreActeDPAF = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/secretaire/transmettre-acte-dpaf/${encodeURIComponent(reference)}/`, {
+      const response = await fetch(`/api/secretaire/transmettre-acte-dpaf/${encodeURIComponent(reference)}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,7 +157,7 @@ export default function DashboardSecretaire() {
 
   const handleRemettreActe = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/secretaire/remettre-acte/${reference}/`, {
+      const response = await fetch(`/api/secretaire/remettre-acte/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,8 +178,26 @@ export default function DashboardSecretaire() {
     }
   };
 
-  const handleVoirActe = (reference) => {
-    window.open(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`, '_blank');
+  const handleVoirActe = async (reference, acte) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setPreviewTitle(`Acte ${reference}`);
+        setShowPreviewModal(true);
+      } else {
+        alert('Erreur lors du chargement de l\'acte');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusBadge = (statut) => {
@@ -279,7 +304,7 @@ export default function DashboardSecretaire() {
                         >
                           📤 Transmettre au DPAF
                         </button>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -320,7 +345,7 @@ export default function DashboardSecretaire() {
                       <td>{acte.date_reception ? new Date(acte.date_reception).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
-                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                             👁️ Voir l'acte
                           </button>
                           <button 
@@ -333,7 +358,7 @@ export default function DashboardSecretaire() {
                             📤 Transmettre au DPAF
                           </button>
                         </div>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -374,7 +399,7 @@ export default function DashboardSecretaire() {
                       <td>{acte.date_signature ? new Date(acte.date_signature).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
-                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                             👁️ Voir l'acte
                           </button>
                           <button 
@@ -384,7 +409,7 @@ export default function DashboardSecretaire() {
                             📋 Remettre à l'agent
                           </button>
                         </div>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -392,24 +417,78 @@ export default function DashboardSecretaire() {
             </table>
           </div>
         </div>
+        {/* MODAL APERÇU PDF */}
+        {showPreviewModal && (
+          <div className="modal-overlay" onClick={() => {
+            setShowPreviewModal(false);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setPreviewUrl('');
+          }}>
+            <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header preview-modal-header">
+                <h3>📄 {previewTitle}</h3>
+                <button className="modal-close" onClick={() => {
+                  setShowPreviewModal(false);
+                  if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl('');
+                }}>✕</button>
+              </div>
+              <div className="modal-body preview-modal-body">
+                {previewUrl ? (
+                  <iframe 
+                    src={previewUrl} 
+                    title={previewTitle}
+                    className="pdf-preview-iframe"
+                    frameBorder="0"
+                  />
+                ) : (
+                  <div className="loading-preview">Chargement de l'aperçu...</div>
+                )}
+              </div>
+              <div className="modal-footer preview-modal-footer">
+                <button 
+                  className="btn-download" 
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = previewUrl;
+                    link.download = previewTitle;
+                    link.click();
+                  }}
+                >
+                  ⬇️ Télécharger
+                </button>
+                <button className="btn-close" onClick={() => {
+                  setShowPreviewModal(false);
+                  if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl('');
+                }}>Fermer</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* MODAL TRANSMETTRE DEMANDE AU DPAF */}
       {showTransmettreModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowTransmettreModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>📤 Transmettre au DPAF</h3>
-            <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-            <div className="form-group">
-              <label>Commentaire (optionnel)</label>
-              <textarea
-                rows="3"
-                placeholder="Ajoutez un commentaire pour le DPAF..."
-                value={commentaire}
-                onChange={(e) => setCommentaire(e.target.value)}
-              />
+            <div className="modal-header">
+              <h3>📤 Transmettre au DPAF</h3>
+              <button className="modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
             </div>
-            <div className="modal-buttons">
+            <div className="modal-body">
+              <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
+              <div className="form-group">
+                <label>Commentaire (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez un commentaire pour le DPAF..."
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowTransmettreModal(false)}>Annuler</button>
               <button className="btn-transmettre" onClick={() => handleTransmettreDPAF(selectedDemande.id)}>Transmettre</button>
             </div>
@@ -421,19 +500,24 @@ export default function DashboardSecretaire() {
       {showTransmettreActeModal && selectedActe && (
         <div className="modal-overlay" onClick={() => setShowTransmettreActeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>📤 Transmettre l'acte au DPAF</h3>
-            <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
-            <p><strong>Référence:</strong> {selectedActe.reference}</p>
-            <div className="form-group">
-              <label>Commentaire (optionnel)</label>
-              <textarea
-                rows="3"
-                placeholder="Ajoutez un commentaire pour le DPAF..."
-                value={commentaire}
-                onChange={(e) => setCommentaire(e.target.value)}
-              />
+            <div className="modal-header">
+              <h3>📤 Transmettre l'acte au DPAF</h3>
+              <button className="modal-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
             </div>
-            <div className="modal-buttons">
+            <div className="modal-body">
+              <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
+              <p><strong>Référence:</strong> {selectedActe.reference}</p>
+              <div className="form-group">
+                <label>Commentaire (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez un commentaire pour le DPAF..."
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowTransmettreActeModal(false)}>Annuler</button>
               <button className="btn-transmettre" onClick={() => handleTransmettreActeDPAF(selectedActe.reference)}>Transmettre</button>
             </div>
