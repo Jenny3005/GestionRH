@@ -174,14 +174,19 @@ export default function DashboardAgent() {
 
   const fetchSoldeConge = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/solde/${matricule}/`);
+      // ⚠️ Utilisez une URL RELATIVE, pas http://localhost:8000
+      const response = await fetch(`/api/conges/solde/${matricule}/`);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log("✅ Solde récupéré:", data);
         setSoldeConge(data);
+      } else {
+        console.error("❌ Erreur solde:", response.status);
       }
     } catch (error) {
       console.error('Erreur solde:', error);
-    } 
+    }
   };
 
   const marquerNotificationLue = async (notificationId) => {

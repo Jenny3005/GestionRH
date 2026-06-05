@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version corrigée avec aperçu PDF dans modal
+// DashboardDPAF.jsx - Version avec modale d'assignation améliorée
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -175,7 +175,6 @@ export default function DashboardDPAF() {
       });
       
       if (response.ok) {
-        // 🔥 Récupérer le PDF
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -428,58 +427,149 @@ export default function DashboardDPAF() {
         </div>
       </main>
 
-      {/* MODAL ASSIGNER À UN AGENT RH */}
+      {/* MODAL ASSIGNER À UN AGENT RH - VERSION MODERNE ET ÉLÉGANTE */}
+      {/* MODAL ASSIGNER À UN AGENT RH - VERSION ÉLÉGANTE AVEC VOS COULEURS */}
       {showAssignerModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowAssignerModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>👥 Assigner à un agent RH</h3>
-              <button className="modal-close" onClick={() => setShowAssignerModal(false)}>✕</button>
+          <div className="modal-content assigner-modal-elegant" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-elegant">
+              <div className="modal-header-content-elegant">
+                <div className="header-icon-circle-elegant">
+                  <span className="header-icon-large">👥</span>
+                </div>
+                <div className="header-title-section-elegant">
+                  <h3 className="modal-title-elegant">Assigner à un agent RH</h3>
+                  <p className="modal-subtitle-elegant">Choisissez l'agent responsable du traitement de cette demande</p>
+                </div>
+                <button className="modal-close-elegant" onClick={() => setShowAssignerModal(false)}>
+                  ✕
+                </button>
+              </div>
             </div>
             
-            <div className="modal-body">
-              <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
-              <p><strong>Type:</strong> {selectedDemande.type_demande}</p>
-              <p><strong>Période:</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
-              
-              <div className="form-group">
-                <label>Sélectionner un agent RH *</label>
-                <select 
-                  value={selectedAgentRH} 
-                  onChange={(e) => setSelectedAgentRH(e.target.value)}
-                  required
-                >
-                  <option value="">-- Choisir un agent RH --</option>
-                  {agentsRH.map(agent => (
-                    <option key={agent.matricule} value={agent.matricule}>
-                      {agent.nom} {agent.prenom} - {agent.poste || 'Agent RH'}
-                    </option>
-                  ))}
-                </select>
-                {agentsRH.length === 0 && (
-                  <p style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px' }}>
-                    ⚠️ Aucun agent RH disponible. Veuillez contacter l'administrateur.
-                  </p>
-                )}
-                <small style={{ color: '#666', marginTop: '5px', display: 'block' }}>
-                  📌 Seuls les agents avec le rôle "RH" peuvent être sélectionnés.
-                </small>
+            <div className="modal-body-elegant">
+              {/* Carte de la demande */}
+              <div className="demande-info-card-elegant">
+                <div className="demande-card-header-elegant">
+                  <span className="card-header-icon">📋</span>
+                  <span className="card-header-title">Information de la demande</span>
+                </div>
+                <div className="demande-details-grid-elegant">
+                  <div className="demande-detail-item-elegant">
+                    <span className="detail-label-elegant">Agent concerné</span>
+                    <div className="detail-value-with-icon-elegant">
+                      <span className="detail-icon-elegant">👤</span>
+                      <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong>
+                    </div>
+                  </div>
+                  <div className="demande-detail-item-elegant">
+                    <span className="detail-label-elegant">Matricule</span>
+                    <div className="detail-value-with-icon-elegant">
+                      <span className="detail-icon-elegant">🆔</span>
+                      <code className="matricule-code-elegant">{selectedDemande.agent_matricule}</code>
+                    </div>
+                  </div>
+                  <div className="demande-detail-item-elegant">
+                    <span className="detail-label-elegant">Type de demande</span>
+                    <div className="detail-value-with-icon-elegant">
+                      <span className="detail-icon-elegant">📌</span>
+                      <span className="type-badge-elegant">{selectedDemande.type_demande}</span>
+                    </div>
+                  </div>
+                  <div className="demande-detail-item-elegant full-width">
+                    <span className="detail-label-elegant">Période concernée</span>
+                    <div className="detail-value-with-icon-elegant">
+                      <span className="detail-icon-elegant">📅</span>
+                      <span>{selectedDemande.date_debut} → {selectedDemande.date_fin}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <div className="form-group">
-                <label>Instructions (optionnel)</label>
+
+              {/* Sélection agent RH */}
+              <div className="selection-section-elegant">
+                <div className="selection-header-elegant">
+                  <span className="selection-header-icon">🎯</span>
+                  <span className="selection-header-title">Sélectionner l'agent RH</span>
+                </div>
+                
+                <div className="agents-list-elegant">
+                  {agentsRH.length === 0 ? (
+                    <div className="no-agents-message-elegant">
+                      <span className="no-agents-icon">⚠️</span>
+                      <p>Aucun agent RH disponible</p>
+                      <small>Veuillez contacter l'administrateur pour ajouter des agents RH</small>
+                    </div>
+                  ) : (
+                    <div className="agents-radio-group-elegant">
+                      {agentsRH.map(agent => (
+                        <label 
+                          key={agent.matricule} 
+                          className={`agent-card-radio-elegant ${selectedAgentRH === agent.matricule ? 'selected' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="agentRH"
+                            value={agent.matricule}
+                            checked={selectedAgentRH === agent.matricule}
+                            onChange={(e) => setSelectedAgentRH(e.target.value)}
+                            className="agent-radio-input-elegant"
+                          />
+                          <div className="agent-card-content-elegant">
+                            <div className="agent-avatar-elegant">
+                              <span>{agent.prenom?.charAt(0)}{agent.nom?.charAt(0)}</span>
+                            </div>
+                            <div className="agent-info-elegant">
+                              <div className="agent-name-elegant">
+                                {agent.nom} {agent.prenom}
+                              </div>
+                              <div className="agent-details-elegant">
+                                <span className="agent-matricule-badge-elegant">{agent.matricule}</span>
+                                <span className="agent-poste-badge-elegant">{agent.poste || 'Agent RH'}</span>
+                              </div>
+                            </div>
+                            {selectedAgentRH === agent.matricule && (
+                              <div className="agent-selected-check-elegant">
+                                ✓
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="instructions-section-elegant">
+                <div className="instructions-header-elegant">
+                  <span className="instructions-icon">📝</span>
+                  <span className="instructions-title">Instructions pour l'agent RH</span>
+                  <span className="optional-badge-elegant">Optionnel</span>
+                </div>
                 <textarea
+                  className="instructions-textarea-elegant"
                   rows="3"
-                  placeholder="Ajoutez des instructions pour l'agent RH..."
+                  placeholder="Ajoutez des instructions spécifiques pour le traitement de cette demande..."
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                 />
               </div>
             </div>
             
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowAssignerModal(false)}>Annuler</button>
-              <button className="btn-assigner" onClick={() => handleAssignerRH(selectedDemande.id)}>Assigner</button>
+            <div className="modal-footer-elegant">
+              <button className="btn-cancel-elegant" onClick={() => setShowAssignerModal(false)}>
+                Annuler
+              </button>
+              <button 
+                className={`btn-assigner-elegant ${!selectedAgentRH ? 'disabled' : ''}`}
+                onClick={() => handleAssignerRH(selectedDemande.id)}
+                disabled={!selectedAgentRH}
+              >
+                <span className="btn-icon">✓</span>
+                Assigner la demande
+              </button>
             </div>
           </div>
         </div>
