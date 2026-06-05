@@ -16,6 +16,7 @@ class ActeAdministratif(models.Model):
     date_generation = models.DateField()
     contenu = models.TextField(blank=True, null=True)
     fichier_pdf = models.TextField(blank=True, null=True) 
+    fichier_pdf_signe = models.TextField(blank=True, null=True)
 
     class Meta:
         managed = False

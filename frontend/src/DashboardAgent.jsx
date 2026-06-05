@@ -113,32 +113,61 @@ export default function DashboardAgent() {
   };
 
   const fetchDemandesRecentes = async () => {
+    const matricule = localStorage.getItem('userMatricule');
+    console.log("🔍 Matricule depuis localStorage:", matricule);
+    
+    // Utilisez la même URL que mes_demandes
+    const url = `/api/conges/mes-demandes/${matricule}/`;
+    console.log("🔍 URL complète:", url);
+
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
+      const response = await fetch(url);
+      console.log("🔍 Status réponse:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        
+        console.log("📋 Données reçues:", data);
+        console.log("📋 Type de données:", typeof data);
+        console.log("📋 Est un tableau?", Array.isArray(data));
+      
         if (Array.isArray(data) && data.length > 0) {
-          const formatted = data.slice(0, 4).map(d => {
-            let statutAffichage = 'En attente';
+          const formatted = data.slice(0, 5).map(d => {
+            let statutAffichage = d.statut;
             if (d.statut === 'valide') statutAffichage = 'Approuvée';
             else if (d.statut === 'refuse') statutAffichage = 'Rejetée';
-            
+            else if (d.statut === 'en_attente_chef') statutAffichage = 'En attente';
+            else if (d.statut === 'transmise_dpaf') statutAffichage = 'Transmise au DPAF';
+            else if (d.statut === 'assignee_rh') statutAffichage = 'Assignée au RH';
+            else if (d.statut === 'en_cours_traitement') statutAffichage = 'En traitement';
+            else if (d.statut === 'acte_genere') statutAffichage = 'Acte généré';
+          
+            let periode = '-';
+            if (d.date_debut && d.date_fin) {
+              periode = `${d.date_debut} → ${d.date_fin}`;
+            }
+          
             return {
               id: d.id,
-              type: d.type_demande || 'Congé',
-              date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : 'Date inconnue',
+              type: d.type_demande || 'Demande',
+              periode: periode,
+              date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : '-',
               statut: statutAffichage
             };
           });
+          console.log("📋 Demandes formatées:", formatted);
           setDemandesRecentes(formatted);
         } else {
+          console.log("📭 Aucune demande trouvée");
           setDemandesRecentes([]);
         }
+      } else {
+        console.error("❌ Erreur HTTP:", response.status);
+        const errorText = await response.text();
+        console.error("Détail erreur:", errorText);
+        setDemandesRecentes([]);
       }
     } catch (error) {
-      console.error('Erreur demandes:', error);
+      console.error('❌ Erreur fetch demandes:', error);
       setDemandesRecentes([]);
     }
   };
@@ -152,7 +181,7 @@ export default function DashboardAgent() {
       }
     } catch (error) {
       console.error('Erreur solde:', error);
-    }
+    } 
   };
 
   const marquerNotificationLue = async (notificationId) => {
@@ -268,7 +297,6 @@ export default function DashboardAgent() {
 
         {/* GRILLE PRINCIPALE */}
         <div className="agent-dashboard-grid">
-          
           {/* Demandes récentes */}
           <div className="agent-card">
             <div className="agent-card-header">
@@ -280,22 +308,30 @@ export default function DashboardAgent() {
                 <thead>
                   <tr>
                     <th>Type</th>
-                    <th>Date</th>
+                    <th>Période</th>
+                    <th>Date demande</th>
                     <th>Statut</th>
                   </tr>
                 </thead>
                 <tbody>
                   {demandesRecentes.length === 0 ? (
                     <tr>
-                      <td colSpan="3" style={{ textAlign: 'center' }}>Aucune demande récente</td>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>
+                        📭 Aucune demande récente
+                      </td>
                     </tr>
                   ) : (
                     demandesRecentes.map((d) => (
                       <tr key={d.id}>
                         <td>{d.type}</td>
+                        <td>{d.periode}</td>
                         <td>{d.date}</td>
                         <td>
-                          <span className={`status-badge ${d.statut === 'Approuvée' ? 'approved' : d.statut === 'En attente' ? 'pending' : 'waiting'}`}>
+                          <span className={`status-badge ${
+                            d.statut === 'Approuvée' ? 'approved' : 
+                            d.statut === 'En attente' ? 'pending' : 
+                            'rejected'
+                          }`}>
                             {d.statut}
                           </span>
                         </td>
@@ -362,8 +398,17 @@ export default function DashboardAgent() {
                   <div 
                     key={notif.id} 
                     className={`notification-item ${!notif.lue ? 'unread' : ''}`}
-                    onClick={() => notif.isDocAlert && navigate('/documents')}
-                    style={notif.isDocAlert ? { cursor: 'pointer' } : {}}
+                    onClick={() => {
+                      // Marquer comme lue si non lue
+                      if (!notif.lue) {
+                        marquerNotificationLue(notif.id);
+                      }
+                      // Rediriger selon le type de notification
+                      if (notif.message.includes('acte') || notif.message.includes('Acte') || notif.type === 'acte_disponible') {
+                        navigate('/documents');
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
                   >
                     <div className="notification-icon">
                       {notif.type === 'success' && '✅'}
@@ -375,22 +420,25 @@ export default function DashboardAgent() {
                       {notif.type === 'validation_conge' && '✅'}
                       {notif.type === 'demande_conge' && '📋'}
                       {notif.type === 'assignation' && '📌'}
+                      {notif.type === 'acte_disponible' && '📄'}
+                      {notif.type === 'acte_signe' && '✅'}
+                      {notif.type === 'acte_recu' && '📄'}
                     </div>
                     <div className="notification-content">
                       <div className="notification-message">{notif.message}</div>
                       <div className="notification-date">{notif.date_envoi}</div>
                     </div>
-                    {!notif.lue && (
-                      <div className="notification-badge" onClick={(e) => {
-                        e.stopPropagation();
-                        marquerNotificationLue(notif.id);
-                      }}></div>
-                    )}
+                    {/* Point bleu pour les notifications non lues - juste visuel */}
+                    {!notif.lue && <div className="notification-badge"></div>}
+                    {/* Bouton poubelle */}
                     <div 
                       className="notification-delete" 
-                      onClick={(e) => supprimerNotification(notif.id, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        supprimerNotification(notif.id, e);
+                      }}
                       title="Supprimer"
-                      style={{ cursor: 'pointer', marginLeft: '10px', opacity: 0.5, fontSize: '14px' }}
+                      style={{ cursor: 'pointer', marginLeft: '10px', opacity: 0.6, fontSize: '14px' }}
                     >
                       🗑️
                     </div>

@@ -23,13 +23,12 @@ urlpatterns = [
     
     # ==================== GESTION DES CONGÉS ====================
     path('conges/demander/', views.demande_conge, name='demande_conge'),
-    path('conges/mes-demandes/<str:matricule>/', views.mes_demandes_conge, name='mes_demandes_conge'),
     path('conges/solde/<str:matricule>/', views.solde_conge, name='solde_conge'),
     path('conges/direction/<str:matricule_chef>/', views.demandes_direction, name='demandes_direction'),
     path('conges/<int:demande_id>/valider/', views.valider_demande_conge, name='valider_demande_conge'),
     path('absences/demander/', views.demande_absence, name='demande_absence'),
     path('absences/total/<str:matricule>/', views.total_absences_annee, name='total_absences_annee'),
-    path('api/conges/mes-demandes/<str:matricule>/', views.mes_demandes, name='mes_demandes'),
+    path('conges/mes-demandes/<str:matricule>/', views.mes_demandes, name='mes_demandes'),
     
     # ==================== TYPES DE DEMANDE ====================
     path('types-demande/', views.get_types_demande, name='get_types_demande'),

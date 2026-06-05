@@ -1244,21 +1244,19 @@ def valider_demande_conge(request, demande_id):
 @require_http_methods(["GET"])
 def mes_demandes(request, matricule):
     """Agent consulte TOUTES ses demandes (Congé + Absence)"""
+    print("=" * 60)
+    print(f"🚀 mes_demandes appelée avec matricule: '{matricule}'")
+    print("=" * 60)
+    
     try:
-        print("=" * 50)
-        print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
-        print("=" * 50)
-        
-        try:
-            agent = Agent.objects.get(matricule=matricule)
-            print(f"✅ Agent trouvé: {agent.nom} {agent.prenom}")
-        except Agent.DoesNotExist:
-            print(f"❌ Agent non trouvé pour matricule: '{matricule}'")
-            return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        agent = Agent.objects.get(matricule=matricule)
+        print(f"✅ Agent trouvé: {agent.nom} {agent.prenom}")
         
         demandes = Demande.objects.filter(
             agent=agent
         ).select_related('type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        
+        print(f"📊 Nombre total de demandes trouvées: {demandes.count()}")
         
         result = []
         for d in demandes:
@@ -1270,10 +1268,12 @@ def mes_demandes(request, matricule):
                 date_debut = str(d.demandeconge.date_debut) if d.demandeconge.date_debut else None
                 date_fin = str(d.demandeconge.date_fin) if d.demandeconge.date_fin else None
                 nombre_jours = d.demandeconge.nombrejours
+                print(f"  - Demande Congé #{d.id}: du {date_debut} au {date_fin}")
             elif hasattr(d, 'demandeabsence') and d.demandeabsence:
                 date_debut = str(d.demandeabsence.date_debut) if d.demandeabsence.date_debut else None
                 date_fin = str(d.demandeabsence.date_fin) if d.demandeabsence.date_fin else None
                 nombre_jours = d.demandeabsence.nombrejours
+                print(f"  - Demande Absence #{d.id}: du {date_debut} au {date_fin}")
             
             result.append({
                 'id': d.id,
@@ -1286,15 +1286,18 @@ def mes_demandes(request, matricule):
                 'numerosuivi': d.numerosuivi
             })
         
-        print(f"\n✅ FINAL - Demandes retournées: {len(result)}")
+        print(f"✅ FINAL - {len(result)} demandes retournées")
+        print(f"📦 Données: {result}")
         return JsonResponse(result, safe=False)
         
+    except Agent.DoesNotExist:
+        print(f"❌ Agent non trouvé pour matricule: '{matricule}'")
+        return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
     except Exception as e:
         print(f"❌ ERREUR: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # ==================== SOLDE CONGÉ ====================
 
@@ -2532,10 +2535,24 @@ def envoyer_acte_secretaire(request, reference):
 @csrf_exempt
 @require_http_methods(["GET"])
 def download_acte(request, reference):
-    """Télécharger un acte administratif"""
+    """Télécharger un acte administratif - priorité au fichier signé"""
     try:
         acte = ActeAdministratif.objects.get(reference=reference)
         
+        # ✅ PRIORITÉ au fichier signé s'il existe
+        if acte.fichier_pdf_signe:
+            fichier_bytes = base64.b64decode(acte.fichier_pdf_signe)
+            if fichier_bytes.startswith(b'PK'):
+                try:
+                    pdf_bytes = _docx_bytes_to_pdf_bytes(fichier_bytes)
+                except RuntimeError as e:
+                    print(f"ERREUR conversion PDF download_acte: {e}")
+                    return JsonResponse({'error': str(e)}, status=500)
+            else:
+                pdf_bytes = fichier_bytes
+            return _create_pdf_response(pdf_bytes, f'acte_{reference}')
+        
+        # Sinon, utiliser le fichier original
         if acte.fichier_pdf:
             fichier_bytes = base64.b64decode(acte.fichier_pdf)
             if fichier_bytes.startswith(b'PK'):
@@ -2566,7 +2583,7 @@ def download_acte(request, reference):
     except Exception as e:
         print(f"ERREUR download_acte: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 
 @csrf_exempt
 @require_http_methods(["GET"])
