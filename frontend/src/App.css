@@ -5710,3 +5710,144 @@ body {
   padding: 5px;
   border-radius: 4px;
 }
+
+/* Section Actes */
+.actes-section {
+  margin-top: 2rem;
+}
+
+.actes-container {
+  max-width: 100%;
+}
+
+.actes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.acte-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #E2E8F0;
+  transition: all 0.3s ease;
+}
+
+.acte-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.acte-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.acte-icon {
+  font-size: 1.5rem;
+}
+
+.acte-status {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+}
+
+.status-signed {
+  background: #D1FAE5;
+  color: #059669;
+}
+
+.status-generated {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+.acte-card-body {
+  padding: 1rem;
+}
+
+.acte-card-body h4 {
+  font-size: 1rem;
+  color: #0B192C;
+  margin-bottom: 0.5rem;
+}
+
+.acte-reference {
+  font-size: 0.75rem;
+  color: #64748B;
+  font-family: monospace;
+  margin-bottom: 0.25rem;
+}
+
+.acte-date {
+  font-size: 0.7rem;
+  color: #94A3B8;
+}
+
+.acte-card-footer {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+
+.btn-view-acte, .btn-download-acte {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-view-acte {
+  background: #0B192C;
+  color: white;
+  border: none;
+}
+
+.btn-view-acte:hover {
+  background: #D4AF37;
+  color: #0B192C;
+}
+
+.btn-download-acte {
+  background: #E2E8F0;
+  color: #0B192C;
+  border: none;
+}
+
+.btn-download-acte:hover {
+  background: #CBD5E1;
+}
+
+.empty-actes {
+  text-align: center;
+  padding: 3rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-actes p {
+  color: #64748B;
+  margin-bottom: 0.5rem;
+}
+
+.empty-actes small {
+  color: #94A3B8;
+  font-size: 0.75rem;
+}

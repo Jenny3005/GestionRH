@@ -735,8 +735,6 @@ export default function Demarches() {
           </div>
         </div>
       )}
-
-      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
       {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE - CORRIGÉ */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>

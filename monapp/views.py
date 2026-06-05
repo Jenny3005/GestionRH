@@ -3718,3 +3718,31 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_by_agent(request, matricule):
+    """Récupérer tous les actes d'un agent"""
+    try:
+        actes = ActeAdministratif.objects.filter(
+            demande__agent__matricule=matricule
+        ).select_related('demande__agent').order_by('-date_generation')
+        
+        result = []
+        for acte in actes:
+            result.append({
+                'id': acte.reference,  # ← Utilise reference au lieu de id
+                'reference': acte.reference,
+                'type_acte': acte.type_acte,
+                'statut': acte.statut,
+                'date_generation': acte.date_generation.strftime('%d/%m/%Y'),
+                'demande_id': acte.demande.id if acte.demande else None
+            })
+        
+        print(f"✅ {len(result)} actes trouvés pour l'agent {matricule}")
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        print(f"ERREUR get_actes_by_agent: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
