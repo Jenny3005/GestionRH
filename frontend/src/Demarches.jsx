@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import './App.css';
 
@@ -27,6 +27,12 @@ export default function Demarches() {
   const [soldeConge, setSoldeConge] = useState(null);
   const [mesDemandes, setMesDemandes] = useState([]);
   const [totalAbsences, setTotalAbsences] = useState(0);
+  
+  // États pour le certificat de non-jouissance
+  const [showCertificatModal, setShowCertificatModal] = useState(false);
+  const [certificatAnnee, setCertificatAnnee] = useState(new Date().getFullYear());
+  const [certificatVerification, setCertificatVerification] = useState(null);
+  const [certificatLoading, setCertificatLoading] = useState(false);
 
   const matricule = localStorage.getItem('userMatricule');
 
@@ -50,7 +56,7 @@ export default function Demarches() {
   // Récupérer le solde de congés
   const fetchSoldeConge = async (matricule) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/solde/${matricule}/`);
+      const response = await fetch(`/api/conges/solde/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setSoldeConge(data);
@@ -63,7 +69,7 @@ export default function Demarches() {
   // Récupérer les demandes de l'agent
   const fetchMesDemandes = async (matricule) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/mes-demandes/${matricule}/`);
+      const response = await fetch(`/api/conges/mes-demandes/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setMesDemandes(data);
@@ -76,7 +82,7 @@ export default function Demarches() {
   // Récupérer le total des absences exceptionnelles
   const fetchTotalAbsences = async (matricule) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/absences/total/${matricule}/`);
+      const response = await fetch(`/api/absences/total/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setTotalAbsences(data.total || 0);
@@ -126,7 +132,7 @@ export default function Demarches() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/conges/demander/', {
+      const response = await fetch('/api/conges/demander/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -180,7 +186,7 @@ export default function Demarches() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/absences/demander/', {
+      const response = await fetch('/api/absences/demander/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,7 +224,7 @@ export default function Demarches() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/attestations/presence/', {
+      const response = await fetch('/api/attestations/presence/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matricule: matricule })
@@ -260,7 +266,7 @@ export default function Demarches() {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/attestations/travail/', {
+      const response = await fetch('/api/attestations/travail/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matricule: matricule })
@@ -293,6 +299,146 @@ export default function Demarches() {
     }
   };
 
+  // Attestation de validité de services
+  const soumettreAttestationValiditeServices = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/attestations/validite-services/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matricule: matricule })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Attestation_Validite_Services_${safeNom || matricule}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ Attestation de validité de services générée avec succès !');
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Vérifier si l'agent peut obtenir le certificat (avec anti-cache)
+  // ✅ Prend l'année en paramètre pour éviter le problème de closure
+  const verifierNonJouissance = async (annee) => {
+    if (!matricule) return;
+    
+    const anneeAVerifier = annee || certificatAnnee;
+    console.log(`🔍 Début vérification pour année ${anneeAVerifier}`);
+    setCertificatLoading(true);
+    
+    try {
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/certificats/verifier/${matricule}/${anneeAVerifier}/?t=${timestamp}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`📊 Données reçues pour ${anneeAVerifier}:`, data);
+        console.log(`  - a_bteneficie: ${data.a_bteneficie}`);
+        console.log(`  - jours_pris: ${data.jours_pris}`);
+        console.log(`  - peut_obtenir_certificat: ${data.peut_obtenir_certificat}`);
+        setCertificatVerification(data);
+        console.log(`✅ State mis à jour pour ${anneeAVerifier}`);
+      } else {
+        const error = await response.json();
+        console.error('Erreur vérification:', error);
+        alert(error.error || 'Erreur lors de la vérification');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setCertificatLoading(false);
+      console.log(`🏁 Fin vérification pour ${anneeAVerifier}`);
+    }
+  };
+
+  // Générer le certificat de non-jouissance
+  const genererCertificatNonJouissance = async () => {
+    if (!matricule) {
+      alert('Veuillez vous connecter');
+      return;
+    }
+    
+    setCertificatLoading(true);
+    try {
+      const response = await fetch('/api/certificats/non-jouissance/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          matricule: matricule,
+          annee: certificatAnnee 
+        })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nom = localStorage.getItem('userNom') || '';
+        const prenom = localStorage.getItem('userPrenom') || '';
+        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
+        a.download = `Certificat_Non_Jouissance_${certificatAnnee}_${safeNom || matricule}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        alert(`✅ Certificat de non-jouissance pour l'année ${certificatAnnee} généré avec succès !`);
+        setShowCertificatModal(false);
+        setCertificatVerification(null);
+        setCertificatAnnee(new Date().getFullYear());
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la génération');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    } finally {
+      setCertificatLoading(false);
+    }
+  };
+
+  // Ouvrir la modale et vérifier
+  const ouvrirModalCertificat = () => {
+    setShowCertificatModal(true);
+    setCertificatVerification(null);
+    // ✅ Passe l'année actuelle
+    verifierNonJouissance(certificatAnnee);
+  };
+
   const handleFaireDemande = (titre) => {
     requireLogin(`faire une ${titre}`, () => {
       if (titre.includes("Demande de congé")) {
@@ -303,6 +449,10 @@ export default function Demarches() {
         soumettreAttestationPresence();
       } else if (titre.includes("Attestation de travail")) {
         soumettreAttestationTravail();
+      } else if (titre.includes("Attestation de validité de services")) {
+        soumettreAttestationValiditeServices();
+      } else if (titre.includes("Certificat de non-jouissance")) {
+        ouvrirModalCertificat();
       } else {
         alert(`Demande de ${titre} en cours de développement...`);
       }
@@ -378,13 +528,15 @@ export default function Demarches() {
       id: 3,
       titre: "Attestation de validité de services",
       description: "Valide vos années de service accomplies au sein du MND.",
-      delai: "~5 jours"
+      delai: "Immédiat",
+      action: "generer"
     },
     {
       id: 4,
       titre: "Certificat de non-jouissance de congé",
       description: "Atteste que vous n'avez pas bénéficié de votre congé annuel.",
-      delai: "~3 jours"
+      delai: "Immédiat",
+      action: "generer"
     }
   ];
 
@@ -735,19 +887,18 @@ export default function Demarches() {
           </div>
         </div>
       )}
-      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE - CORRIGÉ */}
+      
+      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             
-            {/* En-tête fixe */}
             <div className="modal-header-absence" style={{ flexShrink: 0 }}>
               <h3>
                 <span>⏰</span> Demande d'absence exceptionnelle
               </h3>
             </div>
             
-            {/* Corps scrollable */}
             <div style={{ 
               padding: '1rem 1.5rem', 
               overflowY: 'auto', 
@@ -843,7 +994,6 @@ export default function Demarches() {
               </div>
             </div>
             
-            {/* Pied de page fixe avec les boutons */}
             <div className="modal-footer" style={{ 
               flexShrink: 0, 
               display: 'flex', 
@@ -887,6 +1037,111 @@ export default function Demarches() {
                 }}
               >
                 {loading ? 'Envoi en cours...' : '📤 Envoyer la demande'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CERTIFICAT NON-JOUISSANCE */}
+      {showCertificatModal && (
+        <div className="modal-overlay" onClick={() => setShowCertificatModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📜 Certificat de non-jouissance de congé</h3>
+              <button className="modal-close" onClick={() => setShowCertificatModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Choisissez l'année *</label>
+                <select 
+                  value={certificatAnnee} 
+                  onChange={(e) => {
+                    const nouvelleAnnee = parseInt(e.target.value);
+                    console.log(`🔄 Changement d'année: ${certificatAnnee} → ${nouvelleAnnee}`);
+                    setCertificatAnnee(nouvelleAnnee);
+                    setCertificatVerification(null);
+                    // ✅ Appel direct avec la nouvelle année
+                    verifierNonJouissance(nouvelleAnnee);
+                  }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                >
+                  {[...Array(6)].map((_, i) => {
+                    const annee = new Date().getFullYear() - i;
+                    return <option key={annee} value={annee}>{annee}</option>;
+                  })}
+                </select>
+              </div>
+              
+              {certificatLoading ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>⏳ Vérification en cours...</div>
+              ) : certificatVerification ? (
+                <>
+                  {certificatVerification.a_bteneficie ? (
+                    <div style={{ 
+                      background: '#FEE2E2', 
+                      padding: '15px', 
+                      borderRadius: '10px',
+                      borderLeft: '4px solid #EF4444',
+                      marginTop: '15px'
+                    }}>
+                      <strong style={{ color: '#DC2626' }}>❌ Impossible de générer le certificat</strong>
+                      <p style={{ marginTop: '10px', color: '#991B1B' }}>
+                        Vous avez bénéficié d'un congé de <strong>{certificatVerification.jours_pris} jours</strong> en {certificatAnnee}.
+                      </p>
+                      <p style={{ marginTop: '5px', color: '#991B1B', fontSize: '13px' }}>
+                        Le certificat de non-jouissance ne peut être délivré que si vous n'avez pris aucun congé pendant l'année concernée.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      background: '#D1FAE5', 
+                      padding: '15px', 
+                      borderRadius: '10px',
+                      borderLeft: '4px solid #10B981',
+                      marginTop: '15px'
+                    }}>
+                      <strong style={{ color: '#059669' }}>✅ Éligible</strong>
+                      <p style={{ marginTop: '10px', color: '#065F46' }}>
+                        Aucun congé pris en {certificatAnnee}. Vous pouvez générer le certificat.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : null}
+              
+              <div style={{ 
+                background: '#F1F5F9', 
+                padding: '12px', 
+                borderRadius: '8px', 
+                marginTop: '15px',
+                fontSize: '13px',
+                color: '#475569'
+              }}>
+                <span>ℹ️</span>
+                <span style={{ marginLeft: '8px' }}>
+                  Ce certificat atteste que vous n'avez pas bénéficié de votre congé administratif pour l'année sélectionnée.
+                </span>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowCertificatModal(false)}>Annuler</button>
+              <button 
+                className="btn-generer" 
+                onClick={genererCertificatNonJouissance} 
+                disabled={certificatLoading || (certificatVerification && certificatVerification.a_bteneficie)}
+                style={{
+                  background: (certificatVerification && certificatVerification.a_bteneficie) ? '#9CA3AF' : '#10B981',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  cursor: (certificatVerification && certificatVerification.a_bteneficie) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {certificatLoading ? 'Génération...' : 'Générer le certificat →'}
               </button>
             </div>
           </div>

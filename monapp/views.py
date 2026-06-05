@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from django.contrib.auth.hashers import make_password, check_password
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -844,13 +845,37 @@ def demande_conge(request):
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
+        date_debut_str = data.get('date_debut')
+        date_fin_str = data.get('date_fin')
+        
+        if not date_debut_str or not date_fin_str:
+            return JsonResponse({'error': 'Veuillez renseigner les dates'}, status=400)
         
         agent = Agent.objects.get(matricule=matricule)
         
-        date_debut = datetime.strptime(data.get('date_debut'), '%Y-%m-%d').date()
-        date_fin = datetime.strptime(data.get('date_fin'), '%Y-%m-%d').date()
+        date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
+        date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
+        
+        if date_debut > date_fin:
+            return JsonResponse({'error': 'La date de début doit être antérieure à la date de fin'}, status=400)
+        
+        # ✅ VÉRIFICATION : La demande ne peut être que pour l'année courante
+        annee_demande = date_debut.year
+        annee_courante = datetime.now().year
+        
+        if annee_demande < annee_courante:
+            return JsonResponse({
+                'error': f'❌ Impossible de demander un congé pour {annee_demande} (année déjà passée)'
+            }, status=400)
+        
+        if annee_demande > annee_courante:
+            return JsonResponse({
+                'error': f'❌ Impossible de demander un congé pour {annee_demande} (année future)'
+            }, status=400)
+        
         nombre_jours = (date_fin - date_debut).days + 1
         
+        # Vérification ancienneté
         if agent.date_prise_service:
             anciennete_jours = (datetime.now().date() - agent.date_prise_service).days
             if anciennete_jours < 365:
@@ -858,7 +883,7 @@ def demande_conge(request):
                     'error': f'Ancienneté insuffisante. Vous devez avoir au moins 1 an de service.'
                 }, status=400)
         
-        annee_courante = datetime.now().year
+        # Vérification nombre de demandes par an
         nb_demandes_annee = Demande.objects.filter(
             agent=agent,
             type_demande__libelle='Congé',
@@ -870,6 +895,7 @@ def demande_conge(request):
                 'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'
             }, status=400)
         
+        # Vérification solde
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
@@ -886,6 +912,7 @@ def demande_conge(request):
                 'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'
             }, status=400)
         
+        # Vérification chevauchement
         chevauchement = DemandeConge.objects.filter(
             demande__agent=agent,
             date_debut__lte=date_fin,
@@ -920,6 +947,7 @@ def demande_conge(request):
             nombrejours=nombre_jours
         )
         
+        # Notification au chef
         role_chef = Role.objects.get(libelle__iexact='chef')
         chef_direction = (agent.direction or '').strip()
         chef = Agent.objects.filter(
@@ -1160,7 +1188,7 @@ def demandes_direction(request, matricule_chef):
 @csrf_exempt
 @require_http_methods(["PUT"])
 def valider_demande_conge(request, demande_id):
-    """Chef valide ou rejette une demande de congé ou d'absence"""
+    """Chef valide ou rejette une demande de congé"""
     try:
         data = json.loads(request.body)
         matricule_chef = data.get('matricule_chef')
@@ -1182,16 +1210,29 @@ def valider_demande_conge(request, demande_id):
             demande.statut = 'valide'
             print("✅ Demande validée")
             
+            # ✅ Vérifier si c'est un congé et mettre à jour le solde
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
-                annee = datetime.now().year
+                # ✅ Utiliser l'année de début du congé (pas l'année courante)
+                annee_conge = demande.demandeconge.date_debut.year
+                nombre_jours = demande.demandeconge.nombrejours
+                
+                print(f"📅 Année du congé: {annee_conge}, Jours: {nombre_jours}")
+                
                 solde, _ = SoldeConge.objects.get_or_create(
                     agent=demande.agent,
-                    annee=annee,
+                    annee=annee_conge,
                     defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
                 )
-                solde.jours_pris = (solde.jours_pris or 0) + demande.demandeconge.nombrejours
+                
+                print(f"💰 Solde avant - jours_pris: {solde.jours_pris}, jours_restants: {solde.jours_restants}")
+                
+                solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
                 solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
                 solde.save()
+                
+                print(f"💰 Solde après - jours_pris: {solde.jours_pris}, jours_restants: {solde.jours_restants}")
+            else:
+                print(f"⚠️ Ce n'est pas un congé ou demandeconge n'existe pas")
         else:
             demande.statut = 'refuse'
             print("❌ Demande rejetée")
@@ -1199,6 +1240,7 @@ def valider_demande_conge(request, demande_id):
         demande.commentaire_chef = commentaire
         demande.save()
         
+        # Notification à l'agent
         try:
             type_libelle = demande.type_demande.libelle if demande.type_demande else "demande"
             
@@ -1216,12 +1258,10 @@ def valider_demande_conge(request, demande_id):
                 date_envoi=datetime.now().date(),
                 lue=0
             )
-            print(f"✅ Notification créée avec succès - ID: {notification.id} pour l'agent: {demande.agent.matricule}")
+            print(f"✅ Notification créée avec succès - ID: {notification.id}")
             
         except Exception as notif_error:
             print(f"⚠️ ERREUR lors de la création de la notification: {notif_error}")
-            import traceback
-            traceback.print_exc()
         
         return JsonResponse({'success': True, 'message': f'Demande {decision}e'})
         
@@ -1287,7 +1327,6 @@ def mes_demandes(request, matricule):
             })
         
         print(f"✅ FINAL - {len(result)} demandes retournées")
-        print(f"📦 Données: {result}")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -1304,38 +1343,41 @@ def mes_demandes(request, matricule):
 @csrf_exempt
 @require_http_methods(["GET"])
 def solde_conge(request, matricule):
-    """Agent consulte son solde de congés"""
+    """Agent consulte son solde de congés pour l'année en cours"""
     try:
         agent = Agent.objects.get(matricule=matricule)
-        annee = datetime.now().year
+        annee_courante = datetime.now().year
         
+        print(f"=== solde_conge pour {matricule}, année: {annee_courante}")
+        
+        # ✅ Compter les jours pris pour l'année courante SEULEMENT
         demandes_validees = Demande.objects.filter(
             agent=agent,
             type_demande__libelle='Congé',
             statut='valide',
-            date_soumission__year=annee
+            demandeconge__date_debut__year=annee_courante
         )
         
         jours_pris = 0
         for d in demandes_validees:
-            try:
-                if hasattr(d, 'demandeconge'):
-                    jours_pris += d.demandeconge.nombrejours
-            except:
-                pass
+            if hasattr(d, 'demandeconge') and d.demandeconge:
+                jours_pris += d.demandeconge.nombrejours
+        
+        print(f"📊 Jours pris trouvés: {jours_pris}")
         
         solde, created = SoldeConge.objects.get_or_create(
             agent=agent,
-            annee=annee,
+            annee=annee_courante,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
         )
         
+        # ✅ Mettre à jour avec les calculs réels
         solde.jours_pris = jours_pris
         solde.jours_restants = (solde.jours_acquis or 30) - jours_pris
         solde.save()
         
         return JsonResponse({
-            'annee': annee,
+            'annee': annee_courante,
             'jours_acquis': solde.jours_acquis or 30,
             'jours_pris': jours_pris,
             'jours_restants': solde.jours_restants
@@ -1345,6 +1387,8 @@ def solde_conge(request, matricule):
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"Erreur solde_conge: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -1394,6 +1438,34 @@ def marquer_toutes_notifications_lues(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         updated = Notification.objects.filter(agent_id=agent.matricule, lue=0).update(lue=1)
         return JsonResponse({'success': True, 'updated': updated})
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_notification(request, notification_id):
+    """Supprimer définitivement une notification"""
+    try:
+        notification = Notification.objects.get(id=notification_id)
+        notification.delete()
+        return JsonResponse({'success': True, 'message': 'Notification supprimée'})
+    except Notification.DoesNotExist:
+        return JsonResponse({'error': 'Notification non trouvée'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def supprimer_toutes_notifications(request, matricule):
+    """Supprimer toutes les notifications d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        deleted, _ = Notification.objects.filter(agent_id=agent.matricule).delete()
+        return JsonResponse({'success': True, 'message': f'{deleted} notification(s) supprimée(s)'})
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
@@ -1947,19 +2019,23 @@ def remettre_acte(request, reference):
 
 
 # ==================== DPAF ====================
+
 def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=None, cachet_base64=None, commentaire=""):
     """Génère le PDF de l'acte avec signature et cachet du DPAF"""
     from docx import Document
     from docx.shared import Pt
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
     import io, base64
     from io import BytesIO
     
-    # Déterminer le template
+    # Déterminer le template et le signataire
     if demande.type_demande.libelle == 'Congé':
         template_name = 'autorisation_conge_template.docx'
+        signataire_nom = 'Augustine Tognissè CAKPO SOGLO'
+        annee_conge = demande.demandeconge.date_debut.year if hasattr(demande, 'demandeconge') else datetime.now().year
     else:
         template_name = 'autorisation_absence_template.docx'
+        signataire_nom = 'Comlan Amour Abel KPOCHEME'
+        annee_conge = datetime.now().year
     
     template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
     
@@ -1992,7 +2068,8 @@ def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=
         '{{NOMBRE_JOURS}}': str(nombre_jours),
         '{{MOTIF}}': motif,
         '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-        '{{ANNEE}}': str(datetime.now().year)
+        '{{ANNEE}}': str(datetime.now().year),
+        '{{ANNE_CONGE}}': str(annee_conge)
     }
     
     # Remplacer les placeholders
@@ -2001,13 +2078,13 @@ def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=
             if key in paragraph.text:
                 paragraph.text = paragraph.text.replace(key, value)
     
-    # ✅ Ajouter signature et cachet AVANT "Comlan Amour Abel KPOCHEME"
+    # ✅ Chercher le bon signataire selon le type de demande
     for paragraph in doc.paragraphs:
-        if 'Comlan' in paragraph.text or 'KPOCHEME' in paragraph.text:
+        if signataire_nom in paragraph.text:
             nom_texte = paragraph.text
             paragraph.clear()
             
-            # Signature (taille 130)
+            # Ajouter la signature (taille 130)
             run_sig = paragraph.add_run()
             if signature_base64:
                 try:
@@ -2019,10 +2096,9 @@ def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=
                 except:
                     run_sig.text = ""
             
-            # UN SEUL espace entre signature et cachet
-            paragraph.add_run(" ")
+            paragraph.add_run(" ")  # Espace entre signature et cachet
             
-            # Cachet (taille 90)
+            # Ajouter le cachet (taille 90)
             run_cachet = paragraph.add_run()
             if cachet_base64:
                 try:
@@ -2034,12 +2110,8 @@ def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=
                 except:
                     run_cachet.text = ""
             
-            # Saut de ligne
-            paragraph.add_run().add_break()
-            
-            # Nom en dessous
-            paragraph.add_run(nom_texte).bold = True
-            
+            paragraph.add_run().add_break()  # Saut de ligne
+            paragraph.add_run(nom_texte).bold = True  # Nom en dessous
             break
     
     _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
@@ -2049,6 +2121,8 @@ def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=
     output.seek(0)
     
     return _docx_bytes_to_pdf_bytes(output.getvalue())
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_demandes_transmises_dpaf(request, matricule_dpaf):
@@ -2382,7 +2456,6 @@ def generer_acte_rh(request, demande_id):
         is_conge = demande_type_lower == 'congé' or demande_type_lower == 'conge'
         is_absence = 'absence' in demande_type_lower
 
-        # 🔍 DEBUG
         print("=" * 70)
         print(f"🔍 DEBUG generer_acte_rh - Demande ID: {demande_id}")
         print(f"🔍 Type de demande: '{demande_type_label}'")
@@ -2402,6 +2475,9 @@ def generer_acte_rh(request, demande_id):
                 nombre_jours = ''
             motif = ''
             filename_prefix = 'Autorisation_Conge'
+            
+            # ✅ ANNEE du congé = année de début du congé
+            annee_conge = demande.demandeconge.date_debut.year if hasattr(demande, 'demandeconge') and demande.demandeconge else datetime.now().year
         elif is_absence:
             template_name = 'autorisation_absence_template.docx'
             type_acte = "Autorisation d'absence exceptionnelle"
@@ -2416,6 +2492,7 @@ def generer_acte_rh(request, demande_id):
                 nombre_jours = ''
                 motif = ''
             filename_prefix = 'Autorisation_Absence'
+            annee_conge = datetime.now().year
         else:
             return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
 
@@ -2439,7 +2516,8 @@ def generer_acte_rh(request, demande_id):
             '{{NOMBRE_JOURS}}': str(nombre_jours),
             '{{MOTIF}}': motif,
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-            '{{ANNEE}}': str(datetime.now().year)
+            '{{ANNEE}}': str(datetime.now().year),
+            '{{ANNE_CONGE}}': str(annee_conge)  
         }
 
         _replace_placeholders_in_doc(doc, replacements)
@@ -2756,15 +2834,24 @@ def nombre_en_toutes_lettres(n):
 @csrf_exempt
 @require_http_methods(["POST"])
 def generer_attestation_presence(request):
-    """Générer une attestation de présence au poste"""
+    """Générer une attestation de présence au poste avec signature et cachet DPAF"""
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
         
         agent = Agent.objects.get(matricule=matricule)
         
+        # Récupérer le DPAF (Augustine Tognissè CAKPO SOGLO)
+        dpaf = Agent.objects.filter(
+            agentrole__role__libelle='dpaf',
+            actif=1
+        ).first()
+        
+        if not dpaf:
+            return JsonResponse({'error': 'Aucun DPAF trouvé pour signer'}, status=500)
+        
         nom_complet = f"{agent.nom} {agent.prenom}".upper()
-        poste = agent.poste or 'Ouvrier Spécialisé des Services Généraux de l\'Administration'
+        poste = agent.poste or 'Agent'
         
         if agent.date_prise_service:
             date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
@@ -2777,44 +2864,87 @@ def generer_attestation_presence(request):
             for en, fr in mois_fr.items():
                 date_prise_service = date_prise_service.replace(en, fr)
         else:
-            date_prise_service = '02 février 2015'
+            date_prise_service = 'date non renseignée'
         
         date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
         
-        annee = datetime.now().year
-        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
-        reference = f"{ref_number}/MND/DPAF/SRHDS/SA"
+        # ✅ Numéro seul pour la référence
+        ref_number = f"{datetime.now().year}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = ref_number
         
         template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_presence_template.docx')
         
-        if os.path.exists(template_path):
-            doc = Document(template_path)
-
-            replacements = {
-                '{{NOM_COMPLET}}': nom_complet,
-                '{{POSTE}}': poste,
-                '{{DATE_PRISE_SERVICE}}': date_prise_service,
-                '{{DATE_AUJOURD_HUI}}': date_aujourdhui,
-                '{{REFERENCE}}': reference
-            }
-
-            _replace_placeholders_in_doc(doc, replacements)
-            _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
-
-            output = io.BytesIO()
-            doc.save(output)
-            output.seek(0)
-
-            docx_bytes = output.getvalue()
-            try:
-                pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
-            except RuntimeError as e:
-                print(f"ERREUR conversion PDF generer_attestation_presence: {e}")
-                return _create_docx_response(docx_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
-
-            response = _create_pdf_response(pdf_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
-        else:
+        if not os.path.exists(template_path):
             return JsonResponse({'error': 'Template non trouvé'}, status=500)
+        
+        doc = Document(template_path)
+
+        replacements = {
+            '{{REFERENCE}}': reference,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{DATE_PRISE_SERVICE}}': date_prise_service,
+            '{{DATE_AUJOURD_HUI}}': date_aujourdhui
+        }
+
+        _replace_placeholders_in_doc(doc, replacements)
+        _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+
+        # ✅ Ajouter signature et cachet du DPAF
+        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') and dpaf.signature else None
+        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') and dpaf.cachet else None
+        
+        # Chercher le nom du signataire
+        signataire_nom = 'Augustine Tognissè CAKPO SOGLO'
+        
+        for paragraph in doc.paragraphs:
+            if signataire_nom in paragraph.text:
+                nom_texte = paragraph.text
+                paragraph.clear()
+                
+                # Signature
+                run_sig = paragraph.add_run()
+                if signature_base64:
+                    try:
+                        if ',' in signature_base64:
+                            signature_base64 = signature_base64.split(',')[1]
+                        sig_bytes = base64.b64decode(signature_base64)
+                        sig_stream = io.BytesIO(sig_bytes)
+                        run_sig.add_picture(sig_stream, width=Pt(130))
+                    except Exception as e:
+                        print(f"Erreur signature: {e}")
+                        run_sig.text = ""
+                
+                paragraph.add_run(" ")
+                
+                # Cachet
+                run_cachet = paragraph.add_run()
+                if cachet_base64:
+                    try:
+                        if ',' in cachet_base64:
+                            cachet_base64 = cachet_base64.split(',')[1]
+                        cachet_bytes = base64.b64decode(cachet_base64)
+                        cachet_stream = io.BytesIO(cachet_bytes)
+                        run_cachet.add_picture(cachet_stream, width=Pt(90))
+                    except Exception as e:
+                        print(f"Erreur cachet: {e}")
+                        run_cachet.text = ""
+                
+                paragraph.add_run().add_break()
+                paragraph.add_run(nom_texte).bold = True
+                break
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+
+        docx_bytes = output.getvalue()
+        
+        try:
+            pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
+        except RuntimeError as e:
+            print(f"ERREUR conversion PDF: {e}")
+            return _create_docx_response(docx_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
 
         ActeAdministratif.objects.create(
             reference=reference,
@@ -2825,22 +2955,40 @@ def generer_attestation_presence(request):
             fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
         )
 
-        return response
+        return _create_pdf_response(pdf_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
         
     except Exception as e:
-        print(f"ERREUR generer_attestation_presence: {str(e)}")
+        print(f"ERREUR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def generer_attestation_travail(request):
-    """Générer une attestation de travail à partir du template Word"""
+    """Générer une attestation de travail avec signature et cachet"""
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
         
         agent = Agent.objects.get(matricule=matricule)
+        
+        # Récupérer le signataire (Chef ou DPAF selon ton besoin)
+        # Pour l'attestation de travail, c'est Comlan Amour Abel KPOCHEME
+        signataire = Agent.objects.filter(
+            nom__icontains='KPOCHEME',
+            actif=1
+        ).first()
+        
+        # Fallback: prendre le DPAF si non trouvé
+        if not signataire:
+            signataire = Agent.objects.filter(
+                agentrole__role__libelle='dpaf',
+                actif=1
+            ).first()
+        
+        if not signataire:
+            return JsonResponse({'error': 'Aucun signataire trouvé'}, status=500)
         
         nom_complet = f"{agent.nom} {agent.prenom}".upper()
         poste = agent.poste or 'Administrateur'
@@ -2860,9 +3008,9 @@ def generer_attestation_travail(request):
         
         date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
         
-        annee = datetime.now().year
-        ref_number = f"{annee:04d}{datetime.now().strftime('%m%d%H%M%S')}"
-        reference = f"{ref_number}/MND/DPAF/SGRHTE/SA"
+        # ✅ Numéro seul pour la référence
+        ref_number = f"{datetime.now().year}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = ref_number
         
         template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_travail_template.docx')
         
@@ -2872,25 +3020,78 @@ def generer_attestation_travail(request):
         doc = Document(template_path)
 
         replacements = {
+            '{{REFERENCE}}': reference,
             '{{NOM_COMPLET}}': nom_complet,
             '{{POSTE}}': poste,
             '{{DATE_PRISE_SERVICE}}': date_prise_service,
-            '{{DATE_AUJOURD_HUI}}': date_aujourdhui,
-            '{{REFERENCE}}': reference
+            '{{DATE_AUJOURD_HUI}}': date_aujourdhui
         }
 
         _replace_placeholders_in_doc(doc, replacements)
         _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+
+        # ✅ Ajouter signature et cachet du signataire
+        signature_base64 = signataire.signature if hasattr(signataire, 'signature') else None
+        cachet_base64 = signataire.cachet if hasattr(signataire, 'cachet') else None
+        
+        # ✅ Chercher le nom du signataire dans le template (Comlan Amour Abel KPOCHEME)
+        signataire_nom = 'Comlan Amour Abel KPOCHEME'
+        signature_ajoutee = False
+        
+        for paragraph in doc.paragraphs:
+            if signataire_nom in paragraph.text:
+                print(f"✅ Signataire trouvé dans le template: {signataire_nom}")
+                nom_texte = paragraph.text
+                paragraph.clear()
+                
+                # Signature
+                run_sig = paragraph.add_run()
+                if signature_base64:
+                    try:
+                        if ',' in signature_base64:
+                            signature_base64 = signature_base64.split(',')[1]
+                        sig_bytes = base64.b64decode(signature_base64)
+                        sig_stream = io.BytesIO(sig_bytes)
+                        run_sig.add_picture(sig_stream, width=Pt(130))
+                        print("✅ Signature ajoutée")
+                    except Exception as e:
+                        print(f"Erreur signature: {e}")
+                        run_sig.text = ""
+                
+                paragraph.add_run(" ")
+                
+                # Cachet
+                run_cachet = paragraph.add_run()
+                if cachet_base64:
+                    try:
+                        if ',' in cachet_base64:
+                            cachet_base64 = cachet_base64.split(',')[1]
+                        cachet_bytes = base64.b64decode(cachet_base64)
+                        cachet_stream = io.BytesIO(cachet_bytes)
+                        run_cachet.add_picture(cachet_stream, width=Pt(90))
+                        print("✅ Cachet ajouté")
+                    except Exception as e:
+                        print(f"Erreur cachet: {e}")
+                        run_cachet.text = ""
+                
+                paragraph.add_run().add_break()
+                paragraph.add_run(nom_texte).bold = True
+                signature_ajoutee = True
+                break
+        
+        if not signature_ajoutee:
+            print(f"⚠️ Attention: '{signataire_nom}' non trouvé dans le template")
 
         output = io.BytesIO()
         doc.save(output)
         output.seek(0)
 
         docx_bytes = output.getvalue()
+        
         try:
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
-            print(f"ERREUR conversion PDF generer_attestation_travail: {e}")
+            print(f"ERREUR conversion PDF: {e}")
             return _create_docx_response(docx_bytes, f'Attestation_Travail_{agent.nom}_{agent.prenom}')
 
         ActeAdministratif.objects.create(
@@ -2898,7 +3099,8 @@ def generer_attestation_travail(request):
             type_acte='Attestation de travail',
             statut='genere',
             date_generation=datetime.now().date(),
-            contenu=reference
+            contenu=reference,
+            fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
         )
         
         TypeDemande.objects.get_or_create(
@@ -2906,20 +3108,16 @@ def generer_attestation_travail(request):
             defaults={'acte_generable': 1}
         )
         
-        response = HttpResponse(
-            output.getvalue(),
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        )
-        response['Content-Disposition'] = f'attachment; filename="Attestation_Travail_{agent.nom}_{agent.prenom}.docx"'
-        return response
+        return _create_pdf_response(pdf_bytes, f'Attestation_Travail_{agent.nom}_{agent.prenom}')
         
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR generer_attestation_travail: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
-
+    
 # ==================== VÉRIFICATION DOCUMENTS EXPIRÉS ====================
 
 @csrf_exempt
@@ -3659,34 +3857,6 @@ def get_all_expired_documents(request):
 
 
 @csrf_exempt
-@require_http_methods(["DELETE"])
-def supprimer_notification(request, notification_id):
-    """Supprimer définitivement une notification"""
-    try:
-        notification = Notification.objects.get(id=notification_id)
-        notification.delete()
-        return JsonResponse({'success': True, 'message': 'Notification supprimée'})
-    except Notification.DoesNotExist:
-        return JsonResponse({'error': 'Notification non trouvée'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
-@require_http_methods(["DELETE"])
-def supprimer_toutes_notifications(request, matricule):
-    """Supprimer toutes les notifications d'un agent"""
-    try:
-        agent = Agent.objects.get(matricule=matricule)
-        deleted, _ = Notification.objects.filter(agent_id=agent.matricule).delete()
-        return JsonResponse({'success': True, 'message': f'{deleted} notification(s) supprimée(s)'})
-    except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
 @require_http_methods(["GET"])
 def get_actes_a_envoyer_rh(request, matricule_rh):
     """Récupérer les actes générés non encore envoyés pour un RH spécifique"""
@@ -3719,6 +3889,7 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_actes_by_agent(request, matricule):
@@ -3731,7 +3902,7 @@ def get_actes_by_agent(request, matricule):
         result = []
         for acte in actes:
             result.append({
-                'id': acte.reference,  # ← Utilise reference au lieu de id
+                'id': acte.reference,
                 'reference': acte.reference,
                 'type_acte': acte.type_acte,
                 'statut': acte.statut,
@@ -3745,4 +3916,400 @@ def get_actes_by_agent(request, matricule):
         print(f"ERREUR get_actes_by_agent: {e}")
         import traceback
         traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_attestation_validite_services(request):
+    """Générer une attestation de validité de services avec signature et cachet DPAF"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        # Récupérer le DPAF pour signature et cachet
+        dpaf = Agent.objects.filter(
+            agentrole__role__libelle='dpaf',
+            actif=1
+        ).first()
+        
+        if not dpaf:
+            return JsonResponse({'error': 'Aucun DPAF trouvé pour signer'}, status=500)
+        
+        nom_complet = f"{agent.nom} {agent.prenom}".upper()
+        poste = agent.poste or 'Agent'
+        
+        # ✅ Extraire la catégorie, l'échelon et l'échelle à partir du champ echelon (ex: A2-5)
+        echelon_complet = agent.echelon or 'A1-1'
+        categorie = echelon_complet[0].upper()
+        
+        import re
+        match = re.match(r'[A-Z](\d+)-(\d+)', echelon_complet)
+        if match:
+            echelon_numero = match.group(1)
+            echelle_numero = match.group(2)
+            echelon_format = f"échelle {echelle_numero}, échelon {echelon_numero}"
+        else:
+            echelon_format = "échelle 1, échelon 1"
+        
+        # ✅ Calcul de la date de retraite selon la catégorie
+        mois_fr = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        
+        if agent.date_naissance:
+            if categorie == 'A':
+                age_retraite = 60
+            elif categorie == 'B':
+                age_retraite = 58
+            elif categorie in ['C', 'D']:
+                age_retraite = 55
+            else:
+                age_retraite = 60
+            
+            date_retraite = agent.date_naissance.replace(year=agent.date_naissance.year + age_retraite)
+            date_retraite_str = date_retraite.strftime('1er %B %Y')
+            for en, fr in mois_fr.items():
+                date_retraite_str = date_retraite_str.replace(en, fr)
+        else:
+            date_retraite_str = 'date à déterminer'
+        
+        # Date de prise de service
+        if agent.date_prise_service:
+            date_prise_service = agent.date_prise_service.strftime('%d %B %Y')
+            for en, fr in mois_fr.items():
+                date_prise_service = date_prise_service.replace(en, fr)
+        else:
+            date_prise_service = 'date non renseignée'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        # Numéro seul pour la référence
+        ref_number = f"{datetime.now().year}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = ref_number
+        
+        # Template Word
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'attestation_validite_services_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        doc = Document(template_path)
+
+        replacements = {
+            '{{REFERENCE}}': reference,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{CATEGORIE}}': categorie,
+            '{{ECHELON}}': echelon_format,
+            '{{DATE_PRISE_SERVICE}}': date_prise_service,
+            '{{DATE_RETRAITE}}': date_retraite_str,
+            '{{DATE_AUJOURD_HUI}}': date_aujourdhui
+        }
+
+        _replace_placeholders_in_doc(doc, replacements)
+        _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+
+        # ✅ Ajouter signature et cachet du DPAF (alignés à droite)
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') and dpaf.signature else None
+        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') and dpaf.cachet else None
+        
+        # Chercher le nom du signataire
+        signataire_nom = 'Augustine Tognissè CAKPO SOGLO'
+        
+        for paragraph in doc.paragraphs:
+            if signataire_nom in paragraph.text:
+                nom_texte = paragraph.text
+                paragraph.clear()
+                
+                # ✅ Aligner le paragraphe à droite
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                
+                # Signature (taille 130)
+                run_sig = paragraph.add_run()
+                if signature_base64:
+                    try:
+                        if ',' in signature_base64:
+                            signature_base64 = signature_base64.split(',')[1]
+                        sig_bytes = base64.b64decode(signature_base64)
+                        sig_stream = io.BytesIO(sig_bytes)
+                        run_sig.add_picture(sig_stream, width=Pt(130))
+                    except Exception as e:
+                        print(f"Erreur signature: {e}")
+                        run_sig.text = ""
+                
+                # Cachet (taille 90) - collé à la signature
+                run_cachet = paragraph.add_run()
+                if cachet_base64:
+                    try:
+                        if ',' in cachet_base64:
+                            cachet_base64 = cachet_base64.split(',')[1]
+                        cachet_bytes = base64.b64decode(cachet_base64)
+                        cachet_stream = io.BytesIO(cachet_bytes)
+                        run_cachet.add_picture(cachet_stream, width=Pt(90))
+                    except Exception as e:
+                        print(f"Erreur cachet: {e}")
+                        run_cachet.text = ""
+                
+                # Saut de ligne
+                paragraph.add_run().add_break()
+                
+                # Nom en dessous (aussi aligné à droite)
+                run_nom = paragraph.add_run(nom_texte)
+                run_nom.bold = True
+                break
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+
+        docx_bytes = output.getvalue()
+        
+        try:
+            pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
+        except RuntimeError as e:
+            print(f"ERREUR conversion PDF: {e}")
+            return _create_docx_response(docx_bytes, f'Attestation_Validite_Services_{agent.nom}_{agent.prenom}')
+
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Attestation de validité de services',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference,
+            fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
+        )
+        
+        TypeDemande.objects.get_or_create(
+            libelle='Attestation',
+            defaults={'acte_generable': 1}
+        )
+        
+        return _create_pdf_response(pdf_bytes, f'Attestation_Validite_Services_{agent.nom}_{agent.prenom}')
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR generer_attestation_validite_services: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generer_certificat_non_jouissance(request):
+    """Générer un certificat de non-jouissance de congé pour une année donnée"""
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        annee = data.get('annee', datetime.now().year)
+        
+        agent = Agent.objects.get(matricule=matricule)
+        
+        # ✅ Vérifier si l'agent a bénéficié d'un congé pour l'année demandée
+        # Inclure tous les statuts sauf 'refuse', 'rejete', 'annule'
+        conges_valides = Demande.objects.filter(
+            agent=agent,
+            type_demande__libelle='Congé',
+            demandeconge__date_debut__year=annee
+        ).exclude(statut__in=['refuse', 'rejete', 'annule'])
+        
+        a_bteneficie_conge = conges_valides.exists()
+        
+        # Ajout de logs pour déboguer
+        print(f"=== GENERATION CERTIFICAT - {agent.nom} {agent.prenom} ===")
+        print(f"Année demandée: {annee}")
+        print(f"Nombre de congés trouvés: {conges_valides.count()}")
+        for c in conges_valides:
+            print(f"  - Congé ID: {c.id}, Statut: {c.statut}, Début: {c.demandeconge.date_debut if hasattr(c, 'demandeconge') else '?'}")
+        
+        # Si l'agent a bénéficié d'un congé, on ne peut pas délivrer le certificat
+        if a_bteneficie_conge:
+            jours_pris = 0
+            for c in conges_valides:
+                if hasattr(c, 'demandeconge') and c.demandeconge:
+                    jours_pris += c.demandeconge.nombrejours
+            return JsonResponse({
+                'error': f"Impossible de délivrer le certificat. L'agent a bénéficié d'un congé de {jours_pris} jours en {annee}."
+            }, status=400)
+        
+        # Récupérer le DPAF pour signature et cachet
+        dpaf = Agent.objects.filter(
+            agentrole__role__libelle='dpaf',
+            actif=1
+        ).first()
+        
+        if not dpaf:
+            return JsonResponse({'error': 'Aucun DPAF trouvé pour signer'}, status=500)
+        
+        # Déterminer le titre (Madame/Monsieur)
+        civilite = "Madame" if agent.prenom.endswith('e') or agent.nom.endswith('e') else "Monsieur"
+        
+        nom_complet = f"{agent.prenom} {agent.nom}"
+        poste = agent.poste or 'Agent'
+        
+        date_aujourdhui = datetime.now().strftime('%d/%m/%Y')
+        
+        # ✅ Numéro seul pour la référence
+        ref_number = f"{datetime.now().year}{datetime.now().strftime('%m%d%H%M%S')}"
+        reference = ref_number
+        
+        # Template Word
+        template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'certificat_non_jouissance_template.docx')
+        
+        if not os.path.exists(template_path):
+            return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+        
+        doc = Document(template_path)
+
+        replacements = {
+            '{{REFERENCE}}': reference,
+            '{{CIVILITE}}': civilite,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{ANNEE}}': str(annee),
+            '{{DATE_AUJOURD_HUI}}': date_aujourdhui
+        }
+
+        _replace_placeholders_in_doc(doc, replacements)
+        _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+
+        # ✅ Ajouter signature et cachet du DPAF (alignés à droite)
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') and dpaf.signature else None
+        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') and dpaf.cachet else None
+        
+        # Chercher le nom du signataire
+        signataire_nom = 'Augustine Tognissè CAKPO SOGLO'
+        
+        for paragraph in doc.paragraphs:
+            if signataire_nom in paragraph.text:
+                nom_texte = paragraph.text
+                paragraph.clear()
+                
+                # Aligner à droite
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                
+                # Signature (taille 130)
+                run_sig = paragraph.add_run()
+                if signature_base64:
+                    try:
+                        if ',' in signature_base64:
+                            signature_base64 = signature_base64.split(',')[1]
+                        sig_bytes = base64.b64decode(signature_base64)
+                        sig_stream = io.BytesIO(sig_bytes)
+                        run_sig.add_picture(sig_stream, width=Pt(130))
+                        print("✅ Signature ajoutée")
+                    except Exception as e:
+                        print(f"Erreur signature: {e}")
+                        run_sig.text = ""
+                
+                # Petit espace entre signature et cachet
+                paragraph.add_run(" ")
+                
+                # Cachet (taille 90)
+                run_cachet = paragraph.add_run()
+                if cachet_base64:
+                    try:
+                        if ',' in cachet_base64:
+                            cachet_base64 = cachet_base64.split(',')[1]
+                        cachet_bytes = base64.b64decode(cachet_base64)
+                        cachet_stream = io.BytesIO(cachet_bytes)
+                        run_cachet.add_picture(cachet_stream, width=Pt(90))
+                        print("✅ Cachet ajouté")
+                    except Exception as e:
+                        print(f"Erreur cachet: {e}")
+                        run_cachet.text = ""
+                
+                # Saut de ligne
+                paragraph.add_run().add_break()
+                
+                # Nom en dessous (aligné à droite)
+                run_nom = paragraph.add_run(nom_texte)
+                run_nom.bold = True
+                break
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+
+        docx_bytes = output.getvalue()
+        
+        try:
+            pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
+        except RuntimeError as e:
+            print(f"ERREUR conversion PDF: {e}")
+            return _create_docx_response(docx_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+
+        ActeAdministratif.objects.create(
+            reference=reference,
+            type_acte='Certificat de non-jouissance de congé',
+            statut='genere',
+            date_generation=datetime.now().date(),
+            contenu=reference,
+            fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
+        )
+        
+        return _create_pdf_response(pdf_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR generer_certificat_non_jouissance: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def verifier_conge_par_annee(request, matricule, annee):
+    """Vérifier si l'agent a bénéficié d'un congé pour une année donnée"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        
+        print(f"=== Vérification pour {matricule}, année {annee} ===")
+        
+        # Afficher TOUS les congés de l'agent pour déboguer
+        tous_les_conges = Demande.objects.filter(
+            agent=agent,
+            type_demande__libelle='Congé'
+        )
+        print("TOUS LES CONGÉS DE L'AGENT:")
+        for c in tous_les_conges:
+            print(f"  ID: {c.id}, Statut: {c.statut}, Début: {c.demandeconge.date_debut if hasattr(c, 'demandeconge') else '?'}")
+        
+        # Filtre pour l'année demandée
+        conges_valides = Demande.objects.filter(
+            agent=agent,
+            type_demande__libelle='Congé',
+            demandeconge__date_debut__year=annee
+        ).exclude(statut__in=['refuse', 'rejete', 'annule'])
+        
+        a_bteneficie = conges_valides.exists()
+        jours_pris = 0
+        
+        print(f"Congés trouvés pour {annee}: {conges_valides.count()}")
+        for c in conges_valides:
+            jours = c.demandeconge.nombrejours if hasattr(c, 'demandeconge') else 0
+            print(f"  - Demande ID: {c.id}, Statut: {c.statut}, Jours: {jours}")
+            jours_pris += jours
+        
+        return JsonResponse({
+            'success': True,
+            'a_bteneficie': a_bteneficie,
+            'jours_pris': jours_pris,
+            'peut_obtenir_certificat': not a_bteneficie
+        })
+        
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR verifier_conge_par_annee: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
