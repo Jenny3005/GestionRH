@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version avec modale d'assignation améliorée
+// DashboardDPAF.jsx - Version avec modale d'assignation améliorée et historique
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,8 +15,10 @@ export default function DashboardDPAF() {
   // États
   const [demandesTransmises, setDemandesTransmises] = useState([]);
   const [demandesAssignees, setDemandesAssignees] = useState([]);
+  const [demandesHistorique, setDemandesHistorique] = useState([]);
   const [actesASigner, setActesASigner] = useState([]);
   const [agentsRH, setAgentsRH] = useState([]);
+  const [activeTab, setActiveTab] = useState('encours'); // 'encours' ou 'historique'
   
   // Modals
   const [showAssignerModal, setShowAssignerModal] = useState(false);
@@ -37,7 +39,8 @@ export default function DashboardDPAF() {
     assignees: 0,
     en_cours: 0,
     terminees: 0,
-    actes_a_signer: 0
+    actes_a_signer: 0,
+    historique_count: 0
   });
 
   const matricule = localStorage.getItem('userMatricule');
@@ -51,6 +54,7 @@ export default function DashboardDPAF() {
     }
     fetchAllData();
     fetchAgentsRH();
+    fetchHistorique();
   }, []);
 
   // Charger UNIQUEMENT les agents avec rôle 'rh'
@@ -81,6 +85,20 @@ export default function DashboardDPAF() {
     } catch (error) {
       console.error('Erreur chargement agents RH:', error);
       setAgentsRH([]);
+    }
+  };
+
+  // Charger l'historique des demandes traitées
+  const fetchHistorique = async () => {
+    try {
+      const response = await fetch(`/api/dpaf/demandes-historique/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setDemandesHistorique(data);
+        setStats(prev => ({ ...prev, historique_count: data.length }));
+      }
+    } catch (error) {
+      console.error('Erreur chargement historique:', error);
     }
   };
 
@@ -117,7 +135,8 @@ export default function DashboardDPAF() {
         assignees: assigneesData.length,
         en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
         terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
-        actes_a_signer: actesData.length
+        actes_a_signer: actesData.length,
+        historique_count: stats.historique_count
       });
 
     } catch (error) {
@@ -153,6 +172,7 @@ export default function DashboardDPAF() {
         setSelectedAgentRH('');
         setCommentaire('');
         fetchAllData();
+        fetchHistorique();
       } else {
         alert(data.error || 'Erreur lors de l\'assignation');
       }
@@ -190,6 +210,7 @@ export default function DashboardDPAF() {
         setSelectedActe(null);
         setSignatureCommentaire('');
         fetchAllData();
+        fetchHistorique();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la signature');
@@ -247,7 +268,8 @@ export default function DashboardDPAF() {
       'acte_genere': <span className="badge-success">📄 Acte généré</span>,
       'termine': <span className="badge-success">✅ Terminé</span>,
       'attente_signature_dpaf': <span className="badge-warning">✍️ En attente de signature</span>,
-      'signe': <span className="badge-success">✅ Signé</span>
+      'signe': <span className="badge-success">✅ Signé</span>,
+      'remis': <span className="badge-success">📋 Remis à l'agent</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -298,6 +320,10 @@ export default function DashboardDPAF() {
             <div className="stat-number">{stats.actes_a_signer}</div>
             <div className="stat-label">✍️ Actes à signer</div>
           </div>
+          <div className="stat-card" style={{ borderLeftColor: '#6B7280' }}>
+            <div className="stat-number">{stats.historique_count}</div>
+            <div className="stat-label">📜 Historique</div>
+          </div>
         </div>
 
         {/* SECTION 1: Demandes à assigner */}
@@ -310,7 +336,6 @@ export default function DashboardDPAF() {
                   <th>Agent</th>
                   <th>Matricule</th>
                   <th>Type</th>
-                  <th>Période</th>
                   <th>Date transmission</th>
                   <th>Actions</th>
                 </tr>
@@ -326,7 +351,6 @@ export default function DashboardDPAF() {
                       <td>{d.agent_nom} {d.agent_prenom}</td>
                       <td>{d.agent_matricule}</td>
                       <td>{d.type_demande}</td>
-                      <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
                       <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <button className="btn-assigner" onClick={() => handleVoirDetails(d)}>
@@ -341,46 +365,107 @@ export default function DashboardDPAF() {
           </div>
         </div>
 
-        {/* SECTION 2: Demandes assignées et suivi */}
-        <div className="admin-section">
-          <h3>📋 Demandes assignées - Suivi</h3>
-          <div className="admin-table-container">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Type</th>
-                  <th>Agent RH</th>
-                  <th>Statut</th>
-                  <th>Date assignation</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
-                ) : demandesAssignees.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center">📭 Aucune demande assignée</td></tr>
-                ) : (
-                  demandesAssignees.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.agent_nom} {d.agent_prenom}</td>
-                      <td>{d.type_demande}</td>
-                      <td>{d.agent_rh_nom} {d.agent_rh_prenom}</td>
-                      <td>{getStatusBadge(d.statut)}</td>
-                      <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
-                      <td>
-                        <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
-                          👁️ Voir suivi
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Onglets pour les demandes assignées */}
+        <div className="filter-tabs" style={{ marginTop: '20px', marginBottom: '10px' }}>
+          <button 
+            className={`filter-tab ${activeTab === 'encours' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('encours')}
+          >
+            📋 Demandes en cours ({stats.assignees})
+          </button>
+          <button 
+            className={`filter-tab ${activeTab === 'historique' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('historique')}
+          >
+            📜 Historique des demandes traitées ({stats.historique_count})
+          </button>
         </div>
+
+        {/* SECTION 2: Demandes assignées en cours */}
+        {activeTab === 'encours' && (
+          <div className="admin-section">
+            <h3>📋 Demandes assignées - Suivi</h3>
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Agent RH</th>
+                    <th>Statut</th>
+                    <th>Date assignation</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  ) : demandesAssignees.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center">📭 Aucune demande en cours</td></tr>
+                  ) : (
+                    demandesAssignees.map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.agent_nom} {d.agent_prenom}</td>
+                        <td>{d.type_demande}</td>
+                        <td>{d.agent_rh_nom} {d.agent_rh_prenom}</td>
+                        <td>{getStatusBadge(d.statut)}</td>
+                        <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td>
+                          <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
+                            👁️ Voir suivi
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 2bis: Historique des demandes traitées */}
+        {activeTab === 'historique' && (
+          <div className="admin-section">
+            <h3>📜 Historique des demandes traitées</h3>
+            <div className="admin-table-container">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Type</th>
+                    <th>Agent RH</th>
+                    <th>Statut final</th>
+                    <th>Date soumission</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  ) : demandesHistorique.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center">📭 Aucune demande dans l'historique</td></tr>
+                  ) : (
+                    demandesHistorique.map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.agent_nom} {d.agent_prenom}</td>
+                        <td>{d.type_demande}</td>
+                        <td>{d.agent_rh_nom || '-'} {d.agent_rh_prenom || ''}</td>
+                        <td>{getStatusBadge(d.statut)}</td>
+                        <td>{d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td>
+                          <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
+                            👁️ Voir suivi
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* SECTION 3: Actes à signer */}
         <div className="admin-section">
@@ -427,8 +512,7 @@ export default function DashboardDPAF() {
         </div>
       </main>
 
-      {/* MODAL ASSIGNER À UN AGENT RH - VERSION MODERNE ET ÉLÉGANTE */}
-      {/* MODAL ASSIGNER À UN AGENT RH - VERSION ÉLÉGANTE AVEC VOS COULEURS */}
+      {/* MODAL ASSIGNER À UN AGENT RH - VERSION ÉLÉGANTE */}
       {showAssignerModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowAssignerModal(false)}>
           <div className="modal-content assigner-modal-elegant" onClick={(e) => e.stopPropagation()}>
@@ -474,13 +558,6 @@ export default function DashboardDPAF() {
                     <div className="detail-value-with-icon-elegant">
                       <span className="detail-icon-elegant">📌</span>
                       <span className="type-badge-elegant">{selectedDemande.type_demande}</span>
-                    </div>
-                  </div>
-                  <div className="demande-detail-item-elegant full-width">
-                    <span className="detail-label-elegant">Période concernée</span>
-                    <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant">📅</span>
-                      <span>{selectedDemande.date_debut} → {selectedDemande.date_fin}</span>
                     </div>
                   </div>
                 </div>
@@ -609,39 +686,37 @@ export default function DashboardDPAF() {
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📅</span>
-                  <div className="detail-content">
-                    <span className="detail-label">Période</span>
-                    <strong className="detail-value">{selectedDemande.date_debut} → {selectedDemande.date_fin}</strong>
-                  </div>
-                </div>
-                <div className="detail-item">
                   <span className="detail-icon">👥</span>
                   <div className="detail-content">
                     <span className="detail-label">Assigné à</span>
                     <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
                   </div>
                 </div>
-                <div className="detail-item">
-                  <span className="detail-icon">📅</span>
-                  <div className="detail-content">
-                    <span className="detail-label">Date d'assignation</span>
-                    <strong className="detail-value">
-                      {selectedDemande.date_assignation 
-                        ? new Date(selectedDemande.date_assignation).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-                        : '-'}
-                    </strong>
-                  </div>
-                </div>
               </div>
 
-              {/* Timeline moderne */}
+              {/* Timeline moderne - CORRIGÉE */}
               <div className="suivi-timeline-modern">
                 <h4 className="timeline-title">📅 Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
-                  {/* Étape 1 */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut !== 'transmise_dpaf' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'active' : ''}`}>
+                  {/* Étape 1 - Demande soumise */}
+                  <div className={`timeline-modern-step ${selectedDemande.date_soumission ? 'completed' : 'active'}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📝</span>
+                        <span className="step-title">Demande soumise</span>
+                        <span className="step-status">Par l'agent</span>
+                      </div>
+                      <p className="step-description">Demande soumise le {selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 2 - Transmission au DPAF */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut !== 'transmise_dpaf' && selectedDemande.statut !== 'assignee_rh' && selectedDemande.statut !== 'en_cours_traitement' && selectedDemande.statut !== 'acte_genere' && selectedDemande.statut !== 'remis' ? 'pending' : selectedDemande.statut === 'transmise_dpaf' ? 'active' : 'completed'}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -656,8 +731,8 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 2 */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'pending' : ''}`}>
+                  {/* Étape 3 - Assignation à un agent RH */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'pending' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -672,8 +747,8 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 3 */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
+                  {/* Étape 4 - Traitement par l'agent RH */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -688,8 +763,8 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 4 */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'termine' ? 'completed' : ''}`}>
+                  {/* Étape 5 - Génération de l'acte */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -704,8 +779,24 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 5 */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'termine' ? 'completed' : ''}`}>
+                  {/* Étape 6 - Signature DPAF */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'attente_signature_dpaf' ? 'active' : selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">✍️</span>
+                        <span className="step-title">Signature par le DPAF</span>
+                        <span className="step-status">En attente de signature</span>
+                      </div>
+                      <p className="step-description">Le DPAF signe l'acte avec son cachet officiel</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 7 - Remise à l'agent */}
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                     </div>
@@ -721,7 +812,6 @@ export default function DashboardDPAF() {
                 </div>
               </div>
 
-              {/* Commentaire DPAF */}
               {selectedDemande.commentaire_dpaf && (
                 <div className="suivi-commentaire-card">
                   <div className="commentaire-header">

@@ -4313,3 +4313,33 @@ def verifier_conge_par_annee(request, matricule, annee):
     except Exception as e:
         print(f"ERREUR verifier_conge_par_annee: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_demandes_historique_dpaf(request, matricule_dpaf):
+    """Récupérer l'historique des demandes traitées par le DPAF"""
+    try:
+        demandes = Demande.objects.filter(
+            statut__in=['attente_signature_dpaf', 'signe', 'remis', 'termine']
+        ).select_related('agent', 'type_demande', 'agent_rh')
+        
+        result = []
+        for d in demandes:
+            result.append({
+                'id': d.id,
+                'agent_nom': d.agent.nom,
+                'agent_prenom': d.agent.prenom,
+                'agent_matricule': d.agent.matricule,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'agent_rh_nom': d.agent_rh.nom if d.agent_rh else '-',
+                'agent_rh_prenom': d.agent_rh.prenom if d.agent_rh else '-',
+                'statut': d.statut,
+                'date_soumission': str(d.date_soumission) if d.date_soumission else '-'
+            })
+        
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        print(f"ERREUR get_demandes_historique_dpaf: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)

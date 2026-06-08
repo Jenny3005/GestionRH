@@ -102,6 +102,7 @@ urlpatterns = [
     path('attestations/validite-services/', views.generer_attestation_validite_services, name='attestation_validite_services'),
     path('certificats/non-jouissance/', views.generer_certificat_non_jouissance, name='certificat_non_jouissance'),
     path('certificats/verifier/<str:matricule>/<int:annee>/', views.verifier_conge_par_annee, name='verifier_conge_annee'),
+    path('dpaf/demandes-historique/<str:matricule_dpaf>/', views.get_demandes_historique_dpaf, name='demandes_historique_dpaf'),
     # ==================== SIGNATURE ET CACHET ====================
     path('agent/signature-cachet/<str:matricule>/', views.get_signature_cachet, name='get_signature_cachet'),
     path('agent/upload-signature/<str:matricule>/', views.upload_signature, name='upload_signature'),
