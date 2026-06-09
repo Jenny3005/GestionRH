@@ -257,7 +257,7 @@ def register(request):
             echelon_base = f"{partie_fixe}-1" 
             echelon_courant = echelon_base
 
-            prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+            prochaine_date = ajouter_annees(agent.date_prise_service, 2 if agent.typecontrat != 'ACE' else 4)
 
             while True:
                 if not peut_avancer(agent, prochaine_date):
@@ -282,7 +282,7 @@ def register(request):
                     echelon_nouveau=nouvel_echelon,
                 )
                 echelon_courant = nouvel_echelon
-                prochaine_date = prochaine_date + timedelta(days=2 * 365)
+                prochaine_date = ajouter_annees(prochaine_date, 2)
 
             print(f"✅ Avancements calculés pour {agent.matricule}")
         except Exception as e:
@@ -647,13 +647,11 @@ def import_agents(request):
                                 echelon_courant = nouvel
                             else:
                                 break
-                        dernier_date = agent.date_prise_service + timedelta(
-                            days=premier_delai + (nb_passes - 1) * 2 * 365
-                        )
-                        prochaine_date = dernier_date + timedelta(days=2 * 365)
+                        dernier_date = ajouter_annees(agent.date_prise_service, premier_delai//365 + (nb_passes - 1) * 2)
+                        prochaine_date = ajouter_annees(dernier_date, 2)
                     else:
                         # Nouvel agent : premier avancement à venir
-                        prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+                        prochaine_date = ajouter_annees(agent.date_prise_service, 2 if agent.typecontrat != 'ACE' else 4)
 
                     while True:
                         if not peut_avancer(agent, prochaine_date):
@@ -678,7 +676,7 @@ def import_agents(request):
                             echelon_nouveau=nouvel_echelon,
                         )
                         echelon_courant = nouvel_echelon
-                        prochaine_date = prochaine_date + timedelta(days=2 * 365)
+                        prochaine_date = ajouter_annees(prochaine_date, 2)
 
                     print(f"✅ Avancements calculés pour {agent.matricule}")
                 except Exception as av_error:
@@ -3998,6 +3996,14 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         return JsonResponse({'error': str(e)}, status=500)
 
 # ---------- UTILITAIRES AVANCEMENT (inchangés) ----------
+def ajouter_annees(date_source, nb_annees):
+    """Ajoute nb_annees années à une date en conservant le jour/mois.
+    Gère le 29 février → 28 février si l'année cible n'est pas bissextile."""
+    try:
+        return date_source.replace(year=date_source.year + nb_annees)
+    except ValueError:
+        return date_source.replace(year=date_source.year + nb_annees, day=28)
+
 def get_type_echelon(echelon):
     """Extrait la lettre de catégorie (A, B, C, D)"""
     if echelon and len(echelon) > 0:
@@ -4079,7 +4085,7 @@ def actualiser_avancements():
 
         if anciennete < premier_delai:
             echelon_courant = echelon_base
-            prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+            prochaine_date = ajouter_annees(agent.date_prise_service, 2 if agent.typecontrat != 'ACE' else 4)
         else:
             nb_passes = 1 + (anciennete - premier_delai) // (2 * 365)
             echelon_courant = echelon_base
@@ -4091,9 +4097,7 @@ def actualiser_avancements():
                     break
 
             # ✅ NOUVEAU : mettre à jour l'échelon de l'agent si la date est arrivée
-            dernier_date = agent.date_prise_service + timedelta(
-                days=premier_delai + (nb_passes - 1) * 2 * 365
-            )
+            dernier_date = ajouter_annees(agent.date_prise_service, premier_delai//365 + (nb_passes - 1) * 2)
 
             if dernier_date <= today:
                 sous_actuel = get_sous_indice(agent.echelon or echelon_base)
@@ -4140,7 +4144,7 @@ def actualiser_avancements():
                         )
 
             dernier_date_effective = dernier_date           # ← même niveau que le if dernier_date
-            prochaine_date = dernier_date_effective + timedelta(days=2 * 365)
+            prochaine_date = ajouter_annees(dernier_date_effective, 2)
 
         # Générer les avancements futurs
         while True:
@@ -4169,7 +4173,7 @@ def actualiser_avancements():
             )
 
             echelon_courant = nouvel_echelon
-            prochaine_date = prochaine_date + timedelta(days=2 * 365)
+            prochaine_date = ajouter_annees(prochaine_date, 2)
 
 def calculer_et_notifier():
     """Point d'entrée principal : actualise les avancements puis envoie les notifications."""
