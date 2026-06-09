@@ -19,9 +19,15 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime, date, timedelta
+
+from .emails import (
+    envoyer_email_activation,
+    envoyer_email_rappel_avancement,
+    envoyer_email_avancement_effectue,
+)
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
-    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif
+    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement
 )
 import json
 import random
@@ -137,65 +143,6 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
     """Convertit un fichier DOCX (bytes) en PDF (bytes)"""
     import tempfile
     import os
-<<<<<<< HEAD
-    import subprocess
-    from django.conf import settings
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        docx_path = os.path.join(tmpdir, 'document.docx')
-        pdf_path = os.path.join(tmpdir, 'document.pdf')
-        
-        # Sauvegarder le fichier DOCX
-        with open(docx_path, 'wb') as f:
-            f.write(docx_bytes)
-        
-        # Méthode 1: Essayer avec LibreOffice (recommandé)
-        try:
-            # Chercher le chemin de LibreOffice
-            libreoffice_paths = [
-                r'C:\Program Files\LibreOffice\program\soffice.exe',
-                r'C:\Program Files (x86)\LibreOffice\program\soffice.exe',
-                r'C:\Program Files\LibreOffice\program\soffice.bin',
-                r'C:\Program Files\LibreOffice\program\soffice.com',
-            ]
-            
-            soffice_path = None
-            for path in libreoffice_paths:
-                if os.path.exists(path):
-                    soffice_path = path
-                    break
-            
-            if soffice_path:
-                # Utiliser LibreOffice en mode headless
-                result = subprocess.run([
-                    soffice_path,
-                    '--headless',
-                    '--convert-to', 'pdf',
-                    '--outdir', tmpdir,
-                    docx_path
-                ], capture_output=True, text=True, timeout=60)
-                
-                if result.returncode == 0 and os.path.exists(pdf_path):
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
-                else:
-                    print(f"LibreOffice erreur: {result.stderr}")
-            else:
-                print("LibreOffice non trouvé, tentative avec docx2pdf...")
-                
-        except Exception as e:
-            print(f"Erreur avec LibreOffice: {e}")
-        
-        # Méthode 2: docx2pdf si installé
-        if docx2pdf_convert is not None:
-            try:
-                docx2pdf_convert(docx_path, pdf_path)
-                if os.path.exists(pdf_path):
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
-            except Exception as e:
-                print(f"Erreur docx2pdf: {e}")
-=======
     import pythoncom
     from docx2pdf import convert
     
@@ -211,21 +158,20 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             
             convert(docx_path, pdf_path)
             
-            if os.path.exists(pdf_path):
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                 with open(pdf_path, 'rb') as f:
                     return f.read()
             else:
-                raise RuntimeError("Conversion échouée")
+                raise RuntimeError("Conversion échouée - fichier PDF vide ou inexistant")
     finally:
         pythoncom.CoUninitialize()
->>>>>>> Jenny
 
-        raise RuntimeError("Impossible de convertir le document DOCX en PDF. Installez LibreOffice ou docx2pdf.")
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
     return response
+
 
 def _create_docx_response(docx_bytes, filename):
     response = HttpResponse(docx_bytes, content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -277,12 +223,15 @@ def register(request):
             nom=data.get('nom'),
             prenom=data.get('prenom'),
             email=data.get('email'),
+            date_naissance=datetime.strptime(data.get('date_naissance'), '%Y-%m-%d').date() if data.get('date_naissance') else None,
             telephone=data.get('telephone'),
             date_prise_service=date_prise_service,
             adresse=adresse,
             poste=poste,
             direction=direction,
             typecontrat=typecontrat,
+            corps=data.get('corps') or ' ',
+            echelon=data.get('echelon') or 'A1-1',
             actif=0
         )
         print(f"Agent créé avec Matricule: {agent.matricule}")
@@ -294,30 +243,53 @@ def register(request):
                 [agent.matricule, role_agent.id]
             )
         
+        # ==================== CALCUL DES AVANCEMENTS ====================
+        try:
+            premier_delai = 4 * 365 if agent.typecontrat == 'ACE' else 2 * 365
+
+            if agent.echelon and '-' in agent.echelon:
+                partie_fixe = get_partie_fixe(agent.echelon)
+            else:
+                partie_fixe = get_type_echelon(agent.echelon or 'A1-1') + '1'
+
+            echelon_base = f"{partie_fixe}-1" 
+            echelon_courant = echelon_base
+
+            prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+
+            while True:
+                if not peut_avancer(agent, prochaine_date):
+                    break
+                nouvel_echelon = calculer_nouvel_echelon(echelon_courant)
+                if nouvel_echelon is None:
+                    Avancement.objects.create(
+                        agent=agent,
+                        date_prevue=None,
+                        date_effective=None,
+                        type_avancement='plafonne',
+                        echelon_ancien=echelon_courant,
+                        echelon_nouveau=echelon_courant,
+                    )
+                    break
+                Avancement.objects.create(
+                    agent=agent,
+                    date_prevue=prochaine_date,
+                    date_effective=None,
+                    type_avancement='normal',
+                    echelon_ancien=echelon_courant,
+                    echelon_nouveau=nouvel_echelon,
+                )
+                echelon_courant = nouvel_echelon
+                prochaine_date = prochaine_date + timedelta(days=2 * 365)
+
+            print(f"✅ Avancements calculés pour {agent.matricule}")
+        except Exception as e:
+            print(f"⚠️ Erreur calcul avancements pour {agent.matricule}: {e}")
+        # ================================================================
+
         activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
         
-        try:
-            context = {
-                'prenom': agent.prenom,
-                'nom': agent.nom,
-                'matricule': agent.matricule,
-                'email': agent.email,
-                'activation_link': activation_link,
-            }
-            html_message = render_to_string('emails/activation_email.html', context)
-            plain_message = strip_tags(html_message)
-            
-            send_mail(
-                subject='🔐 Activation de votre compte MND',
-                message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[agent.email],
-                html_message=html_message,
-                fail_silently=False,
-            )
-            print(f"✅ Email envoyé à {agent.email}")
-        except Exception as e:
-            print(f"❌ Erreur envoi email: {e}")
+        envoyer_email_activation(agent)
         
         return JsonResponse({
             'success': True,
@@ -527,7 +499,6 @@ def login(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_all_agents(request):
-    """Récupérer tous les agents avec leurs rôles et leur direction"""
     try:
         agents = Agent.objects.all()
         result = []
@@ -551,6 +522,10 @@ def get_all_agents(request):
                 'direction': agent.direction or 'À renseigner',
                 'poste': agent.poste,
                 'actif': agent.actif,
+                'date_prise_service': str(agent.date_prise_service) if agent.date_prise_service else None,
+                'date_naissance': str(agent.date_naissance) if agent.date_naissance else None,
+                'typecontrat': agent.typecontrat or 'APE',
+                'echelon': agent.echelon or '',
                 'roles': [{'id': r[0], 'libelle': r[1]} for r in roles]
             })
         return JsonResponse(result, safe=False)
@@ -644,31 +619,73 @@ def import_agents(request):
                         "INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
                         [agent.matricule, role_agent.id]
                     )
+
+                # ✅ NOUVEAU : Calcul immédiat des avancements pour cet agent importé
+                try:
+                    if agent.typecontrat == 'ACE':
+                        premier_delai = 4 * 365
+                    else:
+                        premier_delai = 2 * 365
+
+                    if agent.echelon and '-' in agent.echelon:
+                        partie_fixe = get_partie_fixe(agent.echelon)
+                    else:
+                        partie_fixe = get_type_echelon(agent.echelon or 'A1-1') + '1'
+
+                    echelon_base = f"{partie_fixe}-1"
+                    echelon_courant = echelon_base
+                    anciennete = (date.today() - agent.date_prise_service).days
+
+                    if anciennete >= premier_delai:
+                        # Agent déjà ancien : calculer les avancements passés d'abord
+                        nb_passes = 1 + (anciennete - premier_delai) // (2 * 365)
+                        for _ in range(nb_passes):
+                            nouvel = calculer_nouvel_echelon(echelon_courant)
+                            if nouvel:
+                                echelon_courant = nouvel
+                            else:
+                                break
+                        dernier_date = agent.date_prise_service + timedelta(
+                            days=premier_delai + (nb_passes - 1) * 2 * 365
+                        )
+                        prochaine_date = dernier_date + timedelta(days=2 * 365)
+                    else:
+                        # Nouvel agent : premier avancement à venir
+                        prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+
+                    while True:
+                        if not peut_avancer(agent, prochaine_date):
+                            break
+                        nouvel_echelon = calculer_nouvel_echelon(echelon_courant)
+                        if nouvel_echelon is None:
+                            Avancement.objects.create(
+                                agent=agent,
+                                date_prevue=None,
+                                date_effective=None,
+                                type_avancement='plafonne',
+                                echelon_ancien=echelon_courant,
+                                echelon_nouveau=echelon_courant,
+                            )
+                            break
+                        Avancement.objects.create(
+                            agent=agent,
+                            date_prevue=prochaine_date,
+                            date_effective=None,
+                            type_avancement='normal',
+                            echelon_ancien=echelon_courant,
+                            echelon_nouveau=nouvel_echelon,
+                        )
+                        echelon_courant = nouvel_echelon
+                        prochaine_date = prochaine_date + timedelta(days=2 * 365)
+
+                    print(f"✅ Avancements calculés pour {agent.matricule}")
+                except Exception as av_error:
+                    print(f"⚠️ Erreur calcul avancements pour {agent.matricule}: {av_error}")
                 
                 activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
-                try:
-                    context = {
-                        'prenom': agent.prenom,
-                        'nom': agent.nom,
-                        'matricule': agent.matricule,
-                        'email': agent.email,
-                        'activation_link': activation_link,
-                    }
-                    html_message = render_to_string('emails/activation_email.html', context)
-                    plain_message = strip_tags(html_message)
-                    
-                    send_mail(
-                        subject='🔐 Activation de votre compte MND',
-                        message=plain_message,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[agent.email],
-                        html_message=html_message,
-                        fail_silently=False,
-                    )
-                    print(f"✅ Email envoyé à {agent.email}")
-                except Exception as email_error:
-                    print(f"❌ Erreur email pour {agent.email}: {email_error}")
-                    errors.append(f"{agent.matricule}: Email non envoyé - {str(email_error)}")
+                succes, erreur = envoyer_email_activation(agent)
+                if not succes:
+                    errors.append(f"{agent.matricule}: Email non envoyé - {erreur}")
                 
                 success_count += 1
                 
@@ -1307,21 +1324,20 @@ def mes_demandes(request, matricule):
     try:
         print("=" * 50)
         print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
-        print("=" * 50)
         
-        try:
-            agent = Agent.objects.get(matricule=matricule)
-            print(f"✅ Agent trouvé: {agent.nom} {agent.prenom}")
-        except Agent.DoesNotExist:
-            print(f"❌ Agent non trouvé pour matricule: '{matricule}'")
-            return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        agent = Agent.objects.get(matricule=matricule)
+        print(f"✅ Agent trouvé: {agent.nom} {agent.prenom}")
         
         demandes = Demande.objects.filter(
             agent=agent
         ).select_related('type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
         
+        print(f"📋 Nombre total de demandes trouvées: {demandes.count()}")
+        
         result = []
         for d in demandes:
+            print(f"  - Demande ID: {d.id}, Type: {d.type_demande.libelle if d.type_demande else 'None'}, Statut: {d.statut}")
+            
             date_debut = None
             date_fin = None
             nombre_jours = None
@@ -1346,15 +1362,17 @@ def mes_demandes(request, matricule):
                 'numerosuivi': d.numerosuivi
             })
         
-        print(f"\n✅ FINAL - Demandes retournées: {len(result)}")
+        print(f"✅ FINAL - {len(result)} demandes retournées")
         return JsonResponse(result, safe=False)
         
+    except Agent.DoesNotExist:
+        print(f"❌ Agent non trouvé pour matricule: '{matricule}'")
+        return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
     except Exception as e:
         print(f"❌ ERREUR: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # ==================== SOLDE CONGÉ ====================
 
@@ -2004,7 +2022,108 @@ def remettre_acte(request, reference):
 
 
 # ==================== DPAF ====================
-
+def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=None, cachet_base64=None, commentaire=""):
+    """Génère le PDF de l'acte avec signature et cachet du DPAF"""
+    from docx import Document
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io, base64
+    from io import BytesIO
+    
+    # Déterminer le template
+    if demande.type_demande.libelle == 'Congé':
+        template_name = 'autorisation_conge_template.docx'
+    else:
+        template_name = 'autorisation_absence_template.docx'
+    
+    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
+    
+    if not os.path.exists(template_path):
+        raise Exception(f"Template {template_name} non trouvé")
+    
+    doc = Document(template_path)
+    
+    # Préparer les remplacements
+    if hasattr(demande, 'demandeconge') and demande.demandeconge:
+        date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
+        date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+        nombre_jours = demande.demandeconge.nombrejours
+        motif = ''
+    else:
+        date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+        date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+        nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
+        motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
+    
+    numero_seul = acte.reference.split('/')[0] if '/' in acte.reference else acte.reference
+    
+    replacements = {
+        '{{REFERENCE}}': numero_seul,
+        '{{AGENT_NOM}}': demande.agent.nom.upper(),
+        '{{AGENT_PRENOM}}': demande.agent.prenom,
+        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
+        '{{DATE_DEBUT}}': date_debut,
+        '{{DATE_FIN}}': date_fin,
+        '{{NOMBRE_JOURS}}': str(nombre_jours),
+        '{{MOTIF}}': motif,
+        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+        '{{ANNEE}}': str(datetime.now().year)
+    }
+    
+    # Remplacer les placeholders
+    for paragraph in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in paragraph.text:
+                paragraph.text = paragraph.text.replace(key, value)
+    
+    # ✅ Ajouter signature et cachet AVANT "Comlan Amour Abel KPOCHEME"
+    for paragraph in doc.paragraphs:
+        if 'Comlan' in paragraph.text or 'KPOCHEME' in paragraph.text:
+            nom_texte = paragraph.text
+            paragraph.clear()
+            
+            # Signature (taille 130)
+            run_sig = paragraph.add_run()
+            if signature_base64:
+                try:
+                    if ',' in signature_base64:
+                        signature_base64 = signature_base64.split(',')[1]
+                    sig_bytes = base64.b64decode(signature_base64)
+                    sig_stream = BytesIO(sig_bytes)
+                    run_sig.add_picture(sig_stream, width=Pt(130))
+                except:
+                    run_sig.text = ""
+            
+            # UN SEUL espace entre signature et cachet
+            paragraph.add_run(" ")
+            
+            # Cachet (taille 90)
+            run_cachet = paragraph.add_run()
+            if cachet_base64:
+                try:
+                    if ',' in cachet_base64:
+                        cachet_base64 = cachet_base64.split(',')[1]
+                    cachet_bytes = base64.b64decode(cachet_base64)
+                    cachet_stream = BytesIO(cachet_bytes)
+                    run_cachet.add_picture(cachet_stream, width=Pt(90))
+                except:
+                    run_cachet.text = ""
+            
+            # Saut de ligne
+            paragraph.add_run().add_break()
+            
+            # Nom en dessous
+            paragraph.add_run(nom_texte).bold = True
+            
+            break
+    
+    _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+    
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    
+    return _docx_bytes_to_pdf_bytes(output.getvalue())
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_demandes_transmises_dpaf(request, matricule_dpaf):
@@ -2102,11 +2221,7 @@ def get_demandes_assignees_dpaf(request, matricule_dpaf):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_agents_rh(request):
-<<<<<<< HEAD
-    """Récupérer tous les agents ayant le rôle RH uniquement"""
-=======
     """Récupérer tous les agents ayant un rôle RH uniquement"""
->>>>>>> Jenny
     try:
         print(f"=== get_agents_rh called")
         
@@ -2184,18 +2299,13 @@ def signer_acte_dpaf(request, reference):
         dpaf_matricule = data.get('dpaf_matricule')
         commentaire = data.get('commentaire', '')
         
-        # Récupérer l'acte
         acte = ActeAdministratif.objects.get(reference=reference)
         demande = acte.demande
-        
-        # Récupérer le DPAF (avec sa signature et son cachet)
         dpaf = Agent.objects.get(matricule=dpaf_matricule)
         
-        # Récupérer la signature et le cachet du DPAF (stockés dans la base)
         signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') else None
         cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') else None
         
-        # Générer le PDF avec signature et cachet
         pdf_bytes = generer_acte_avec_signature_et_cachet(
             acte=acte,
             demande=demande,
@@ -2205,14 +2315,12 @@ def signer_acte_dpaf(request, reference):
             commentaire=commentaire
         )
         
-        # Mettre à jour l'acte
         acte.statut = 'signe'
         acte.signe_par = f"{dpaf.prenom} {dpaf.nom}"
         acte.signe_le = datetime.now()
         acte.fichier_pdf_signe = base64.b64encode(pdf_bytes).decode('utf-8')
         acte.save()
         
-        # Notifier la secrétaire
         secretaire = Agent.objects.filter(
             agentrole__role__libelle='secretaire',
             direction=demande.agent.direction,
@@ -2240,117 +2348,6 @@ def signer_acte_dpaf(request, reference):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
-
-def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=None, cachet_base64=None, commentaire=""):
-    """Génère le PDF de l'acte avec signature et cachet du DPAF"""
-    from docx import Document
-    from docx.shared import Pt, Cm
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    import io, base64
-    from io import BytesIO
-    
-    # Déterminer le template en fonction du type de demande
-    if demande.type_demande.libelle == 'Congé':
-        template_name = 'autorisation_conge_template.docx'
-    else:
-        template_name = 'autorisation_absence_template.docx'
-    
-    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
-    
-    if not os.path.exists(template_path):
-        raise Exception(f"Template {template_name} non trouvé")
-    
-    doc = Document(template_path)
-    
-    # Préparer les remplacements
-    date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-    date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-    nombre_jours = demande.demandeconge.nombrejours if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-    
-    replacements = {
-        '{{REFERENCE}}': acte.reference,
-        '{{AGENT_NOM}}': demande.agent.nom.upper(),
-        '{{AGENT_PRENOM}}': demande.agent.prenom,
-        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
-        '{{DATE_DEBUT}}': date_debut,
-        '{{DATE_FIN}}': date_fin,
-        '{{NOMBRE_JOURS}}': str(nombre_jours),
-        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-        '{{ANNE_CONGE}}': str(datetime.now().year)
-    }
-    
-    # Remplacer les placeholders dans le document
-    for paragraph in doc.paragraphs:
-        for key, value in replacements.items():
-            if key in paragraph.text:
-                paragraph.text = paragraph.text.replace(key, value)
-    
-    # Ajouter la signature et le cachet à la fin du document
-    doc.add_paragraph()  # Saut de ligne
-    
-    # Créer un tableau pour la signature (2 lignes)
-    table = doc.add_table(rows=2, cols=2)
-    table.autofit = False
-    table.columns[0].width = Cm(8)
-    table.columns[1].width = Cm(8)
-    
-    # Ligne 1: Signature et Cachet
-    cell_signature = table.cell(0, 0)
-    cell_cachet = table.cell(0, 1)
-    cell_cachet.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    
-    # Ajouter la signature scannée si disponible
-    if signature_base64:
-        try:
-            # Nettoyer le base64
-            if ',' in signature_base64:
-                signature_base64 = signature_base64.split(',')[1]
-            signature_bytes = base64.b64decode(signature_base64)
-            signature_stream = BytesIO(signature_bytes)
-            run = cell_signature.paragraphs[0].add_run()
-            run.add_picture(signature_stream, width=Pt(120))
-        except Exception as e:
-            print(f"Erreur ajout signature: {e}")
-            cell_signature.paragraphs[0].text = f"Signé par: {dpaf.prenom} {dpaf.nom}"
-    else:
-        cell_signature.paragraphs[0].text = f"Signé par: {dpaf.prenom} {dpaf.nom}"
-        cell_signature.paragraphs[0].runs[0].bold = True
-    
-    # Ajouter le cachet si disponible
-    if cachet_base64:
-        try:
-            if ',' in cachet_base64:
-                cachet_base64 = cachet_base64.split(',')[1]
-            cachet_bytes = base64.b64decode(cachet_base64)
-            cachet_stream = BytesIO(cachet_bytes)
-            run = cell_cachet.paragraphs[0].add_run()
-            run.add_picture(cachet_stream, width=Pt(100))
-        except Exception as e:
-            print(f"Erreur ajout cachet: {e}")
-            cell_cachet.paragraphs[0].text = "[CACHET OFFICIEL]"
-    else:
-        cell_cachet.paragraphs[0].text = "[CACHET OFFICIEL]"
-    
-    # Ligne 2: Fonction et date
-    cell_fonction = table.cell(1, 0)
-    cell_fonction.paragraphs[0].text = dpaf.poste or "Directeur de la Planification, de l'Administration et des Finances"
-    
-    cell_date = table.cell(1, 1)
-    cell_date.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    cell_date.paragraphs[0].text = f"Fait à Cotonou, le {datetime.now().strftime('%d/%m/%Y')}"
-    
-    # Ajouter le commentaire si présent
-    if commentaire:
-        doc.add_paragraph()
-        doc.add_paragraph(f"Commentaire: {commentaire}")
-    
-    # Convertir en PDF
-    output = io.BytesIO()
-    doc.save(output)
-    output.seek(0)
-    
-    # Fonction de conversion (à adapter selon votre config)
-    return _docx_bytes_to_pdf_bytes(output.getvalue())
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -2450,77 +2447,23 @@ def generer_acte_rh(request, demande_id):
     """RH génère un acte pour une demande"""
     try:
         data = json.loads(request.body)
-        reference = data.get('reference')  # Ex: "20261780587512451"
+        reference = data.get('reference')
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
 
-<<<<<<< HEAD
         demande_type_label = demande.type_demande.libelle if demande.type_demande else ''
         demande_type_lower = demande_type_label.lower()
         is_conge = demande_type_lower == 'congé' or demande_type_lower == 'conge'
         is_absence = 'absence' in demande_type_lower
 
-        # Variables communes
-        date_debut = ''
-        date_fin = ''
-        nombre_jours = ''
-        motif = ''
-        type_acte = ''
-        filename_prefix = ''
-        
-        if is_conge:
-            template_name = 'autorisation_conge_template.docx'
-            type_acte = 'Autorisation de jouissance de congé administratif'
-            date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-            date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-            nombre_jours = demande.demandeconge.nombrejours if hasattr(demande, 'demandeconge') and demande.demandeconge else ''
-            motif = ''
-            filename_prefix = 'Autorisation_Conge'
-        elif is_absence:
-            template_name = 'autorisation_absence_template.docx'
-            type_acte = "Autorisation d'absence exceptionnelle"
-            date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
-            date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
-            nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
-            motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') and demande.demandeabsence else ''
-            filename_prefix = 'Autorisation_Absence'  # ← Correction importante !
-        else:
-            return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
-=======
-        # 🔍 DEBUG - Afficher le type de demande
-        demande_type_label = demande.type_demande.libelle if demande.type_demande else ''
+        # 🔍 DEBUG
         print("=" * 70)
         print(f"🔍 DEBUG generer_acte_rh - Demande ID: {demande_id}")
-        print(f"🔍 Type de demande (libelle): '{demande_type_label}'")
-        
-        demande_type_lower = demande_type_label.lower()
-        
-        # ✅ Détection du type de demande
-        is_conge = demande_type_lower in ['congé', 'conge', 'congés', 'conge annuel']
-        is_absence = 'absence' in demande_type_lower
-        
-        # Vérification par les relations
-        if not is_conge and not is_absence:
-            has_conge = hasattr(demande, 'demandeconge') and demande.demandeconge is not None
-            has_absence = hasattr(demande, 'demandeabsence') and demande.demandeabsence is not None
-            
-            if has_conge:
-                is_conge = True
-            elif has_absence:
-                is_absence = True
-        
-        print(f"🔍 FINAL - is_conge: {is_conge}, is_absence: {is_absence}")
+        print(f"🔍 Type de demande: '{demande_type_label}'")
+        print(f"🔍 is_conge: {is_conge}, is_absence: {is_absence}")
         print("=" * 70)
 
-        # Variables par défaut
-        date_debut = ''
-        date_fin = ''
-        nombre_jours = ''
-        motif = ''
-        type_acte = ''
-        filename_prefix = ''
-        
         if is_conge:
             template_name = 'autorisation_conge_template.docx'
             type_acte = 'Autorisation de jouissance de congé administratif'
@@ -2528,9 +2471,12 @@ def generer_acte_rh(request, demande_id):
                 date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
                 date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
                 nombre_jours = demande.demandeconge.nombrejours
+            else:
+                date_debut = ''
+                date_fin = ''
+                nombre_jours = ''
+            motif = ''
             filename_prefix = 'Autorisation_Conge'
-            print(f"🎯 Génération d'un acte de CONGÉ")
-            
         elif is_absence:
             template_name = 'autorisation_absence_template.docx'
             type_acte = "Autorisation d'absence exceptionnelle"
@@ -2539,12 +2485,14 @@ def generer_acte_rh(request, demande_id):
                 date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y')
                 nombre_jours = demande.demandeabsence.nombrejours
                 motif = demande.demandeabsence.motif if demande.demandeabsence.motif else ''
+            else:
+                date_debut = ''
+                date_fin = ''
+                nombre_jours = ''
+                motif = ''
             filename_prefix = 'Autorisation_Absence'
-            print(f"🎯 Génération d'un acte d'ABSENCE - prefix: {filename_prefix}")
         else:
-            print(f"❌ ERREUR: Type de demande non reconnu: {demande_type_label}")
-            return JsonResponse({'error': f'Type de demande non supporté: {demande_type_label}'}, status=400)
->>>>>>> Jenny
+            return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
 
         template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
         
@@ -2553,20 +2501,11 @@ def generer_acte_rh(request, demande_id):
         
         doc = Document(template_path)
 
-<<<<<<< HEAD
-        # Préparer les remplacements
-        replacements = {
-            '{{REFERENCE}}': reference,
-=======
-        # 🔥 CORRECTION : Extraire uniquement le numéro, pas le chemin complet
-        # Si reference contient déjà "/", on ne garde que la première partie
+        # Extraire le numéro
         numero_seul = reference.split('/')[0] if '/' in reference else reference
-        print(f"🔍 Numéro extrait: {numero_seul}")
         
-        # Préparer les remplacements - on passe seulement le numéro
         replacements = {
-            '{{REFERENCE}}': numero_seul,  # ← Seulement le numéro !
->>>>>>> Jenny
+            '{{REFERENCE}}': numero_seul,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
             '{{AGENT_PRENOM}}': demande.agent.prenom,
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
@@ -2577,8 +2516,6 @@ def generer_acte_rh(request, demande_id):
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
             '{{ANNEE}}': str(datetime.now().year)
         }
-
-        print(f"🔍 Remplacements: {replacements}")
 
         _replace_placeholders_in_doc(doc, replacements)
         _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
@@ -2594,13 +2531,12 @@ def generer_acte_rh(request, demande_id):
             print(f"⚠️ ERREUR conversion PDF: {e}")
             return _create_docx_response(docx_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
 
-        # Stocker la référence COMPLÈTE dans la base
         reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
         
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
         acte = ActeAdministratif.objects.create(
-            reference=reference_complete,  # ← Stocker la référence complète
+            reference=reference_complete,
             demande=demande,
             type_acte=type_acte,
             statut='genere',
@@ -2609,37 +2545,23 @@ def generer_acte_rh(request, demande_id):
             fichier_pdf=fichier_base64
         )
 
-        print(f"✅ Acte créé: {acte.reference} - Type: {type_acte}")
-<<<<<<< HEAD
-=======
-        
         final_filename = f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}'
-        print(f"📄 NOM FINAL DU FICHIER: {final_filename}.pdf")
-        print("=" * 70)
->>>>>>> Jenny
 
         demande.statut = 'acte_genere'
         demande.reference_acte = reference_complete
         demande.date_generation_acte = datetime.now().date()
         demande.save()
-        print(f"🚨🚨🚨 ENVOI AU FRONTEND - Nom du fichier: {final_filename}.pdf 🚨🚨🚨")
-        print(f"🚨 Content-Disposition: attachment; filename=\"{final_filename}.pdf\"")
 
-<<<<<<< HEAD
-        # Utiliser filename_prefix qui est déjà défini correctement
-        return _create_pdf_response(pdf_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
-=======
         return _create_pdf_response(pdf_bytes, final_filename)
->>>>>>> Jenny
         
     except Demande.DoesNotExist:
-        print(f"❌ Demande {demande_id} non trouvée")
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
         print(f"❌ ERREUR generer_acte_rh: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
 
 @csrf_exempt
 @require_http_methods(["PUT"])
@@ -2688,10 +2610,24 @@ def envoyer_acte_secretaire(request, reference):
 @csrf_exempt
 @require_http_methods(["GET"])
 def download_acte(request, reference):
-    """Télécharger un acte administratif"""
+    """Télécharger un acte administratif - priorité au fichier signé"""
     try:
         acte = ActeAdministratif.objects.get(reference=reference)
         
+        # ✅ PRIORITÉ au fichier signé s'il existe
+        if acte.fichier_pdf_signe:
+            fichier_bytes = base64.b64decode(acte.fichier_pdf_signe)
+            if fichier_bytes.startswith(b'PK'):
+                try:
+                    pdf_bytes = _docx_bytes_to_pdf_bytes(fichier_bytes)
+                except RuntimeError as e:
+                    print(f"ERREUR conversion PDF download_acte: {e}")
+                    return JsonResponse({'error': str(e)}, status=500)
+            else:
+                pdf_bytes = fichier_bytes
+            return _create_pdf_response(pdf_bytes, f'acte_{reference}')
+        
+        # Sinon, utiliser le fichier original
         if acte.fichier_pdf:
             fichier_bytes = base64.b64decode(acte.fichier_pdf)
             if fichier_bytes.startswith(b'PK'):
@@ -2722,7 +2658,7 @@ def download_acte(request, reference):
     except Exception as e:
         print(f"ERREUR download_acte: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
+    
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -3009,40 +2945,6 @@ def generer_attestation_travail(request):
             return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
         
         doc = Document(template_path)
-<<<<<<< HEAD
-        
-        for paragraph in doc.paragraphs:
-            if '{{NOM_COMPLET}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
-            if '{{POSTE}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
-            if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
-            if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
-            if '{{REFERENCE}}' in paragraph.text:
-                paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
-        
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        if '{{NOM_COMPLET}}' in paragraph.text:
-                            paragraph.text = paragraph.text.replace('{{NOM_COMPLET}}', nom_complet)
-                        if '{{POSTE}}' in paragraph.text:
-                            paragraph.text = paragraph.text.replace('{{POSTE}}', poste)
-                        if '{{DATE_PRISE_SERVICE}}' in paragraph.text:
-                            paragraph.text = paragraph.text.replace('{{DATE_PRISE_SERVICE}}', date_prise_service)
-                        if '{{DATE_AUJOURD_HUI}}' in paragraph.text:
-                            paragraph.text = paragraph.text.replace('{{DATE_AUJOURD_HUI}}', date_aujourdhui)
-                        if '{{REFERENCE}}' in paragraph.text:
-                            paragraph.text = paragraph.text.replace('{{REFERENCE}}', reference)
-        
-        output = io.BytesIO()
-        doc.save(output)
-        output.seek(0)
-        
-=======
 
         replacements = {
             '{{NOM_COMPLET}}': nom_complet,
@@ -3066,7 +2968,6 @@ def generer_attestation_travail(request):
             print(f"ERREUR conversion PDF generer_attestation_travail: {e}")
             return _create_docx_response(docx_bytes, f'Attestation_Travail_{agent.nom}_{agent.prenom}')
 
->>>>>>> Jenny
         ActeAdministratif.objects.create(
             reference=reference,
             type_acte='Attestation de travail',
@@ -3324,6 +3225,8 @@ def upload_document(request):
             try:
                 date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
                 print(f"Date d'expiration fournie par l'utilisateur: {date_expiration}")
+            except:
+                print(f"Format de date invalide: {date_expiration_str}")
         
         anciennes_pieces = Piece.objects.filter(
             dossier_agent=dossier,
@@ -3575,11 +3478,6 @@ def get_documents_by_matricule(request, matricule):
 
 # ==================== GESTION DES ANOMALIES ====================
 
-<<<<<<< HEAD
-# ==================== GESTION DES ANOMALIES ====================
-
-=======
->>>>>>> Jenny
 @csrf_exempt
 @require_http_methods(["GET"])
 def detect_anomalies(request, matricule):
@@ -3696,7 +3594,7 @@ def detect_anomalies(request, matricule):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-<<<<<<< HEAD
+
 # ==================== SIGNATURE ET CACHET ====================
 
 @csrf_exempt
@@ -3754,8 +3652,7 @@ def upload_cachet(request, matricule):
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # Vérifier si l'agent a le droit d'avoir un cachet (optionnel - vous pouvez enlever cette vérification)
-        # Récupérer le rôle de l'agent
+        # Vérifier si l'agent a le droit d'avoir un cachet
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT r.libelle 
@@ -3816,6 +3713,7 @@ def delete_cachet(request, matricule):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_all_expired_documents(request):
@@ -3833,6 +3731,7 @@ def get_all_expired_documents(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
 
 @csrf_exempt
 @require_http_methods(["DELETE"])
@@ -3859,7 +3758,9 @@ def supprimer_toutes_notifications(request, matricule):
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
-=======
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_actes_a_envoyer_rh(request, matricule_rh):
@@ -3867,7 +3768,6 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
     try:
         print(f"=== get_actes_a_envoyer_rh for RH: {matricule_rh}")
         
-        # Récupérer les actes générés (statut='genere') liés aux demandes assignées à ce RH
         actes = ActeAdministratif.objects.filter(
             statut='genere',
             demande__agent_rh__matricule=matricule_rh
@@ -3892,5 +3792,333 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
         print(f"ERREUR get_actes_a_envoyer_rh: {str(e)}")
         import traceback
         traceback.print_exc()
->>>>>>> Jenny
         return JsonResponse({'error': str(e)}, status=500)
+
+# ---------- UTILITAIRES AVANCEMENT (inchangés) ----------
+def get_type_echelon(echelon):
+    """Extrait la lettre de catégorie (A, B, C, D)"""
+    if echelon and len(echelon) > 0:
+        return echelon[0].upper()
+    return 'A'
+
+def get_age_retraite(type_echelon):
+    """Retourne l'âge légal de départ à la retraite selon la catégorie"""
+    ages = {'A': 60, 'B': 58, 'C': 55, 'D': 55}
+    return ages.get(type_echelon, 60)
+
+def get_sous_indice(echelon):
+    """Extrait le sous-indice (chiffre après le tiret) depuis un échelon comme A3-5 -> 5"""
+    if echelon and '-' in echelon:
+        try:
+            return int(echelon.split('-')[1])
+        except:
+            return 1
+    return 1
+
+def get_partie_fixe(echelon):
+    """Extrait la partie fixe avant le tiret (ex: A3-5 -> A3)"""
+    if echelon and '-' in echelon:
+        return echelon.split('-')[0]
+    if echelon:
+        return echelon
+    return 'A1'
+
+def calculer_nouvel_echelon(echelon_actuel):
+    """Calcule le prochain échelon en incrémentant uniquement le sous-indice.
+    Ex: A3-5 -> A3-6. Retourne None si >= 11"""
+    if not echelon_actuel or '-' not in echelon_actuel:
+        return f"{echelon_actuel or 'A1'}-2"
+    
+    partie_fixe = get_partie_fixe(echelon_actuel)
+    sous_indice = get_sous_indice(echelon_actuel)
+    nouveau = sous_indice + 1
+    
+    if nouveau > 11:
+        return None  # plafonné
+    
+    return f"{partie_fixe}-{nouveau}"
+
+def peut_avancer(agent, date_prevue):
+    """Vérifie qu'à la date prévue l'agent n'a pas atteint l'âge de la retraite"""
+    if not agent.date_naissance:
+        return True
+    type_echelon = get_type_echelon(agent.echelon or 'A1-1')
+    age_retraite = get_age_retraite(type_echelon)
+    date_retraite = agent.date_naissance.replace(
+        year=agent.date_naissance.year + age_retraite
+    )
+    return date_prevue < date_retraite
+
+
+# ---------- NOUVELLES FONCTIONS CORRIGÉES ----------
+
+def actualiser_avancements():
+    today = date.today()
+    agents = Agent.objects.filter(date_prise_service__isnull=False)
+
+    # ✅ Vider toute la table + reset auto_increment
+    with connection.cursor() as cursor:
+        cursor.execute("TRUNCATE TABLE avancement")
+
+    for agent in agents:
+        if agent.typecontrat == 'ACE':
+            premier_delai = 4 * 365
+        else:
+            premier_delai = 2 * 365
+
+        anciennete = (today - agent.date_prise_service).days
+
+        if agent.echelon and '-' in agent.echelon:
+            partie_fixe = get_partie_fixe(agent.echelon)
+        else:
+            partie_fixe = get_type_echelon(agent.echelon or 'A1-1') + '1'
+        echelon_base = f"{partie_fixe}-1"
+
+        if anciennete < premier_delai:
+            echelon_courant = echelon_base
+            prochaine_date = agent.date_prise_service + timedelta(days=premier_delai)
+        else:
+            nb_passes = 1 + (anciennete - premier_delai) // (2 * 365)
+            echelon_courant = echelon_base
+            for _ in range(nb_passes):
+                nouvel = calculer_nouvel_echelon(echelon_courant)
+                if nouvel:
+                    echelon_courant = nouvel
+                else:
+                    break
+
+            # ✅ NOUVEAU : mettre à jour l'échelon de l'agent si la date est arrivée
+            dernier_date = agent.date_prise_service + timedelta(
+                days=premier_delai + (nb_passes - 1) * 2 * 365
+            )
+
+            if dernier_date <= today:
+                sous_actuel = get_sous_indice(agent.echelon or echelon_base)
+                sous_calcule = get_sous_indice(echelon_courant)
+
+                if sous_actuel < sous_calcule:
+                    print(f"📈 Avancement effectif: {agent.matricule} {agent.echelon} → {echelon_courant}")
+                    ancien_echelon = agent.echelon
+                    agent.echelon = echelon_courant
+                    agent.save()
+
+                    # ✅ Notifier l'agent
+                    Notification.objects.create(
+                        agent_id=agent.matricule,
+                        message=f"📈 Votre échelon a été mis à jour : {agent.echelon}",
+                        type_notification='avancement',
+                        date_envoi=today,
+                        lue=0
+                    )
+
+                    # ✅ Notifier les RH
+                    rh_agents = Agent.objects.filter(
+                        agentrole__role__libelle='rh', actif=1
+                    )
+                    for rh in rh_agents:
+                        Notification.objects.create(
+                            agent_id=rh.matricule,
+                            message=f"📈 Avancement effectué : {agent.prenom} {agent.nom} → {echelon_courant}",
+                            type_notification='avancement',
+                            date_envoi=today,
+                            lue=0
+                        )
+                        envoyer_email_avancement_effectue(
+                            rh=rh,
+                            agent=agent,
+                            echelon_ancien=ancien_echelon,
+                            echelon_nouveau=echelon_courant,
+                            date_effective=today,
+                        )
+
+            dernier_date_effective = dernier_date
+            prochaine_date = dernier_date_effective + timedelta(days=2 * 365)
+
+        # Générer les avancements futurs
+        while True:
+            if not peut_avancer(agent, prochaine_date):
+                break
+
+            nouvel_echelon = calculer_nouvel_echelon(echelon_courant)
+            if nouvel_echelon is None:
+                Avancement.objects.create(
+                    agent=agent,
+                    date_prevue=None,
+                    date_effective=None,
+                    type_avancement='plafonne',
+                    echelon_ancien=echelon_courant,
+                    echelon_nouveau=echelon_courant,
+                )
+                break
+
+            Avancement.objects.create(
+                agent=agent,
+                date_prevue=prochaine_date,
+                date_effective=None,
+                type_avancement='normal',
+                echelon_ancien=echelon_courant,
+                echelon_nouveau=nouvel_echelon,
+            )
+
+            echelon_courant = nouvel_echelon
+            prochaine_date = prochaine_date + timedelta(days=2 * 365)
+
+def calculer_et_notifier():
+    """Point d'entrée principal : actualise les avancements puis envoie les notifications."""
+    today = date.today()
+    actualiser_avancements()
+
+    rh_agents = Agent.objects.filter(agentrole__role__libelle='rh', actif=1)
+
+    # Notifications pour demain
+    demain = today + timedelta(days=1)
+    for av in Avancement.objects.filter(date_prevue=demain).select_related('agent'):
+        for rh in rh_agents:
+            Notification.objects.create(
+                agent_id=rh.matricule,
+                message=f"📈 Avancement de {av.agent.prenom} {av.agent.nom} demain - {av.echelon_ancien} → {av.echelon_nouveau}",
+                type_notification='avancement',
+                date_envoi=today, lue=0
+            )
+            envoyer_email_rappel_avancement(
+                rh=rh,
+                agent=av.agent,
+                echelon_ancien=av.echelon_ancien,
+                echelon_nouveau=av.echelon_nouveau,
+                date_prevue=demain,
+            )
+    # Alertes à 3 mois, 1 mois, 1 semaine
+    for jours, label in [(90, '3 mois'), (30, '1 mois'), (7, '1 semaine')]:
+        date_alerte = today + timedelta(days=jours)
+        for av in Avancement.objects.filter(date_prevue=date_alerte).select_related('agent'):
+            for rh in rh_agents:
+                Notification.objects.create(
+                    agent_id=rh.matricule,
+                    message=f"📈 Avancement de {av.agent.prenom} {av.agent.nom} dans {label} ({av.date_prevue})",
+                    type_notification='avancement',
+                    date_envoi=today, lue=0
+                )
+
+    print("✅ Actualisation des avancements terminée.")
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def trigger_avancements(request):
+    """Appelée silencieusement par les dashboards RH et Agent pour vérifier/créer les avancements."""
+    calculer_et_notifier()
+    return JsonResponse({'success': True})
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_avancements_agent(request, matricule):
+    """Historique des avancements d'un agent"""
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        avancements = Avancement.objects.filter(agent=agent).order_by('-date_prevue')
+        result = []
+        for a in avancements:
+            result.append({
+                'id': a.id,
+                'date_prevue': str(a.date_prevue),
+                'date_effective': str(a.date_effective) if a.date_effective else None,
+                'type': a.type_avancement,
+                'echelon_ancien': a.echelon_ancien,
+                'echelon_nouveau': a.echelon_nouveau,
+            })
+        return JsonResponse(result, safe=False)
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_avancements_periode(request):
+    """Agenda des avancements par mois/année"""
+    mois = request.GET.get('mois')
+    annee = request.GET.get('annee')
+    avancements = Avancement.objects.select_related('agent').all()
+    if annee:
+        avancements = avancements.filter(date_prevue__year=annee)
+    if mois:
+        avancements = avancements.filter(date_prevue__month=mois)
+    avancements = avancements.order_by('date_prevue')
+    result = []
+    for a in avancements:
+        result.append({
+            'id': a.id,
+            'agent_matricule': a.agent.matricule,
+            'agent_nom': f"{a.agent.prenom} {a.agent.nom}",
+            'agent_direction': a.agent.direction,
+            'date_prevue': str(a.date_prevue),
+            'type': a.type_avancement,
+            'echelon_ancien': a.echelon_ancien,
+            'echelon_nouveau': a.echelon_nouveau,
+        })
+    return JsonResponse(result, safe=False)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def check_alertes_avancement(request):
+    today = date.today()
+    date_limite = today + timedelta(days=90)
+    avancements = Avancement.objects.filter(
+        date_prevue__gte=today,
+        date_prevue__lte=date_limite,
+        type_avancement='normal'
+    ).select_related('agent').order_by('date_prevue')
+
+    alertes = []
+    for a in avancements:
+        jours_restants = (a.date_prevue - today).days
+        alertes.append({
+            'id': a.id,
+            'agent': f"{a.agent.prenom} {a.agent.nom}",
+            'matricule': a.agent.matricule,
+            'direction': a.agent.direction,
+            'date_prevue': str(a.date_prevue),
+            'delai': f"{jours_restants} jour(s)" if jours_restants > 0 else "Aujourd'hui",
+            'jours_restants': jours_restants,
+        })
+    return JsonResponse({'success': True, 'total_alertes': len(alertes), 'alertes': alertes})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def generer_bordereau(request):
+    """Bordereau avec filtres mois/année"""
+    mois = request.GET.get('mois')
+    annee = request.GET.get('annee', str(date.today().year))
+    avancements = Avancement.objects.select_related('agent').all()
+    if annee:
+        avancements = avancements.filter(date_prevue__year=annee)
+    if mois:
+        avancements = avancements.filter(date_prevue__month=mois)
+    avancements = avancements.order_by('date_prevue')
+    result = []
+    for a in avancements:
+        result.append({
+            'matricule': a.agent.matricule,
+            'nom': a.agent.nom,
+            'prenom': a.agent.prenom,
+            'direction': a.agent.direction,
+            'poste': a.agent.poste,
+            'date_prise_service': str(a.agent.date_prise_service),
+            'date_avancement': str(a.date_prevue),
+            'type': a.type_avancement,
+            'echelon_actuel': a.echelon_ancien,
+            'echelon_propose': a.echelon_nouveau,
+        })
+    totaux = {}
+    for r in result:
+        direction = r['direction'] or 'Non renseignée'
+        totaux[direction] = totaux.get(direction, 0) + 1
+    return JsonResponse({
+        'success': True,
+        'annee': annee,
+        'mois': mois,
+        'total': len(result),
+        'totaux_par_direction': totaux,
+        'avancements': result
+    })

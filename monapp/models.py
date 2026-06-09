@@ -16,6 +16,7 @@ class ActeAdministratif(models.Model):
     date_generation = models.DateField()
     contenu = models.TextField(blank=True, null=True)
     fichier_pdf = models.TextField(blank=True, null=True) 
+    fichier_pdf_signe = models.TextField(blank=True, null=True)
 
     class Meta:
         managed = False
@@ -58,7 +59,7 @@ class AgentRole(models.Model):
 
 class Avancement(models.Model):
     agent = models.ForeignKey(Agent, models.DO_NOTHING)
-    date_prevue = models.DateField()
+    date_prevue = models.DateField(blank=True, null=True)   # ✅ NULL autorisé
     date_effective = models.DateField(blank=True, null=True)
     type_avancement = models.CharField(max_length=50)
     echelon_ancien = models.CharField(max_length=20, blank=True, null=True)
