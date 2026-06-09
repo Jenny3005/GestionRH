@@ -27,6 +27,10 @@ export default function DashboardAgent() {
   const [showSoldeModal, setShowSoldeModal] = useState(false);
   const [tauxCompletude, setTauxCompletude] = useState(0);
   const [expiryChecked, setExpiryChecked] = useState(false);
+  
+  // États pour le modal de suivi
+  const [showSuiviModal, setShowSuiviModal] = useState(false);
+  const [selectedDemande, setSelectedDemande] = useState(null);
 
   const matricule = localStorage.getItem('userMatricule');
 
@@ -63,7 +67,6 @@ export default function DashboardAgent() {
     }
   };
 
-  // Vérifier les expirations une seule fois par session
   const checkExpiryOnce = async () => {
     if (expiryChecked) return;
     try {
@@ -74,7 +77,6 @@ export default function DashboardAgent() {
     }
   };
 
-  // Récupérer les notifications
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
@@ -114,21 +116,13 @@ export default function DashboardAgent() {
 
   const fetchDemandesRecentes = async () => {
     const matricule = localStorage.getItem('userMatricule');
-    console.log("🔍 Matricule depuis localStorage:", matricule);
-    
-    // Utilisez la même URL que mes_demandes
     const url = `/api/conges/mes-demandes/${matricule}/`;
-    console.log("🔍 URL complète:", url);
 
     try {
       const response = await fetch(url);
-      console.log("🔍 Status réponse:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("📋 Données reçues:", data);
-        console.log("📋 Type de données:", typeof data);
-        console.log("📋 Est un tableau?", Array.isArray(data));
       
         if (Array.isArray(data) && data.length > 0) {
           const formatted = data.slice(0, 5).map(d => {
@@ -140,6 +134,9 @@ export default function DashboardAgent() {
             else if (d.statut === 'assignee_rh') statutAffichage = 'Assignée au RH';
             else if (d.statut === 'en_cours_traitement') statutAffichage = 'En traitement';
             else if (d.statut === 'acte_genere') statutAffichage = 'Acte généré';
+            else if (d.statut === 'remis') statutAffichage = 'Acte remis';
+            else if (d.statut === 'signe') statutAffichage = 'Signé';
+            else if (d.statut === 'termine') statutAffichage = 'Terminé';
           
             let periode = '-';
             if (d.date_debut && d.date_fin) {
@@ -151,19 +148,18 @@ export default function DashboardAgent() {
               type: d.type_demande || 'Demande',
               periode: periode,
               date: d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : '-',
-              statut: statutAffichage
+              statut: statutAffichage,
+              statutBrut: d.statut,
+              date_soumission: d.date_soumission,
+              agent_rh_nom: d.agent_rh_nom,
+              agent_rh_prenom: d.agent_rh_prenom
             };
           });
-          console.log("📋 Demandes formatées:", formatted);
           setDemandesRecentes(formatted);
         } else {
-          console.log("📭 Aucune demande trouvée");
           setDemandesRecentes([]);
         }
       } else {
-        console.error("❌ Erreur HTTP:", response.status);
-        const errorText = await response.text();
-        console.error("Détail erreur:", errorText);
         setDemandesRecentes([]);
       }
     } catch (error) {
@@ -174,15 +170,11 @@ export default function DashboardAgent() {
 
   const fetchSoldeConge = async () => {
     try {
-      // ⚠️ Utilisez une URL RELATIVE, pas http://localhost:8000
       const response = await fetch(`/api/conges/solde/${matricule}/`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Solde récupéré:", data);
         setSoldeConge(data);
-      } else {
-        console.error("❌ Erreur solde:", response.status);
       }
     } catch (error) {
       console.error('Erreur solde:', error);
@@ -213,8 +205,6 @@ export default function DashboardAgent() {
 
   const supprimerNotification = async (notificationId, e) => {
     e.stopPropagation();
-    
-    // Supprimer immédiatement de l'affichage local
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     
     try {
@@ -229,8 +219,6 @@ export default function DashboardAgent() {
 
   const handleSupprimerToutesNotifications = async () => {
     if (!window.confirm('Supprimer définitivement toutes les notifications ?')) return;
-    
-    // Vider immédiatement l'affichage
     setNotifications([]);
     
     try {
@@ -248,13 +236,12 @@ export default function DashboardAgent() {
     setShowSoldeModal(true);
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/');
+  const handleVoirSuivi = (demande) => {
+    setSelectedDemande(demande);
+    setShowSuiviModal(true);
   };
 
   const userName = `${userInfo.prenom} ${userInfo.nom}`;
-
   const unreadCount = notifications.filter(n => !n.lue).length;
 
   const stats = [
@@ -263,6 +250,28 @@ export default function DashboardAgent() {
     { label: "Notifications", value: unreadCount.toString(), icon: "🔔", color: "#F59E0B" },
     { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: "📊", color: "#8B5CF6" }
   ];
+
+  // ✅ FONCTIONS POUR LA TIMELINE - CORRIGÉES
+  const getNiveauStatut = (statut) => {
+    const niveaux = {
+      'En attente': 1, 'en_attente_chef': 1,
+      'Approuvée': 2, 'valide': 2,
+      'Transmise au DPAF': 3, 'transmise_dpaf': 3,
+      'Assignée au RH': 4, 'assignee_rh': 4,
+      'En traitement': 5, 'en_cours_traitement': 5,
+      'Acte généré': 6, 'acte_genere': 6,
+      'Acte remis': 7, 'remis': 7,
+      'Signé': 7, 'signe': 7,
+      'Terminé': 7, 'termine': 7
+    };
+    return niveaux[statut] || 1;
+  };
+
+  const statutReel = selectedDemande?.statutBrut || selectedDemande?.statut;
+  const niveauActuel = getNiveauStatut(statutReel);
+  
+  const estComplete = (niveauRequis) => niveauActuel >= niveauRequis;
+  const estActive = (niveauRequis) => niveauActuel === niveauRequis - 1;
 
   return (
     <div className="intranet-home">
@@ -316,32 +325,45 @@ export default function DashboardAgent() {
                     <th>Période</th>
                     <th>Date demande</th>
                     <th>Statut</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {demandesRecentes.length === 0 ? (
                     <tr>
-                      <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
                         📭 Aucune demande récente
                       </td>
                     </tr>
                   ) : (
-                    demandesRecentes.map((d) => (
-                      <tr key={d.id}>
-                        <td>{d.type}</td>
-                        <td>{d.periode}</td>
-                        <td>{d.date}</td>
-                        <td>
-                          <span className={`status-badge ${
-                            d.statut === 'Approuvée' ? 'approved' : 
-                            d.statut === 'En attente' ? 'pending' : 
-                            'rejected'
-                          }`}>
-                            {d.statut}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    demandesRecentes.map((d) => {
+                      let badgeClass = 'rejected';
+                      if (d.statut === 'Approuvée' || d.statut === 'Acte généré' || d.statut === 'Acte remis' || d.statut === 'Signé' || d.statut === 'Terminé') {
+                        badgeClass = 'approved';
+                      } else if (d.statut === 'En attente') {
+                        badgeClass = 'pending';
+                      } else if (d.statut === 'En traitement') {
+                        badgeClass = 'progress';
+                      }
+                      
+                      return (
+                        <tr key={d.id}>
+                          <td>{d.type}</td>
+                          <td>{d.periode}</td>
+                          <td>{d.date}</td>
+                          <td>
+                            <span className={`status-badge ${badgeClass}`}>
+                              {d.statut}
+                            </span>
+                          </td>
+                          <td className="rh-actions-cell">
+                            <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
+                              👁️ Voir suivi
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -385,7 +407,6 @@ export default function DashboardAgent() {
 
         {/* DEUXIÈME LIGNE */}
         <div className="agent-dashboard-grid">
-          
           {/* Notifications */}
           <div className="agent-card">
             <div className="agent-card-header">
@@ -404,11 +425,9 @@ export default function DashboardAgent() {
                     key={notif.id} 
                     className={`notification-item ${!notif.lue ? 'unread' : ''}`}
                     onClick={() => {
-                      // Marquer comme lue si non lue
                       if (!notif.lue) {
                         marquerNotificationLue(notif.id);
                       }
-                      // Rediriger selon le type de notification
                       if (notif.message.includes('acte') || notif.message.includes('Acte') || notif.type === 'acte_disponible') {
                         navigate('/documents');
                       }
@@ -433,9 +452,7 @@ export default function DashboardAgent() {
                       <div className="notification-message">{notif.message}</div>
                       <div className="notification-date">{notif.date_envoi}</div>
                     </div>
-                    {/* Point bleu pour les notifications non lues - juste visuel */}
                     {!notif.lue && <div className="notification-badge"></div>}
-                    {/* Bouton poubelle */}
                     <div 
                       className="notification-delete" 
                       onClick={(e) => {
@@ -474,7 +491,6 @@ export default function DashboardAgent() {
             </div>
           </div>
         </div>
-
       </main>
 
       {/* MODAL SOLDE CONGÉS */}
@@ -552,6 +568,217 @@ export default function DashboardAgent() {
                 📝 Demander un congé
               </button>
               <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SUIVI DE LA DEMANDE - CORRIGÉ */}
+      {showSuiviModal && selectedDemande && (
+        <div className="modal-overlay" onClick={() => setShowSuiviModal(false)}>
+          <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header suivi-modal-header">
+              <div className="header-icon-wrapper">
+                <span className="header-icon">📋</span>
+                <h3>Suivi de votre demande</h3>
+              </div>
+              <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body suivi-modal-body">
+              {/* Carte Agent */}
+              <div className="suivi-agent-card">
+                <div className="agent-avatar">
+                  <span>{userInfo.prenom?.charAt(0)}{userInfo.nom?.charAt(0)}</span>
+                </div>
+                <div className="agent-info-card">
+                  <h4>{userInfo.nom} {userInfo.prenom}</h4>
+                  <p className="agent-matricule">Matricule: {userInfo.matricule}</p>
+                </div>
+              </div>
+
+              {/* Carte Détails Demande */}
+              <div className="suivi-details-card">
+                <div className="detail-item">
+                  <span className="detail-icon">📌</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Type de demande</span>
+                    <strong className="detail-value">{selectedDemande.type}</strong>
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-icon">📅</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Période</span>
+                    <strong className="detail-value">{selectedDemande.periode}</strong>
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-icon">📅</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Date de soumission</span>
+                    <strong className="detail-value">
+                      {selectedDemande.date_soumission 
+                        ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+                        : '-'}
+                    </strong>
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-icon">👥</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Assigné à</span>
+                    <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-icon">📄</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Statut actuel</span>
+                    <strong className="detail-value">{selectedDemande.statut}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline moderne - AVEC SYSTÈME DE NIVEAU */}
+              <div className="suivi-timeline-modern">
+                <h4 className="timeline-title">📅 Chronologie du traitement</h4>
+                
+                <div className="timeline-modern">
+                  {/* Étape 1 - Demande soumise - Niveau 1 */}
+                  <div className={`timeline-modern-step ${estComplete(1) ? 'completed' : 'active'}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📝</span>
+                        <span className="step-title">Demande soumise</span>
+                        <span className="step-status">Par vous</span>
+                      </div>
+                      <p className="step-description">Votre demande a été soumise le {selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 2 - Validation du chef - Niveau 2 */}
+                  <div className={`timeline-modern-step ${estComplete(2) ? 'completed' : estActive(2) ? 'active' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">👔</span>
+                        <span className="step-title">Validation du chef</span>
+                        <span className="step-status">Par votre supérieur</span>
+                      </div>
+                      <p className="step-description">Votre chef de service valide la demande</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 3 - Transmission au DPAF - Niveau 3 */}
+                  <div className={`timeline-modern-step ${estComplete(3) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📤</span>
+                        <span className="step-title">Transmission au DPAF</span>
+                        <span className="step-status">Par la secrétaire</span>
+                      </div>
+                      <p className="step-description">Votre demande est transmise pour assignment</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 4 - Assignation à un agent RH - Niveau 4 */}
+                  <div className={`timeline-modern-step ${estComplete(4) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">👥</span>
+                        <span className="step-title">Assignation à un agent RH</span>
+                        <span className="step-status">Agent: {selectedDemande.agent_rh_nom || 'En attente'}</span>
+                      </div>
+                      <p className="step-description">Un agent RH est assigné à votre dossier</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 5 - Traitement par l'agent RH - Niveau 5 */}
+                  <div className={`timeline-modern-step ${estComplete(5) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">⚙️</span>
+                        <span className="step-title">Traitement par l'agent RH</span>
+                        <span className="step-status">En cours</span>
+                      </div>
+                      <p className="step-description">L'agent RH vérifie et traite votre demande</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 6 - Génération de l'acte - Niveau 6 */}
+                  <div className={`timeline-modern-step ${estComplete(6) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📄</span>
+                        <span className="step-title">Génération de l'acte</span>
+                        <span className="step-status">Par l'agent RH</span>
+                      </div>
+                      <p className="step-description">Votre acte est généré</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 7 - Signature par le DPAF - Niveau 7 */}
+                  <div className={`timeline-modern-step ${estComplete(7) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">✍️</span>
+                        <span className="step-title">Signature par le DPAF</span>
+                        <span className="step-status">Signature officielle</span>
+                      </div>
+                      <p className="step-description">Votre acte est signé électroniquement</p>
+                    </div>
+                  </div>
+
+                  {/* Étape 8 - Remise à l'agent - Niveau 7 (final) */}
+                  <div className={`timeline-modern-step ${estComplete(7) ? 'completed' : ''}`}>
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">✅</span>
+                        <span className="step-title">Acte remis</span>
+                        <span className="step-status">Par la secrétaire</span>
+                      </div>
+                      <p className="step-description">Votre acte vous a été remis</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="modal-footer suivi-modal-footer">
+              <button className="btn-fermer" onClick={() => setShowSuiviModal(false)}>
                 Fermer
               </button>
             </div>
