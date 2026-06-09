@@ -78,6 +78,7 @@ export default function DashboardAgent() {
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
+      fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
       const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
       let notifs = [];
       if (notifResponse.ok) {
