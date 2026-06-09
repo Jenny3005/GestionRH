@@ -64,7 +64,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -73,7 +73,6 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
             ],
         },
-        'DIRS': [os.path.join(BASE_DIR, 'templates')], 
     },
 ]
 
@@ -127,6 +126,10 @@ EMAIL_HOST_USER = 'jennyhoundon@gmail.com'  # Remplace par ton email
 EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
 DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
 
+# URL du frontend (utilisée pour les liens d'activation par email)
+FRONTEND_URL = 'http://localhost:5173'   # développement
+# FRONTEND_URL = 'https://votre-domaine.gouv.bj'  # production
+
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'monapp/static')]
 
@@ -145,4 +148,3 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
