@@ -7,6 +7,12 @@ import autoTable from 'jspdf-autotable';
 import UserMenu from './UserMenu';
 import './App.css';
 
+function addYears(date, years) {
+  const newDate = new Date(date);
+  newDate.setFullYear(newDate.getFullYear() + years);
+  return newDate;
+}
+
 export default function DashboardRH() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
@@ -675,13 +681,12 @@ export default function DashboardRH() {
 
         const datePriseService = new Date(agent.date_prise_service);
         const ancienneteJours = Math.floor((today - datePriseService) / (1000 * 60 * 60 * 24));
-        const premierDelai = agent.typecontrat === 'ACE' ? 4 * 365 : 2 * 365;
+        const premierDelaiAnnees = agent.typecontrat === 'ACE' ? 4 : 2;
         let dernierDate = null;
-        if (ancienneteJours >= premierDelai) {
-          const nbAvancements = 1 + Math.floor((ancienneteJours - premierDelai) / (2 * 365));
-          const dernierDelai = premierDelai + (nbAvancements - 1) * 2 * 365;
-          dernierDate = new Date(datePriseService);
-          dernierDate.setDate(dernierDate.getDate() + dernierDelai);
+        if (ancienneteJours >= premierDelaiAnnees * 365) {
+          const nbAvancements = 1 + Math.floor((ancienneteJours - premierDelaiAnnees * 365) / (2 * 365));
+          // Le dernier avancement a eu lieu (premierDelaiAnnees + (nbAvancements - 1) * 2) années après la prise de service
+          dernierDate = addYears(datePriseService, premierDelaiAnnees + (nbAvancements - 1) * 2);
         }
 
         const formatDate = (d) => (d && !isNaN(d)) ? d.toLocaleDateString('fr-FR') : '–';
