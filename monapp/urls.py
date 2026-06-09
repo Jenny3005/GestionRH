@@ -111,4 +111,11 @@ urlpatterns = [
     path('agent/delete-cachet/<str:matricule>/', views.delete_cachet, name='delete_cachet'),
     path('documents/expired-count/', views.get_all_expired_documents, name='get_all_expired_documents'),
     path('anomalies/<str:matricule>/', views.detect_anomalies, name='detect_anomalies'),
+
+    # ==================== AVANCEMENTS ====================
+    path('avancements/calculer/', views.trigger_avancements, name='trigger_avancements'),
+    path('avancements/agent/<str:matricule>/', views.get_avancements_agent, name='get_avancements_agent'),
+    path('avancements/periode/', views.get_avancements_periode, name='get_avancements_periode'),
+    path('avancements/alertes/', views.check_alertes_avancement, name='check_alertes_avancement'),
+    path('avancements/bordereau/', views.generer_bordereau, name='generer_bordereau'),
 ]
