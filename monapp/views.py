@@ -1294,7 +1294,7 @@ def mes_demandes(request, matricule):
         
         demandes = Demande.objects.filter(
             agent=agent
-        ).select_related('type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
+        ).select_related('type_demande', 'demandeconge', 'demandeabsence', 'agent_rh').order_by('-date_soumission')
         
         print(f"📊 Nombre total de demandes trouvées: {demandes.count()}")
         
@@ -1315,6 +1315,10 @@ def mes_demandes(request, matricule):
                 nombre_jours = d.demandeabsence.nombrejours
                 print(f"  - Demande Absence #{d.id}: du {date_debut} au {date_fin}")
             
+            # ✅ Ajouter les informations de l'agent RH
+            agent_rh_nom = d.agent_rh.nom if d.agent_rh else None
+            agent_rh_prenom = d.agent_rh.prenom if d.agent_rh else None
+            
             result.append({
                 'id': d.id,
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
@@ -1323,7 +1327,9 @@ def mes_demandes(request, matricule):
                 'nombre_jours': nombre_jours,
                 'statut': d.statut,
                 'date_soumission': str(d.date_soumission),
-                'numerosuivi': d.numerosuivi
+                'numerosuivi': d.numerosuivi,
+                'agent_rh_nom': agent_rh_nom,      # ✅ Ajouté
+                'agent_rh_prenom': agent_rh_prenom  # ✅ Ajouté
             })
         
         print(f"✅ FINAL - {len(result)} demandes retournées")
@@ -1337,7 +1343,6 @@ def mes_demandes(request, matricule):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 # ==================== SOLDE CONGÉ ====================
 
 @csrf_exempt
