@@ -59,7 +59,7 @@ class AgentRole(models.Model):
 
 class Avancement(models.Model):
     agent = models.ForeignKey(Agent, models.DO_NOTHING)
-    date_prevue = models.DateField()
+    date_prevue = models.DateField(blank=True, null=True)   # ✅ NULL autorisé
     date_effective = models.DateField(blank=True, null=True)
     type_avancement = models.CharField(max_length=50)
     echelon_ancien = models.CharField(max_length=20, blank=True, null=True)
