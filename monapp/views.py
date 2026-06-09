@@ -24,6 +24,7 @@ from .emails import (
     envoyer_email_activation,
     envoyer_email_rappel_avancement,
     envoyer_email_avancement_effectue,
+    envoyer_email_avancement_agent, 
 )
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
@@ -3897,24 +3898,29 @@ def actualiser_avancements():
                 sous_calcule = get_sous_indice(echelon_courant)
 
                 if sous_actuel < sous_calcule:
-                    print(f"📈 Avancement effectif: {agent.matricule} {agent.echelon} → {echelon_courant}")
-                    ancien_echelon = agent.echelon
+                    ancien_echelon = agent.echelon        # ← indenté sous le if
                     agent.echelon = echelon_courant
                     agent.save()
 
-                    # ✅ Notifier l'agent
+                    # Notifier l'agent en base
                     Notification.objects.create(
                         agent_id=agent.matricule,
-                        message=f"📈 Votre échelon a été mis à jour : {agent.echelon}",
+                        message=f"📈 Votre échelon a été mis à jour : {ancien_echelon} → {echelon_courant}",
                         type_notification='avancement',
                         date_envoi=today,
                         lue=0
                     )
 
-                    # ✅ Notifier les RH
-                    rh_agents = Agent.objects.filter(
-                        agentrole__role__libelle='rh', actif=1
+                    # Email à l'agent
+                    envoyer_email_avancement_agent(
+                        agent=agent,
+                        echelon_ancien=ancien_echelon,
+                        echelon_nouveau=echelon_courant,
+                        date_effective=today,
                     )
+
+                    # Notifier les RH + email RH
+                    rh_agents = Agent.objects.filter(agentrole__role__libelle='rh', actif=1)
                     for rh in rh_agents:
                         Notification.objects.create(
                             agent_id=rh.matricule,
@@ -3931,7 +3937,7 @@ def actualiser_avancements():
                             date_effective=today,
                         )
 
-            dernier_date_effective = dernier_date
+            dernier_date_effective = dernier_date           # ← même niveau que le if dernier_date
             prochaine_date = dernier_date_effective + timedelta(days=2 * 365)
 
         # Générer les avancements futurs
