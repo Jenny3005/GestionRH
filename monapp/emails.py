@@ -111,3 +111,30 @@ def envoyer_email_avancement_effectue(rh, agent, echelon_ancien, echelon_nouveau
         print(f"⚠️ Erreur email avancement effectué pour {rh.email} : {erreur}")
 
     return succes, erreur
+
+def envoyer_email_avancement_agent(agent, echelon_ancien, echelon_nouveau, date_effective):
+    """
+    Email envoyé à l'agent quand son échelon est mis à jour.
+    """
+    context = {
+        'prenom': agent.prenom,
+        'nom': agent.nom,
+        'matricule': agent.matricule,
+        'echelon_ancien': echelon_ancien,
+        'echelon_nouveau': echelon_nouveau,
+        'date_effective': date_effective.strftime('%d/%m/%Y'),
+    }
+
+    succes, erreur = _envoyer_email(
+        sujet='Votre échelon a été mis à jour - MND',
+        template='emails/avancement_agent.html',
+        context=context,
+        destinataire=agent.email,
+    )
+
+    if succes:
+        print(f"✅ Email avancement envoyé à l'agent {agent.email}")
+    else:
+        print(f"⚠️ Erreur email avancement agent {agent.email} : {erreur}")
+
+    return succes, erreur

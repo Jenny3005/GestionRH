@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+  <div style="max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; padding: 30px;">
+    
+    <h2 style="color: #0033cc;">Ministère du Numérique et de la Digitalisation</h2>
+    <hr style="border-color: #0033cc;">
+    
+    <p>Bonjour <strong>{{ prenom }} {{ nom }}</strong>,</p>
+    
+    <p>Nous avons le plaisir de vous informer que votre échelon a été mis à jour automatiquement.</p>
+    
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+      <tr style="background-color: #f5f5f5;">
+        <td style="padding: 10px; border: 1px solid #ddd;"><strong>Matricule</strong></td>
+        <td style="padding: 10px; border: 1px solid #ddd;">{{ matricule }}</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border: 1px solid #ddd;"><strong>Ancien échelon</strong></td>
+        <td style="padding: 10px; border: 1px solid #ddd;">{{ echelon_ancien }}</td>
+      </tr>
+      <tr style="background-color: #f5f5f5;">
+        <td style="padding: 10px; border: 1px solid #ddd;"><strong>Nouvel échelon</strong></td>
+        <td style="padding: 10px; border: 1px solid #ddd; color: #008000;"><strong>{{ echelon_nouveau }}</strong></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px; border: 1px solid #ddd;"><strong>Date effective</strong></td>
+        <td style="padding: 10px; border: 1px solid #ddd;">{{ date_effective }}</td>
+      </tr>
+    </table>
+
+    <p>Félicitations pour cet avancement !</p>
+    
+    <br>
+    <p>Cordialement,</p>
+    <p><strong>Service des Ressources Humaines — MND</strong></p>
+    
+    <hr style="border-color: #ddd;">
+    <p style="font-size: 11px; color: #999;">
+      Ministère du Numérique et de la Digitalisation — République du Bénin
+    </p>
+  </div>
+</body>
+</html>
