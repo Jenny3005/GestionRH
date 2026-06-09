@@ -97,7 +97,7 @@ export default function DashboardRH() {
       await fetchData();               // maintenant le calcul est attendu
       await fetchAvancementsStats();
       await fetchAlertesAvancement();  // les alertes sont chargées APRES le calcul
-      await fetchAvancementsAgenda('', '');
+      await fetchAvancementsAgenda(new Date().getFullYear().toString(), '');
     };
     loadAll();
   }, []);
