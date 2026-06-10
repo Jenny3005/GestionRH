@@ -5461,3 +5461,90 @@ def get_candidature_pieces(request, candidature_id):
     except Exception as e:
         print(f"ERREUR get_candidature_pieces: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def notes_service(request):
+    """GET: Liste des notes | POST: Créer une note"""
+    
+    if request.method == "GET":
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, titre, contenu, tag, date_publication, fichier_pdf, statut, created_by, created_at
+                    FROM note_service
+                    WHERE statut = 'publie'
+                    ORDER BY date_publication DESC
+                """)
+                notes = cursor.fetchall()
+            
+            result = []
+            for n in notes:
+                result.append({
+                    'id': n[0],
+                    'titre': n[1],
+                    'contenu': n[2],
+                    'tag': n[3],
+                    'date_publication': str(n[4]),
+                    'fichier_pdf': n[5],
+                    'statut': n[6],
+                    'created_by': n[7],
+                    'created_at': str(n[8]) if n[8] else None
+                })
+            return JsonResponse(result, safe=False)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO note_service (titre, contenu, tag, date_publication, fichier_pdf, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, [
+                    data.get('titre'),
+                    data.get('contenu', ''),
+                    data.get('tag', 'Note de Service'),
+                    data.get('date_publication'),
+                    data.get('fichier_pdf'),
+                    data.get('created_by')
+                ])
+                note_id = cursor.lastrowid
+            return JsonResponse({'success': True, 'id': note_id})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT", "DELETE"])
+def note_service_detail(request, note_id):
+    """Modifier ou supprimer une note"""
+    
+    if request.method == "PUT":
+        try:
+            data = json.loads(request.body)
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE note_service 
+                    SET titre = %s, contenu = %s, tag = %s, date_publication = %s, fichier_pdf = %s
+                    WHERE id = %s
+                """, [
+                    data.get('titre'),
+                    data.get('contenu', ''),
+                    data.get('tag', 'Note de Service'),
+                    data.get('date_publication'),
+                    data.get('fichier_pdf'),
+                    note_id
+                ])
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    elif request.method == "DELETE":
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("DELETE FROM note_service WHERE id = %s", [note_id])
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)

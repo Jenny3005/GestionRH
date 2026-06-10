@@ -50,15 +50,19 @@ export default function DashboardRH() {
   const [vraisAgents, setVraisAgents] = useState([]);
   const [postesVacants, setPostesVacants] = useState([]);
   const [candidatures, setCandidatures] = useState({});
+  const [notesService, setNotesService] = useState([]);
 
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
   const [showAddAnnonceModal, setShowAddAnnonceModal] = useState(false);
   const [showEditAnnonceModal, setShowEditAnnonceModal] = useState(false);
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [showEditNoteModal, setShowEditNoteModal] = useState(false);
   const [showCandidaturesModal, setShowCandidaturesModal] = useState(false);
   const [showAnalyseModal, setShowAnalyseModal] = useState(false);
   const [showPiecesModal, setShowPiecesModal] = useState(false);
   const [selectedPoste, setSelectedPoste] = useState(null);
   const [selectedPosteToEdit, setSelectedPosteToEdit] = useState(null);
+  const [selectedNote, setSelectedNote] = useState(null);
   const [candidaturesPoste, setCandidaturesPoste] = useState([]);
   const [selectedAnalyse, setSelectedAnalyse] = useState(null);
   const [selectedPieces, setSelectedPieces] = useState([]);
@@ -74,6 +78,23 @@ export default function DashboardRH() {
     date_publication: '',
     date_cloture: '',
     pieces_requises: []
+  });
+
+  const [newNote, setNewNote] = useState({
+    titre: '',
+    contenu: '',
+    tag: 'Note de Service',
+    date_publication: new Date().toISOString().split('T')[0],
+    fichier_pdf: ''
+  });
+
+  const [editNote, setEditNote] = useState({
+    id: null,
+    titre: '',
+    contenu: '',
+    tag: '',
+    date_publication: '',
+    fichier_pdf: ''
   });
 
   // États pour le module Avancements
@@ -140,6 +161,7 @@ export default function DashboardRH() {
       await fetchAlertesAvancement();
       await fetchAvancementsAgenda(new Date().getFullYear().toString(), '');
       await fetchPostesVacants();
+      await fetchNotesService();
     };
     loadAll();
   }, []);
@@ -214,6 +236,18 @@ export default function DashboardRH() {
     }
   };
 
+  const fetchNotesService = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/notes-service/');
+      if (res.ok) {
+        const data = await res.json();
+        setNotesService(data);
+      }
+    } catch (error) {
+      console.error('Erreur chargement notes:', error);
+    }
+  };
+
   const fetchCandidaturesByPoste = async (posteId) => {
     try {
       const res = await fetch(`http://localhost:8000/api/candidatures/poste/${posteId}/`);
@@ -225,6 +259,100 @@ export default function DashboardRH() {
       console.error('Erreur chargement candidatures:', error);
     }
   };
+
+  // ==================== GESTION DES NOTES DE SERVICE ====================
+
+  const handleCreateNote = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:8000/api/notes-service/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newNote,
+          created_by: matricule
+        })
+      });
+      if (res.ok) {
+        alert('✅ Note ajoutée avec succès');
+        setShowAddNoteModal(false);
+        setNewNote({
+          titre: '',
+          contenu: '',
+          tag: 'Note de Service',
+          date_publication: new Date().toISOString().split('T')[0],
+          fichier_pdf: ''
+        });
+        await fetchNotesService();
+      } else {
+        const error = await res.json();
+        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleModifierNote = (note) => {
+    setSelectedNote(note);
+    setEditNote({
+      id: note.id,
+      titre: note.titre,
+      contenu: note.contenu || '',
+      tag: note.tag,
+      date_publication: note.date_publication,
+      fichier_pdf: note.fichier_pdf || ''
+    });
+    setShowEditNoteModal(true);
+  };
+
+  const handleUpdateNote = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`http://localhost:8000/api/notes-service/${editNote.id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titre: editNote.titre,
+          contenu: editNote.contenu,
+          tag: editNote.tag,
+          date_publication: editNote.date_publication,
+          fichier_pdf: editNote.fichier_pdf || null
+        })
+      });
+      if (res.ok) {
+        alert('✅ Note modifiée avec succès');
+        setShowEditNoteModal(false);
+        await fetchNotesService();
+      } else {
+        const error = await res.json();
+        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleSupprimerNote = async (noteId) => {
+    if (!window.confirm('Confirmer la suppression de cette note ?')) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/notes-service/${noteId}/`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        alert('✅ Note supprimée');
+        await fetchNotesService();
+      } else {
+        alert('❌ Erreur lors de la suppression');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  // ==================== GESTION DES ANNONCES ====================
 
   const handleCreateAnnonce = async (e) => {
     e.preventDefault();
@@ -354,41 +482,6 @@ export default function DashboardRH() {
       console.error('Erreur:', error);
       alert('Erreur de connexion');
     }
-  };
-
-  const handleAnalyserCandidature = async (candidatureId) => {
-    try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/analyser/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`✅ Analyse terminée - Score: ${data.score}/100`);
-        if (selectedPoste) {
-          await handleVoirCandidatures(selectedPoste);
-        }
-        await fetchPostesVacants();
-      } else {
-        alert('❌ Erreur lors de l\'analyse');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-    }
-  };
-
-  const handleAnalyserToutesCandidatures = async () => {
-    if (!selectedPoste) return;
-    
-    let analysées = 0;
-    for (const cand of candidaturesPoste) {
-      if (cand.score_eligibilite === 0 || cand.score_eligibilite === null) {
-        await handleAnalyserCandidature(cand.id);
-        analysées++;
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    alert(`✅ ${analysées} candidature(s) analysée(s)`);
   };
 
   const exporterCandidaturesExcel = () => {
@@ -1342,16 +1435,62 @@ export default function DashboardRH() {
           </div>
         )}
 
-        {/* ==================== ONGLET ANNONCES ==================== */}
+        {/* ==================== ONGLET ANNONCES & CANDIDATURES ==================== */}
         {activeTab === 'annonces' && (
           <div className="rh-section">
+            {/* Barre d'actions */}
             <div className="rh-actions-bar">
               <div className="rh-actions-buttons">
                 <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}>➕ Nouvelle annonce</button>
+                <button className="btn-rh-secondary" onClick={() => setShowAddNoteModal(true)}>📝 Nouvelle note de service</button>
               </div>
             </div>
+
+            {/* Tableau des Notes de service */}
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>📢 Annonces et appels à candidature</h3></div>
+              <div className="rh-card-header">
+                <h3>📢 Notes de service et actualités</h3>
+              </div>
+              <div className="rh-table-container">
+                <table className="rh-table">
+                  <thead>
+                    <tr>
+                      <th>Titre</th>
+                      <th>Tag</th>
+                      <th>Date publication</th>
+                      <th>Contenu</th>
+                      <th>Fichier</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notesService.length === 0 ? (
+                      <tr><td colSpan="6" className="text-center">📭 Aucune note de service</td></tr>
+                    ) : (
+                      notesService.map(note => (
+                        <tr key={note.id}>
+                          <td><strong>{note.titre}</strong></td>
+                          <td><span className="status-badge status-active">{note.tag}</span></td>
+                          <td>{new Date(note.date_publication).toLocaleDateString('fr-FR')}</td>
+                          <td>{note.contenu?.substring(0, 60)}...</td>
+                          <td>{note.fichier_pdf ? <span className="badge-info">📄 PDF</span> : '-'}</td>
+                          <td className="rh-actions-cell">
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}>✏️</button>
+                            <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}>🗑️</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tableau des Annonces (postes vacants) */}
+            <div className="rh-card full-width">
+              <div className="rh-card-header">
+                <h3>📢 Annonces et appels à candidature</h3>
+              </div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead>
@@ -1635,6 +1774,300 @@ export default function DashboardRH() {
         </div>
       )}
 
+      {/* Modal Ajouter Note de service */}
+      {showAddNoteModal && (
+        <div className="modal-overlay" onClick={() => setShowAddNoteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📝 Nouvelle note de service</h3>
+              <button className="modal-close" onClick={() => setShowAddNoteModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateNote}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Titre *</label>
+                    <input 
+                      type="text" 
+                      value={newNote.titre} 
+                      onChange={(e) => setNewNote({...newNote, titre: e.target.value})} 
+                      required 
+                      placeholder="Ex: Campagne d'évaluation annuelle 2026"
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Tag / Catégorie</label>
+                    <select value={newNote.tag} onChange={(e) => setNewNote({...newNote, tag: e.target.value})}>
+                      <option value="Note de Service">📋 Note de Service</option>
+                      <option value="Communiqué">📢 Communiqué</option>
+                      <option value="Actualité">📰 Actualité</option>
+                      <option value="Information">ℹ️ Information</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date de publication</label>
+                    <input 
+                      type="date" 
+                      value={newNote.date_publication} 
+                      onChange={(e) => setNewNote({...newNote, date_publication: e.target.value})} 
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Contenu *</label>
+                    <textarea 
+                      value={newNote.contenu} 
+                      onChange={(e) => setNewNote({...newNote, contenu: e.target.value})} 
+                      rows="5" 
+                      required
+                      placeholder="Décrivez le contenu de la note de service..."
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Fichier PDF (optionnel)</label>
+                    <div style={{ 
+                      border: '1px dashed #CBD5E1', 
+                      borderRadius: '12px', 
+                      padding: '15px',
+                      textAlign: 'center',
+                      background: '#F8FAFC',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = '#D4AF37'; e.currentTarget.style.background = '#FFFBEB'; }}
+                    onDragLeave={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#F8FAFC'; }}
+                    onClick={() => document.getElementById('pdfUpload').click()}
+                    >
+                      <input 
+                        id="pdfUpload"
+                        type="file" 
+                        accept=".pdf"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            if (file.type !== 'application/pdf') {
+                              alert('Veuillez sélectionner un fichier PDF');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setNewNote({...newNote, fichier_pdf: reader.result});
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      {!newNote.fichier_pdf ? (
+                        <>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <p style={{ color: '#64748B', margin: 0 }}>
+                            Cliquez ou glissez-déposez un fichier PDF
+                          </p>
+                          <small style={{ color: '#94A3B8' }}>Format accepté: .pdf (max 10MB)</small>
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <span style={{ color: '#059669', fontWeight: 500 }}>Fichier PDF sélectionné</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setNewNote({...newNote, fichier_pdf: ''});
+                            }}
+                            style={{
+                              background: '#FEE2E2',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '4px 8px',
+                              color: '#DC2626',
+                              cursor: 'pointer',
+                              fontSize: '0.7rem'
+                            }}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => {
+                  setShowAddNoteModal(false);
+                  setNewNote({
+                    titre: '',
+                    contenu: '',
+                    tag: 'Note de Service',
+                    date_publication: new Date().toISOString().split('T')[0],
+                    fichier_pdf: ''
+                  });
+                }}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn-rh-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📢</span> Publier la note
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Modifier Note */}
+      {showEditNoteModal && selectedNote && (
+        <div className="modal-overlay" onClick={() => setShowEditNoteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✏️ Modifier la note</h3>
+              <button className="modal-close" onClick={() => setShowEditNoteModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleUpdateNote}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Titre *</label>
+                    <input 
+                      type="text" 
+                      value={editNote.titre} 
+                      onChange={(e) => setEditNote({...editNote, titre: e.target.value})} 
+                      required 
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Tag / Catégorie</label>
+                    <select value={editNote.tag} onChange={(e) => setEditNote({...editNote, tag: e.target.value})}>
+                      <option value="Note de Service">📋 Note de Service</option>
+                      <option value="Communiqué">📢 Communiqué</option>
+                      <option value="Actualité">📰 Actualité</option>
+                      <option value="Information">ℹ️ Information</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date de publication</label>
+                    <input 
+                      type="date" 
+                      value={editNote.date_publication} 
+                      onChange={(e) => setEditNote({...editNote, date_publication: e.target.value})} 
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Contenu *</label>
+                    <textarea 
+                      value={editNote.contenu} 
+                      onChange={(e) => setEditNote({...editNote, contenu: e.target.value})} 
+                      rows="5" 
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Fichier PDF (optionnel)</label>
+                    <div style={{ 
+                      border: '1px dashed #CBD5E1', 
+                      borderRadius: '12px', 
+                      padding: '15px',
+                      textAlign: 'center',
+                      background: '#F8FAFC',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => document.getElementById('editPdfUpload').click()}
+                    >
+                      <input 
+                        id="editPdfUpload"
+                        type="file" 
+                        accept=".pdf"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            if (file.type !== 'application/pdf') {
+                              alert('Veuillez sélectionner un fichier PDF');
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setEditNote({...editNote, fichier_pdf: reader.result});
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      {!editNote.fichier_pdf ? (
+                        <>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <p style={{ color: '#64748B', margin: 0 }}>
+                            Cliquez pour ajouter ou remplacer le PDF
+                          </p>
+                          <small style={{ color: '#94A3B8' }}>Format accepté: .pdf</small>
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <span style={{ color: '#059669', fontWeight: 500 }}>Nouveau PDF sélectionné</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditNote({...editNote, fichier_pdf: ''});
+                            }}
+                            style={{
+                              background: '#FEE2E2',
+                              border: 'none',
+                              borderRadius: '6px',
+                              padding: '4px 8px',
+                              color: '#DC2626',
+                              cursor: 'pointer',
+                              fontSize: '0.7rem'
+                            }}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {selectedNote.fichier_pdf && !editNote.fichier_pdf && (
+                      <small style={{ color: '#64748B', display: 'block', marginTop: '8px' }}>
+                        📄 PDF existant (remplacez-le en sélectionnant un nouveau fichier)
+                      </small>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => setShowEditNoteModal(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn-rh-primary">
+                  💾 Enregistrer les modifications
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Voir Candidatures */}
       {showCandidaturesModal && selectedPoste && (
         <div className="modal-overlay" onClick={() => setShowCandidaturesModal(false)}>
@@ -1648,15 +2081,13 @@ export default function DashboardRH() {
                 <p className="text-center">📭 Aucune candidature pour ce poste</p>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-                    <div>
-                      <button className="btn-export-excel" onClick={exporterCandidaturesExcel} style={{ marginRight: '10px' }}>
-                        📊 Exporter Excel
-                      </button>
-                      <button className="btn-export-pdf" onClick={exporterCandidaturesPDF}>
-                        📄 Exporter PDF
-                      </button>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+                    <button className="btn-export-excel" onClick={exporterCandidaturesExcel} style={{ marginRight: '10px' }}>
+                      📊 Exporter Excel
+                    </button>
+                    <button className="btn-export-pdf" onClick={exporterCandidaturesPDF}>
+                      📄 Exporter PDF
+                    </button>
                   </div>
                   
                   <div className="rh-table-container">
