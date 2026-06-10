@@ -219,7 +219,7 @@ export default function App() {
           <div className="left-column">
             
             {/* Opportunités de Carrière */}
-            <section className="info-card-section">
+            <section className="info-card-section" id="opportunites">
               <div className="section-header-premium">
                 <span className="icon">💼</span>
                 <h3>Opportunités de Carrière</h3>
