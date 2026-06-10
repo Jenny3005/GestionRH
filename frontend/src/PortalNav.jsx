@@ -19,6 +19,8 @@ export function normalizeRole(role) {
   r = r.replace(/\/+/, '/');
   // canonicalize common combined role names
   if (r.includes('rh') && r.includes('secretaire')) return 'rh/secretaire';
+  if (r === 'dpaf') return 'dpaf';
+  if (r === 'dapaf') return 'dapaf';
   // fallback: return cleaned role
   return r;
 }
@@ -31,6 +33,7 @@ export function getDashboardPath(role = localStorage.getItem('userRole')) {
   if (role === 'secretaire') return '/secretaire/dashboard';
   if (role === 'rh/secretaire') return '/secretaire/dashboard';
   if (role === 'dpaf') return '/dpaf/dashboard';
+  if (role === 'dapaf') return '/dpaf/dashboard';  // ← même dashboard
   return '/dashboard';
 }
 
@@ -42,7 +45,8 @@ export function getRoleLabel(role = localStorage.getItem('userRole')) {
     case 'chef': return '⭐ Chef de service';
     case 'secretaire': return '📝 Secrétaire DPAF';
     case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
-    case 'dpaf': return '🏢 DPAF';
+    case 'dpaf': return '🏢 DPAF - Direction Planification';
+    case 'dapaf': return '🏢 DAPAF - Direction Affaires Politiques';
     default: return '👤 Agent';
   }
 }
@@ -78,6 +82,11 @@ export default function PortalNav() {
     
     if (isLoggedIn) {
       links.push({ href: dashboardPath, label: '📊 Tableau de bord' });
+    }
+    
+    // Lien vers les notes de service pour RH et admin
+    if (userRole === 'rh' || userRole === 'admin') {
+      links.push({ href: '/rh/notes', label: '📢 Notes de service' });
     }
     
     links.push({ href: '/demarches', label: '📝 Démarches RH' });
