@@ -27,7 +27,7 @@ export default function DashboardAgent() {
   const [showSoldeModal, setShowSoldeModal] = useState(false);
   const [tauxCompletude, setTauxCompletude] = useState(0);
   const [expiryChecked, setExpiryChecked] = useState(false);
-  
+  const [avancement, setAvancement] = useState(null);
   // États pour le modal de suivi
   const [showSuiviModal, setShowSuiviModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
@@ -35,16 +35,23 @@ export default function DashboardAgent() {
   const matricule = localStorage.getItem('userMatricule');
 
   useEffect(() => {
-    if (!matricule) {
-      navigate('/auth');
-      return;
-    }
-    fetchUserInfo();
-    fetchDemandesRecentes();
-    fetchSoldeConge();
-    checkExpiryOnce();
-    fetchAllNotifications();
-    fetchTauxCompletude();
+  if (!matricule) {
+    navigate('/auth');
+    return;
+  }
+
+  const loadAll = async () => {
+      await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
+      await fetchUserInfo();
+      await fetchDemandesRecentes();
+      await fetchSoldeConge();
+      await checkExpiryOnce();
+      await fetchAllNotifications();
+      await fetchTauxCompletude();
+      await fetchAvancement();  // ✅ Chargé APRÈS le calcul
+    };
+    
+    loadAll();
   }, []);
 
   const fetchTauxCompletude = async () => {
@@ -67,6 +74,20 @@ export default function DashboardAgent() {
     }
   };
 
+  const fetchAvancement = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/avancements/agent/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        // Prendre le prochain avancement (le premier avec date_prevue future ou null pour plafonné)
+        const prochain = data.find(a => a.type === 'normal' && a.date_prevue) || data[0] || null;
+        setAvancement(prochain);
+      }
+    } catch (error) {
+      console.error('Erreur chargement avancement:', error);
+    }
+  };
+
   const checkExpiryOnce = async () => {
     if (expiryChecked) return;
     try {
@@ -80,7 +101,6 @@ export default function DashboardAgent() {
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
-      fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
       const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
       let notifs = [];
       if (notifResponse.ok) {
@@ -475,17 +495,43 @@ export default function DashboardAgent() {
           <div className="agent-card">
             <div className="agent-card-header">
               <h3>📈 Prochain avancement</h3>
-              <button className="agent-card-btn" onClick={() => navigate('/carriere')}>Détails →</button>
             </div>
             <div className="avancement-info">
-              <div className="avancement-item">
-                <span className="avancement-label">Échelon actuel</span>
-                <span className="avancement-value">À renseigner</span>
-              </div>
-              <div className="avancement-item">
-                <span className="avancement-label">Prochain échelon</span>
-                <span className="avancement-value highlight">En attente</span>
-              </div>
+              {avancement ? (
+                <>
+                  <div className="avancement-item">
+                    <span className="avancement-label">Échelon actuel</span>
+                    <span className="avancement-value">{avancement.echelon_ancien || 'Non défini'}</span>
+                  </div>
+                  <div className="avancement-item">
+                    <span className="avancement-label">Prochain échelon</span>
+                    <span className="avancement-value highlight">
+                      {avancement.echelon_nouveau || avancement.echelon_ancien || 'Non défini'}
+                    </span>
+                  </div>
+                  <div className="avancement-item">
+                    <span className="avancement-label">Date prévue</span>
+                    <span className="avancement-value">
+                      {avancement.date_prevue 
+                        ? new Date(avancement.date_prevue).toLocaleDateString('fr-FR') 
+                        : avancement.type === 'plafonne' 
+                          ? 'Plafonné' 
+                          : 'Non définie'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="avancement-item">
+                    <span className="avancement-label">Échelon actuel</span>
+                    <span className="avancement-value">{userInfo.echelon || 'Non défini'}</span>
+                  </div>
+                  <div className="avancement-item">
+                    <span className="avancement-label">Prochain échelon</span>
+                    <span className="avancement-value highlight">En attente</span>
+                  </div>
+                </>
+              )}
               <div className="avancement-status">
                 <span className="status-info">ℹ️ Les avancements sont gérés par l'administration</span>
               </div>

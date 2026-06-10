@@ -29,7 +29,7 @@ from .emails import (
 )
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
-    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement
+    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement, Candidature
 )
 import json
 import random
@@ -4738,13 +4738,34 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         import ollama
         import json
         import re
-        response = ollama.chat(model='llama3.2:3b', format='json', messages=[{'role': 'system', 'content': "Tu es un expert RH. Réponds uniquement en JSON valide."}, {'role': 'user', 'content': prompt}])
+        
+        response = ollama.chat(
+            model='llama3.2:3b',
+            format='json',  # ← AJOUTEZ CECI si votre version Ollama le supporte
+            messages=[{
+                'role': 'system',
+                'content': "Tu es un expert RH. Tu réponds uniquement en JSON valide."
+            }, {
+                'role': 'user',
+                'content': prompt
+            }]
+        )
+        
         reponse_brute = response['message']['content']
+        
+        # Nettoyage : extraire uniquement le JSON
         match = re.search(r'\{.*\}', reponse_brute, re.DOTALL)
         if match:
             reponse_brute = match.group()
+        
+        # Remplacer les guillemets simples non échappés dans les chaînes
+        # (solution de secours)
+        reponse_brute = re.sub(r'(?<!\\)"', '\\"', reponse_brute)
+        reponse_brute = re.sub(r'\\"([^"]*?)\\"', r'"\1"', reponse_brute)
+        
         resultat = json.loads(reponse_brute)
         return resultat.get('score', 0), resultat.get('analyse', 'Analyse non disponible')
+        
     except Exception as e:
         print(f"Erreur Ollama: {e}")
         return 0, f"Erreur IA: {str(e)}"
@@ -4908,7 +4929,38 @@ def note_service_detail(request, note_id):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
-
-# ==================== FONCTIONS D'HISTORIQUE (SUPPLEMENTAIRES) ====================
-# Ces fonctions sont déjà définies plus haut, ne pas dupliquer
-# get_demande_historique et get_acte_historique sont déjà définies
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_candidatures_agent(request):
+    """Récupérer les candidatures d'un agent"""
+    try:
+        matricule = request.GET.get('matricule')
+        if not matricule:
+            return JsonResponse({'error': 'Matricule requis'}, status=400)
+        
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        
+        candidatures = Candidature.objects.filter(
+            agent=agent
+        ).select_related('poste_vacant').order_by('-date_soumission')
+        
+        result = []
+        for c in candidatures:
+            result.append({
+                'id': c.id,
+                'intitule': c.poste_vacant.intitule if c.poste_vacant else 'Poste',
+                'direction': c.poste_vacant.directiondemande if c.poste_vacant else '',
+                'date_soumission': str(c.date_soumission) if c.date_soumission else None,
+                'statut': c.statut or 'En cours',
+                'score_eligibilite': c.score_eligibilite,
+                'rang': c.rang,
+            })
+        
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
