@@ -77,6 +77,7 @@ class Candidature(models.Model):
     score_eligibilite = models.FloatField(blank=True, null=True)
     statut = models.CharField(max_length=50)
     rang = models.CharField(max_length=10, blank=True, null=True)
+    analyse_ia = models.TextField(blank=True, null=True)
 
     class Meta:
         managed = False
@@ -195,7 +196,7 @@ class PosteVacant(models.Model):
     statut = models.CharField(max_length=50)
     directiondemande = models.CharField(db_column='directionDemande', max_length=100, blank=True, null=True)  # Field name made lowercase.
     diplomerequis = models.CharField(db_column='diplomeRequis', max_length=100, blank=True, null=True)  # Field name made lowercase.
-
+    pieces_requises = models.JSONField(blank=True, null=True)
     class Meta:
         managed = False
         db_table = 'poste_vacant'

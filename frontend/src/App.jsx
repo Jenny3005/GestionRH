@@ -8,6 +8,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [postesVacants, setPostesVacants] = useState([]);
+  const [loadingPostes, setLoadingPostes] = useState(true);
   const navigate = useNavigate();
 
   // Vérifier si l'utilisateur est connecté au chargement
@@ -21,7 +23,6 @@ export default function App() {
   
     if (!lastLogin || (Date.now() - parseInt(lastLogin, 10)) > sessionDuration) {
       localStorage.clear();
-      return;
     }
     
     if (savedMatricule) {
@@ -29,32 +30,29 @@ export default function App() {
       setUserName(`${savedPrenom} ${savedNom}`);
       setUserEmail(savedEmail);
     }
+
+    // Charger les postes vacants
+    fetchPostesVacants();
   }, []);
 
-
-  const [postesVacants] = useState([
-    {
-      id: "MND-PV-2026-01",
-      titre: "Chef Service Infrastructures et Réseaux",
-      direction: "Direction Générale du Numérique (DGN)",
-      dateLimite: "05/06/2026",
-      type: "Appel à candidature interne"
-    },
-    {
-      id: "MND-PV-2026-02",
-      titre: "Analyste Senior en Cybersécurité",
-      direction: "Agence Nationale de la Sécurité des Systèmes d'Information (ANSSI / MND)",
-      dateLimite: "12/06/2026",
-      type: "Mutation interne"
-    },
-    {
-      id: "MND-PV-2026-03",
-      titre: "Chargé d'Études en Transformation Digitale",
-      direction: "DPAF - Service Modernisation",
-      dateLimite: "30/05/2026",
-      type: "Appel à candidature interne"
+  const fetchPostesVacants = async () => {
+    setLoadingPostes(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/postes-vacants/');
+      if (response.ok) {
+        const data = await response.json();
+        // Filtrer uniquement les annonces publiées
+        const annoncesPubliees = data.filter(poste => poste.statut === 'publie');
+        setPostesVacants(annoncesPubliees);
+      } else {
+        console.error('Erreur chargement postes vacants');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    } finally {
+      setLoadingPostes(false);
     }
-  ]);
+  };
 
   const [actualites] = useState([
     {
@@ -84,9 +82,10 @@ export default function App() {
 
   const handlePostuler = (poste) => {
     requireLogin(() => {
-      alert(`Vous allez postuler pour le poste : ${poste.titre}`);
-      // Rediriger vers le formulaire de candidature
-      navigate('/demarches');
+      // Stocker l'ID du poste pour la candidature
+      localStorage.setItem('selectedPosteId', poste.id);
+      localStorage.setItem('selectedPosteIntitule', poste.intitule);
+      navigate('/postuler');
     });
   };
 
@@ -108,6 +107,13 @@ export default function App() {
     setUserName('');
     setUserEmail('');
     navigate('/'); 
+  };
+
+  // Formater la date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Date non définie';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR');
   };
 
   return (
@@ -198,26 +204,46 @@ export default function App() {
               </div>
               <p className="section-desc">Appels à candidatures ouverts aux agents permanents du MND.</p>
               
-              <div className="postes-list">
-                {postesVacants.map((poste) => (
-                  <div key={poste.id} className="poste-item-card">
-                    <div className="poste-main-info">
-                      <span className="poste-badge-type">{poste.type}</span>
-                      <h4>{poste.titre}</h4>
-                      <p className="poste-direction">📍 {poste.direction}</p>
+              {loadingPostes ? (
+                <div className="loading-postes" style={{ textAlign: 'center', padding: '40px' }}>
+                  <p>Chargement des opportunités...</p>
+                </div>
+              ) : postesVacants.length === 0 ? (
+                <div className="no-postes" style={{ textAlign: 'center', padding: '40px', background: '#F8FAFC', borderRadius: '12px' }}>
+                  <p>📭 Aucune opportunité de carrière pour le moment.</p>
+                  <small>Revenez plus tard pour découvrir les nouvelles annonces.</small>
+                </div>
+              ) : (
+                <div className="postes-list">
+                  {postesVacants.map((poste) => (
+                    <div key={poste.id} className="poste-item-card">
+                      <div className="poste-main-info">
+                        <span className="poste-badge-type">
+                          {poste.directionDemande ? poste.directionDemande : 'Appel à candidature interne'}
+                        </span>
+                        <h4>{poste.intitule}</h4>
+                        <p className="poste-direction">📍 {poste.directionDemande || 'Ministère du Numérique'}</p>
+                        {poste.description && (
+                          <p className="poste-description" style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.5rem' }}>
+                            {poste.description.substring(0, 100)}...
+                          </p>
+                        )}
+                      </div>
+                      <div className="poste-action-zone">
+                        <span className="limit-date">
+                          Limite : <strong>{formatDate(poste.date_cloture)}</strong>
+                        </span>
+                        <button 
+                          className="btn-apply-small" 
+                          onClick={() => handlePostuler(poste)}
+                        >
+                          Postuler
+                        </button>
+                      </div>
                     </div>
-                    <div className="poste-action-zone">
-                      <span className="limit-date">Limite : <strong>{poste.dateLimite}</strong></span>
-                      <button 
-                        className="btn-apply-small" 
-                        onClick={() => handlePostuler(poste)}
-                      >
-                        Postuler
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="info-card-section mt-2">
