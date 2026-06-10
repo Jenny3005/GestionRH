@@ -130,14 +130,14 @@ export default function DashboardDPAF() {
         setActesASigner(actesData);
       }
 
-      setStats({
+      setStats(prev => ({
+        ...prev,  // ✅ Conserve l'historique_count déjà mis à jour
         a_assigner: transmisesData.length,
         assignees: assigneesData.length,
         en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
         terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
         actes_a_signer: actesData.length,
-        historique_count: stats.historique_count
-      });
+      }));
 
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -377,7 +377,7 @@ export default function DashboardDPAF() {
             className={`filter-tab ${activeTab === 'historique' ? 'active' : ''}`} 
             onClick={() => setActiveTab('historique')}
           >
-            📜 Historique des demandes traitées ({stats.historique_count})
+            📜 Historique des demandes ({stats.historique_count})
           </button>
         </div>
 

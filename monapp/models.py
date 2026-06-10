@@ -195,6 +195,7 @@ class PosteVacant(models.Model):
     statut = models.CharField(max_length=50)
     directiondemande = models.CharField(db_column='directionDemande', max_length=100, blank=True, null=True)  # Field name made lowercase.
     diplomerequis = models.CharField(db_column='diplomeRequis', max_length=100, blank=True, null=True)  # Field name made lowercase.
+    pieces_requises = models.JSONField(blank=True, null=True)
 
     class Meta:
         managed = False
@@ -261,3 +262,4 @@ class Validation(models.Model):
     class Meta:
         managed = False
         db_table = 'validation'
+
