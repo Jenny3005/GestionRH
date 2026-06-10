@@ -128,6 +128,7 @@ urlpatterns = [
     path('candidatures/<int:candidature_id>/analyser/', views.analyser_candidature, name='analyser_candidature'),
     path('candidatures/exporter/<int:poste_id>/', views.exporter_candidatures, name='exporter_candidatures'),
     path('candidatures/<int:candidature_id>/pieces/', views.get_candidature_pieces, name='get_candidature_pieces'),
+    path('candidatures/', views.get_candidatures_agent, name='get_candidatures_agent'),
 
     path('notes-service/', views.notes_service, name='notes_service'),
     path('notes-service/<int:note_id>/', views.note_service_detail, name='note_service_detail'),
