@@ -66,15 +66,6 @@ urlpatterns = [
 
     path('user-permissions/<str:matricule>/', views.get_user_permissions, name='user_permissions'),
 
-    # ==================== SECRÉTARIAT ====================
-    path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
-    path('secretaire/transmettre-dpaf/<int:demande_id>/', views.transmettre_demande_dpaf, name='transmettre_demande_dpaf'),
-    path('secretaire/demandes-transmises/<str:matricule_secretaire>/', views.get_demandes_transmises_secretaire, name='get_demandes_transmises_secretaire'),
-    path('secretaire/actes-a-transmettre/<str:matricule_secretaire>/', views.get_actes_a_transmettre_secretaire, name='actes_a_transmettre_secretaire'),
-    path('secretaire/actes-a-remettre/<str:matricule_secretaire>/', views.get_actes_a_remettre_secretaire, name='actes_a_remettre_secretaire'),
-    path('secretaire/actes-recus/<str:matricule_secretaire>/', views.get_actes_recus_secretaire, name='get_actes_recus_secretaire'),
-    path('secretaire/transmettre-acte-dpaf/<path:reference>/', views.transmettre_acte_dpaf, name='transmettre_acte_dpaf'),
-    path('secretaire/remettre-acte/<path:reference>/', views.remettre_acte, name='remettre_acte'),
 
     # ==================== DPAF ====================
     path('dpaf/demandes-transmises/<str:matricule_dpaf>/', views.get_demandes_transmises_dpaf, name='demandes_transmises_dpaf'),
@@ -111,6 +102,8 @@ urlpatterns = [
     path('agent/delete-cachet/<str:matricule>/', views.delete_cachet, name='delete_cachet'),
     path('documents/expired-count/', views.get_all_expired_documents, name='get_all_expired_documents'),
     path('anomalies/<str:matricule>/', views.detect_anomalies, name='detect_anomalies'),
+    path('api/actes/signer/dapaf/<str:reference>/', views.signer_acte_dapaf, name='signer_acte_dapaf'),
+    path('api/actes/a-signer-dapaf/<str:matricule_dapaf>/', views.get_actes_a_signer_dapaf, name='get_actes_a_signer_dapaf'),
 
     # ==================== AVANCEMENTS ====================
     path('avancements/calculer/', views.trigger_avancements, name='trigger_avancements'),
@@ -138,5 +131,34 @@ urlpatterns = [
 
     path('notes-service/', views.notes_service, name='notes_service'),
     path('notes-service/<int:note_id>/', views.note_service_detail, name='note_service_detail'),
+
+        # ==================== DPAF/DAPAF (Fonctions génériques par rôle) ====================
+        # ==================== DPAF/DAPAF (Fonctions génériques) ====================
+    path('dashboard/demandes-a-assigner/<str:matricule>/', views.get_demandes_a_assigner, name='get_demandes_a_assigner'),
+    path('dashboard/demandes-assignees/<str:matricule>/', views.get_demandes_assignees_by_role, name='get_demandes_assignees_by_role'),
+    path('dashboard/actes-a-signer/<str:matricule>/', views.get_actes_a_signer_by_role, name='get_actes_a_signer_by_role'),
+    path('dashboard/demandes-historique/<str:matricule>/', views.get_demandes_historique_by_role, name='get_demandes_historique_by_role'),
+
+    # ==================== DAPAF spécifique (si besoin) ====================
+    path('dapaf/demandes-transmises/<str:matricule_dapaf>/', views.get_demandes_transmises_dapaf, name='demandes_transmises_dapaf'),
+    path('dapaf/demandes-assignees/<str:matricule_dapaf>/', views.get_demandes_assignees_dapaf, name='demandes_assignees_dapaf'),
+    path('dapaf/actes-a-signer/<str:matricule_dapaf>/', views.get_actes_a_signer_dapaf, name='actes_a_signer_dapaf'),
+    path('dapaf/signer-acte/<path:reference>/', views.signer_acte_dapaf, name='signer_acte_dapaf'),
+
+    # ==================== Suivi des demandes (historique) ====================
+    path('demandes/<int:demande_id>/historique/', views.get_demande_historique, name='get_demande_historique'),
+    path('actes/<path:reference>/historique/', views.get_acte_historique, name='get_acte_historique'),
+
+    # ==================== SECRÉTARIAT ====================
+    path('secretaire/demandes-validees/<str:matricule_secretaire>/', views.get_demandes_validees_secretaire, name='get_demandes_validees_secretaire'),
+    path('secretaire/transmettre-demande/<int:demande_id>/', views.transmettre_demande, name='transmettre_demande'),
+    path('secretaire/demandes-transmises-dpaf/<str:matricule_secretaire>/', views.get_demandes_transmises_secretaire, name='get_demandes_transmises_secretaire'),
+    path('secretaire/demandes-transmises-dapaf/<str:matricule_secretaire>/', views.get_demandes_transmises_secretaire_dapaf, name='get_demandes_transmises_secretaire_dapaf'),
+    path('secretaire/actes-a-transmettre-dpaf/<str:matricule_secretaire>/', views.get_actes_a_transmettre_secretaire_dpaf, name='actes_a_transmettre_secretaire_dpaf'),
+    path('secretaire/actes-a-transmettre-dapaf/<str:matricule_secretaire>/', views.get_actes_a_transmettre_secretaire_dapaf, name='actes_a_transmettre_secretaire_dapaf'),
+    path('secretaire/actes-a-remettre/<str:matricule_secretaire>/', views.get_actes_a_remettre_secretaire, name='actes_a_remettre_secretaire'),
+    path('secretaire/actes-recus/<str:matricule_secretaire>/', views.get_actes_recus_secretaire, name='get_actes_recus_secretaire'),
+    path('secretaire/transmettre-acte/<path:reference>/', views.transmettre_acte, name='transmettre_acte'),
+    path('secretaire/remettre-acte/<path:reference>/', views.remettre_acte, name='remettre_acte'),
     
 ]

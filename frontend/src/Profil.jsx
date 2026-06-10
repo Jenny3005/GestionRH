@@ -4,6 +4,19 @@ import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import './App.css';
 
+// Fonction pour normaliser le rôle
+function normalizeRole(role) {
+  if (!role || typeof role !== 'string') return '';
+  let r = role.trim().toLowerCase();
+  try {
+    r = r.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  } catch (e) {}
+  r = r.replace(/[\s_\\]+/g, '/');
+  r = r.replace(/[^a-z0-9\/-]/g, '');
+  r = r.replace(/\/+/, '/');
+  return r;
+}
+
 export default function Profil() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -37,10 +50,18 @@ export default function Profil() {
   });
 
   const matricule = localStorage.getItem('userMatricule');
-  const userRole = localStorage.getItem('userRole');
+  const rawRole = localStorage.getItem('userRole');
+  const userRole = normalizeRole(rawRole);
   
-  // ✅ Vérifier si l'utilisateur est DPAF (seul le DPAF voit la section signature/cachet)
-  const isDPAF = userRole === 'dpaf';
+  // ✅ Vérifier si l'utilisateur est DPAF ou DAPAF (tous les deux ont droit à signature/cachet)
+  const canManageSignatureCachet = userRole === 'dpaf' || userRole === 'dapaf';
+  
+  // ✅ Obtenir le label du rôle pour l'affichage
+  const getRoleLabel = () => {
+    if (userRole === 'dpaf') return 'Directeur de la Planification, de l\'Administration et des Finances';
+    if (userRole === 'dapaf') return 'Directeur des Affaires Politiques, Administratives et Financières';
+    return '';
+  };
 
   useEffect(() => {
     if (!matricule) {
@@ -48,7 +69,7 @@ export default function Profil() {
       return;
     }
     fetchUserInfo();
-    if (isDPAF) {
+    if (canManageSignatureCachet) {
       fetchSignatureCachet();
     }
   }, []);
@@ -95,7 +116,7 @@ export default function Profil() {
 
   // Upload de la signature
   const handleSignatureUpload = async (e) => {
-    if (!isDPAF) return;
+    if (!canManageSignatureCachet) return;
     
     const file = e.target.files[0];
     if (!file) return;
@@ -142,7 +163,7 @@ export default function Profil() {
 
   // Upload du cachet
   const handleCachetUpload = async (e) => {
-    if (!isDPAF) return;
+    if (!canManageSignatureCachet) return;
     
     const file = e.target.files[0];
     if (!file) return;
@@ -189,7 +210,7 @@ export default function Profil() {
 
   // Supprimer la signature
   const handleDeleteSignature = async () => {
-    if (!isDPAF) return;
+    if (!canManageSignatureCachet) return;
     
     if (window.confirm('Voulez-vous vraiment supprimer votre signature ?')) {
       try {
@@ -211,7 +232,7 @@ export default function Profil() {
 
   // Supprimer le cachet
   const handleDeleteCachet = async () => {
-    if (!isDPAF) return;
+    if (!canManageSignatureCachet) return;
     
     if (window.confirm('Voulez-vous vraiment supprimer votre cachet ?')) {
       try {
@@ -483,12 +504,12 @@ export default function Profil() {
             </div>
           </div>
 
-          {/* ✅ SECTION SIGNATURE & CACHET - UNIQUEMENT POUR DPAF (cachée pour les autres) */}
-          {isDPAF && (
+          {/* ✅ SECTION SIGNATURE & CACHET - POUR DPAF ET DAPAF */}
+          {canManageSignatureCachet && (
             <div className="signature-cachet-card">
               <div className="card-header">
                 <h3>✍️ Signature & Cachet officiel</h3>
-                <p className="card-subtitle">Espace réservé au Directeur DPAF</p>
+                <p className="card-subtitle">Espace réservé au {getRoleLabel()}</p>
               </div>
               <div className="signature-cachet-grid">
                 
