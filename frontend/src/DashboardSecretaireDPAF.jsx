@@ -12,10 +12,10 @@ export default function DashboardSecretaire() {
   const [loading, setLoading] = useState(true);
   
   // États pour la secrétaire
-  const [demandesValidees, setDemandesValidees] = useState([]);  // Demandes validées par le chef
-  const [demandesTransmises, setDemandesTransmises] = useState([]);  // Demandes transmises au DPAF
-  const [actesATransmettre, setActesATransmettre] = useState([]);  // Actes reçus des RH à transmettre au DPAF
-  const [actesARemettre, setActesARemettre] = useState([]);  // Actes signés à remettre aux agents
+  const [demandesValidees, setDemandesValidees] = useState([]);
+  const [demandesTransmises, setDemandesTransmises] = useState([]);
+  const [actesATransmettre, setActesATransmettre] = useState([]);
+  const [actesARemettre, setActesARemettre] = useState([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
@@ -34,6 +34,9 @@ export default function DashboardSecretaire() {
     actes_a_transmettre: 0,
     actes_a_remettre: 0
   });
+
+  // Types d'actes qui doivent être transmis au DPAF
+  const typesPourDPAF = ['Attestation de travail', 'Absence', 'Reprise de service'];
 
   const matricule = localStorage.getItem('userMatricule');
   const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
@@ -86,7 +89,6 @@ export default function DashboardSecretaire() {
         setActesARemettre(actesARemettreData);
       }
 
-      // ✅ Calculer les stats avec les données reçues
       setStats({
         a_transmettre: valideesData.length,
         transmises: transmisesData.length,
@@ -211,6 +213,11 @@ export default function DashboardSecretaire() {
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
 
+  // Vérifier si une demande doit être transmise au DPAF
+  const doitAllerAuDPAF = (typeDemande) => {
+    return typesPourDPAF.includes(typeDemande);
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
@@ -263,6 +270,23 @@ export default function DashboardSecretaire() {
         {/* SECTION 1: Demandes validées à transmettre au DPAF */}
         <div className="admin-section">
           <h3>📋 Demandes validées par le chef - À transmettre au DPAF</h3>
+          
+          {/* Message info sur les types d'actes */}
+          <div style={{ 
+            background: '#EFF6FF', 
+            padding: '10px 15px', 
+            borderRadius: '8px', 
+            marginBottom: '15px',
+            borderLeft: '4px solid #3B82F6'
+          }}>
+            <p style={{ margin: 0, fontSize: '0.8rem' }}>
+              ℹ️ <strong>Transmis au DPAF :</strong> Attestation de travail, Absence, Reprise de service
+            </p>
+            <p style={{ margin: '5px 0 0 0', fontSize: '0.75rem', color: '#64748B' }}>
+              Les congés et autres demandes sont signés par le chef hiérarchique.
+            </p>
+          </div>
+
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -294,16 +318,22 @@ export default function DashboardSecretaire() {
                       <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
                       <td>{d.date_validation ? new Date(d.date_validation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>{getStatusBadge(d.statut)}</td>
-                      <td>
-                        <button 
-                          className="btn-transmettre"
-                          onClick={() => {
-                            setSelectedDemande(d);
-                            setShowTransmettreModal(true);
-                          }}
-                        >
-                          📤 Transmettre au DPAF
-                        </button>
+                      <td className="rh-actions-cell">
+                        {doitAllerAuDPAF(d.type_demande) ? (
+                          <button 
+                            className="btn-transmettre"
+                            onClick={() => {
+                              setSelectedDemande(d);
+                              setShowTransmettreModal(true);
+                            }}
+                          >
+                            📤 Transmettre au DPAF
+                          </button>
+                        ) : (
+                          <span className="badge-info" style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
+                            Signé par le chef
+                          </span>
+                        )}
                        </td>
                     </tr>
                   ))
@@ -417,6 +447,7 @@ export default function DashboardSecretaire() {
             </table>
           </div>
         </div>
+
         {/* MODAL APERÇU PDF */}
         {showPreviewModal && (
           <div className="modal-overlay" onClick={() => {
@@ -477,9 +508,13 @@ export default function DashboardSecretaire() {
               <button className="modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p>Demande de <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong></p>
+              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <p><strong>Agent :</strong> {selectedDemande.agent_nom} {selectedDemande.agent_prenom}</p>
+                <p><strong>Type :</strong> {selectedDemande.type_demande}</p>
+                <p><strong>Période :</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
+              </div>
               <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+                <label>Commentaire pour le DPAF (optionnel)</label>
                 <textarea
                   rows="3"
                   placeholder="Ajoutez un commentaire pour le DPAF..."
@@ -505,10 +540,13 @@ export default function DashboardSecretaire() {
               <button className="modal-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p>Acte pour <strong>{selectedActe.agent_nom} {selectedActe.agent_prenom}</strong></p>
-              <p><strong>Référence:</strong> {selectedActe.reference}</p>
+              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <p><strong>Agent :</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
+                <p><strong>Type d'acte :</strong> {selectedActe.type_acte}</p>
+                <p><strong>Référence :</strong> {selectedActe.reference}</p>
+              </div>
               <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+                <label>Commentaire pour le DPAF (optionnel)</label>
                 <textarea
                   rows="3"
                   placeholder="Ajoutez un commentaire pour le DPAF..."

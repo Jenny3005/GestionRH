@@ -2102,108 +2102,7 @@ def remettre_acte(request, reference):
 
 
 # ==================== DPAF ====================
-def generer_acte_avec_signature_et_cachet(acte, demande, dpaf, signature_base64=None, cachet_base64=None, commentaire=""):
-    """Génère le PDF de l'acte avec signature et cachet du DPAF"""
-    from docx import Document
-    from docx.shared import Pt
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    import io, base64
-    from io import BytesIO
-    
-    # Déterminer le template
-    if demande.type_demande.libelle == 'Congé':
-        template_name = 'autorisation_conge_template.docx'
-    else:
-        template_name = 'autorisation_absence_template.docx'
-    
-    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
-    
-    if not os.path.exists(template_path):
-        raise Exception(f"Template {template_name} non trouvé")
-    
-    doc = Document(template_path)
-    
-    # Préparer les remplacements
-    if hasattr(demande, 'demandeconge') and demande.demandeconge:
-        date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
-        date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
-        nombre_jours = demande.demandeconge.nombrejours
-        motif = ''
-    else:
-        date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
-        date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
-        nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
-        motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
-    
-    numero_seul = acte.reference.split('/')[0] if '/' in acte.reference else acte.reference
-    
-    replacements = {
-        '{{REFERENCE}}': numero_seul,
-        '{{AGENT_NOM}}': demande.agent.nom.upper(),
-        '{{AGENT_PRENOM}}': demande.agent.prenom,
-        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
-        '{{DATE_DEBUT}}': date_debut,
-        '{{DATE_FIN}}': date_fin,
-        '{{NOMBRE_JOURS}}': str(nombre_jours),
-        '{{MOTIF}}': motif,
-        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-        '{{ANNEE}}': str(datetime.now().year)
-    }
-    
-    # Remplacer les placeholders
-    for paragraph in doc.paragraphs:
-        for key, value in replacements.items():
-            if key in paragraph.text:
-                paragraph.text = paragraph.text.replace(key, value)
-    
-    # ✅ Ajouter signature et cachet AVANT "Comlan Amour Abel KPOCHEME"
-    for paragraph in doc.paragraphs:
-        if 'Comlan' in paragraph.text or 'KPOCHEME' in paragraph.text:
-            nom_texte = paragraph.text
-            paragraph.clear()
-            
-            # Signature (taille 130)
-            run_sig = paragraph.add_run()
-            if signature_base64:
-                try:
-                    if ',' in signature_base64:
-                        signature_base64 = signature_base64.split(',')[1]
-                    sig_bytes = base64.b64decode(signature_base64)
-                    sig_stream = BytesIO(sig_bytes)
-                    run_sig.add_picture(sig_stream, width=Pt(130))
-                except:
-                    run_sig.text = ""
-            
-            # UN SEUL espace entre signature et cachet
-            paragraph.add_run(" ")
-            
-            # Cachet (taille 90)
-            run_cachet = paragraph.add_run()
-            if cachet_base64:
-                try:
-                    if ',' in cachet_base64:
-                        cachet_base64 = cachet_base64.split(',')[1]
-                    cachet_bytes = base64.b64decode(cachet_base64)
-                    cachet_stream = BytesIO(cachet_bytes)
-                    run_cachet.add_picture(cachet_stream, width=Pt(90))
-                except:
-                    run_cachet.text = ""
-            
-            # Saut de ligne
-            paragraph.add_run().add_break()
-            
-            # Nom en dessous
-            paragraph.add_run(nom_texte).bold = True
-            
-            break
-    
-    _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
-    
-    output = io.BytesIO()
-    doc.save(output)
-    output.seek(0)
-    
-    return _docx_bytes_to_pdf_bytes(output.getvalue())
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_demandes_transmises_dpaf(request, matricule_dpaf):
@@ -2371,73 +2270,22 @@ def assigner_demande_rh(request, demande_id):
 
 
 @csrf_exempt
-@require_http_methods(["PUT"])
-def signer_acte_dpaf(request, reference):
-    """DPAF signe l'acte - Ajoute automatiquement signature et cachet au template"""
-    try:
-        data = json.loads(request.body)
-        dpaf_matricule = data.get('dpaf_matricule')
-        commentaire = data.get('commentaire', '')
-        
-        acte = ActeAdministratif.objects.get(reference=reference)
-        demande = acte.demande
-        dpaf = Agent.objects.get(matricule=dpaf_matricule)
-        
-        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') else None
-        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') else None
-        
-        pdf_bytes = generer_acte_avec_signature_et_cachet(
-            acte=acte,
-            demande=demande,
-            dpaf=dpaf,
-            signature_base64=signature_base64,
-            cachet_base64=cachet_base64,
-            commentaire=commentaire
-        )
-        
-        acte.statut = 'signe'
-        acte.signe_par = f"{dpaf.prenom} {dpaf.nom}"
-        acte.signe_le = datetime.now()
-        acte.fichier_pdf_signe = base64.b64encode(pdf_bytes).decode('utf-8')
-        acte.save()
-        
-        secretaire = Agent.objects.filter(
-            agentrole__role__libelle='secretaire',
-            direction=demande.agent.direction,
-            actif=1
-        ).first()
-        
-        if secretaire:
-            Notification.objects.create(
-                agent_id=secretaire.matricule,
-                message=f"✅ Acte signé par {dpaf.prenom} {dpaf.nom} (DPAF) - Réf: {reference}",
-                type_notification='acte_signe',
-                date_envoi=datetime.now().date(),
-                lue=0
-            )
-        
-        return _create_pdf_response(pdf_bytes, f'Acte_Signe_{reference}')
-        
-    except ActeAdministratif.DoesNotExist:
-        return JsonResponse({'error': 'Acte non trouvé'}, status=404)
-    except Agent.DoesNotExist:
-        return JsonResponse({'error': 'DPAF non trouvé'}, status=404)
-    except Exception as e:
-        print(f"ERREUR signer_acte_dpaf: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
 @require_http_methods(["GET"])
 def get_actes_a_signer_dpaf(request, matricule_dpaf):
-    """Récupérer les actes à signer par le DPAF"""
+    """Récupérer les actes à signer par le DPAF (uniquement certains types)"""
     try:
         print(f"=== get_actes_a_signer_dpaf for: {matricule_dpaf}")
         
+        # ✅ Types d'actes que le DPAF doit signer
+        types_dpaf = [
+            'Attestation de travail',
+            'Absence',
+            'Reprise de service'
+        ]
+        
         actes = ActeAdministratif.objects.filter(
-            statut='attente_signature_dpaf'
+            statut='attente_signature_dpaf',
+            type_acte__in=types_dpaf  # ← FILTRE : uniquement ces types
         ).select_related('demande__agent')
         
         result = []
@@ -2457,6 +2305,232 @@ def get_actes_a_signer_dpaf(request, matricule_dpaf):
         
     except Exception as e:
         print(f"ERREUR get_actes_a_signer_dpaf: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_base64=None, cachet_base64=None, commentaire=""):
+    """Génère le PDF de l'acte avec signature et cachet du signataire (DPAF ou autre)"""
+    from docx import Document
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io, base64
+    from io import BytesIO
+    
+    # Déterminer le template selon le type de demande
+    if demande.type_demande.libelle == 'Congé':
+        template_name = 'autorisation_conge_template.docx'
+    else:
+        template_name = 'autorisation_absence_template.docx'
+    
+    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
+    
+    if not os.path.exists(template_path):
+        raise Exception(f"Template {template_name} non trouvé")
+    
+    doc = Document(template_path)
+    
+    # Préparer les remplacements
+    if hasattr(demande, 'demandeconge') and demande.demandeconge:
+        date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
+        date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+        nombre_jours = demande.demandeconge.nombrejours
+        motif = ''
+    else:
+        date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+        date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+        nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
+        motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
+    
+    numero_seul = acte.reference.split('/')[0] if '/' in acte.reference else acte.reference
+    
+    replacements = {
+        '{{REFERENCE}}': numero_seul,
+        '{{AGENT_NOM}}': demande.agent.nom.upper(),
+        '{{AGENT_PRENOM}}': demande.agent.prenom,
+        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
+        '{{DATE_DEBUT}}': date_debut,
+        '{{DATE_FIN}}': date_fin,
+        '{{NOMBRE_JOURS}}': str(nombre_jours),
+        '{{MOTIF}}': motif,
+        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+        '{{ANNEE}}': str(datetime.now().year)
+    }
+    
+    # Remplacer les placeholders
+    for paragraph in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in paragraph.text:
+                paragraph.text = paragraph.text.replace(key, value)
+    
+    # ✅ Ajouter signature et cachet dans le document
+    # Chercher le nom du signataire dans le template
+    for paragraph in doc.paragraphs:
+        if signataire and signataire.nom and signataire.nom.upper() in paragraph.text.upper():
+            nom_texte = paragraph.text
+            paragraph.clear()
+            
+            # Aligner à droite
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            
+            # Signature (taille 130)
+            run_sig = paragraph.add_run()
+            if signature_base64:
+                try:
+                    if ',' in signature_base64:
+                        signature_base64 = signature_base64.split(',')[1]
+                    sig_bytes = base64.b64decode(signature_base64)
+                    sig_stream = BytesIO(sig_bytes)
+                    run_sig.add_picture(sig_stream, width=Pt(130))
+                except Exception as e:
+                    print(f"Erreur signature: {e}")
+                    run_sig.text = ""
+            
+            # Espace entre signature et cachet
+            paragraph.add_run(" ")
+            
+            # Cachet (taille 90)
+            run_cachet = paragraph.add_run()
+            if cachet_base64:
+                try:
+                    if ',' in cachet_base64:
+                        cachet_base64 = cachet_base64.split(',')[1]
+                    cachet_bytes = base64.b64decode(cachet_base64)
+                    cachet_stream = BytesIO(cachet_bytes)
+                    run_cachet.add_picture(cachet_stream, width=Pt(90))
+                except Exception as e:
+                    print(f"Erreur cachet: {e}")
+                    run_cachet.text = ""
+            
+            # Saut de ligne
+            paragraph.add_run().add_break()
+            
+            # Nom en dessous
+            paragraph.add_run(nom_texte).bold = True
+            break
+    
+    _set_document_font(doc, font_name='Times New Roman', font_size_pt=12)
+    
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    
+    return _docx_bytes_to_pdf_bytes(output.getvalue())
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def signer_acte_dpaf(request, reference):
+    """DPAF signe l'acte - Ajoute automatiquement signature et cachet au template"""
+    try:
+        data = json.loads(request.body)
+        dpaf_matricule = data.get('dpaf_matricule')
+        commentaire = data.get('commentaire', '')
+        
+        acte = ActeAdministratif.objects.get(reference=reference)
+        demande = acte.demande
+        dpaf = Agent.objects.get(matricule=dpaf_matricule)
+        
+        # ✅ Vérifier que le DPAF a le droit de signer ce type d'acte
+        types_dpaf = ['Attestation de travail', 'Absence', 'Reprise de service']
+        
+        if acte.type_acte not in types_dpaf:
+            return JsonResponse({
+                'error': f"Vous n'êtes pas autorisé à signer ce type d'acte: {acte.type_acte}"
+            }, status=403)
+        
+        # Récupérer signature et cachet du DPAF
+        signature_base64 = dpaf.signature if hasattr(dpaf, 'signature') and dpaf.signature else None
+        cachet_base64 = dpaf.cachet if hasattr(dpaf, 'cachet') and dpaf.cachet else None
+        
+        if not signature_base64 or not cachet_base64:
+            return JsonResponse({
+                'error': 'Signature ou cachet manquant. Veuillez uploader votre signature et votre cachet dans votre profil.'
+            }, status=400)
+        
+        pdf_bytes = generer_acte_avec_signature_et_cachet(
+            acte=acte,
+            demande=demande,
+            signataire=dpaf,
+            signature_base64=signature_base64,
+            cachet_base64=cachet_base64,
+            commentaire=commentaire
+        )
+        
+        acte.statut = 'signe'
+        acte.signe_par = f"{dpaf.prenom} {dpaf.nom}"
+        acte.signe_le = datetime.now()
+        acte.fichier_pdf_signe = base64.b64encode(pdf_bytes).decode('utf-8')
+        acte.save()
+        
+        # Notifier la secrétaire
+        secretaire = Agent.objects.filter(
+            agentrole__role__libelle='secretaire',
+            direction=demande.agent.direction,
+            actif=1
+        ).first()
+        
+        if secretaire:
+            Notification.objects.create(
+                agent_id=secretaire.matricule,
+                message=f"✅ Acte signé par {dpaf.prenom} {dpaf.nom} (DPAF) - Réf: {reference}",
+                type_notification='acte_signe',
+                date_envoi=datetime.now().date(),
+                lue=0
+            )
+        
+        # Notifier l'agent
+        Notification.objects.create(
+            agent_id=demande.agent.matricule,
+            message=f"📄 Votre acte {reference} a été signé par le DPAF et est disponible au secrétariat",
+            type_notification='acte_signe',
+            date_envoi=datetime.now().date(),
+            lue=0
+        )
+        
+        return _create_pdf_response(pdf_bytes, f'Acte_Signe_{reference}')
+        
+    except ActeAdministratif.DoesNotExist:
+        return JsonResponse({'error': 'Acte non trouvé'}, status=404)
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'DPAF non trouvé'}, status=404)
+    except Exception as e:
+        print(f"ERREUR signer_acte_dpaf: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_demandes_historique_dpaf(request, matricule_dpaf):
+    """Récupérer toutes les demandes (historique complet pour le DPAF)"""
+    try:
+        demandes = Demande.objects.select_related(
+            'agent', 'type_demande', 'agent_rh'
+        ).order_by('-date_soumission')
+        
+        result = []
+        for d in demandes:
+            agent_rh_nom = d.agent_rh.nom if d.agent_rh else None
+            agent_rh_prenom = d.agent_rh.prenom if d.agent_rh else None
+            
+            result.append({
+                'id': d.id,
+                'agent_nom': d.agent.nom,
+                'agent_prenom': d.agent.prenom,
+                'agent_matricule': d.agent.matricule,
+                'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
+                'statut': d.statut,
+                'date_soumission': str(d.date_soumission),
+                'date_assignation': str(getattr(d, 'date_assignation', '')) or None,
+                'agent_rh_nom': agent_rh_nom,
+                'agent_rh_prenom': agent_rh_prenom,
+                'numerosuivi': d.numerosuivi,
+            })
+        
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        print(f"ERREUR get_demandes_historique_dpaf: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
