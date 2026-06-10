@@ -118,4 +118,19 @@ urlpatterns = [
     path('avancements/periode/', views.get_avancements_periode, name='get_avancements_periode'),
     path('avancements/alertes/', views.check_alertes_avancement, name='check_alertes_avancement'),
     path('avancements/bordereau/', views.generer_bordereau, name='generer_bordereau'),
+    
+    # Module 7 - Postes vacants
+    path('postes-vacants/', views.postes_vacants, name='postes_vacants'),
+    path('postes-vacants/<int:poste_id>/cloturer/', views.cloturer_poste_vacant, name='cloturer_poste_vacant'),
+    path('postes-vacants/<int:poste_id>/', views.update_poste_vacant, name='update_poste_vacant'),
+
+    # Module 7 - Candidatures
+    path('candidatures/postuler/', views.postuler, name='postuler'),
+    path('candidatures/poste/<int:poste_id>/', views.get_candidatures_by_poste, name='get_candidatures_by_poste'),
+    path('candidatures/<int:candidature_id>/upload-piece/', views.upload_piece_candidature, name='upload_piece_candidature'),
+    path('candidatures/<int:candidature_id>/analyser/', views.analyser_candidature, name='analyser_candidature'),
+    path('candidatures/exporter/<int:poste_id>/', views.exporter_candidatures, name='exporter_candidatures'),
+    path('candidatures/<int:candidature_id>/pieces/', views.get_candidature_pieces, name='get_candidature_pieces'),
+
+    
 ]
