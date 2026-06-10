@@ -19,6 +19,8 @@ export default function DashboardDPAF() {
   const [actesASigner, setActesASigner] = useState([]);
   const [agentsRH, setAgentsRH] = useState([]);
   const [activeTab, setActiveTab] = useState('encours'); // 'encours' ou 'historique'
+  const [hasSignature, setHasSignature] = useState(false);
+  const [hasCachet, setHasCachet] = useState(false);
   
   // Modals
   const [showAssignerModal, setShowAssignerModal] = useState(false);
@@ -55,6 +57,7 @@ export default function DashboardDPAF() {
     fetchAllData();
     fetchAgentsRH();
     fetchHistorique();
+    checkSignatureCachet();
   }, []);
 
   // Charger UNIQUEMENT les agents avec rôle 'rh'
@@ -258,6 +261,19 @@ export default function DashboardDPAF() {
   const handleSigner = (acte) => {
     setSelectedActe(acte);
     setShowSignerModal(true);
+  };
+
+  const checkSignatureCachet = async () => {
+    try {
+      const response = await fetch(`/api/agent/signature-cachet/${matricule}/`);
+      if (response.ok) {
+        const data = await response.json();
+        setHasSignature(!!data.signature);
+        setHasCachet(!!data.cachet);
+      }
+    } catch (error) {
+      console.error('Erreur vérification signature:', error);
+    }
   };
 
   const getStatusBadge = (statut) => {
@@ -467,6 +483,26 @@ export default function DashboardDPAF() {
           </div>
         )}
 
+        {(!hasSignature || !hasCachet) && actesASigner.length > 0 && (
+          <div style={{ 
+            background: '#fff3cd', 
+            padding: '15px', 
+            borderRadius: '8px', 
+            borderLeft: '4px solid #ffc107',
+            marginBottom: '20px'
+          }}>
+            <p>⚠️ <strong>Attention :</strong> Vous devez uploader votre signature et votre cachet dans votre {''}
+            <span 
+              onClick={() => navigate('/profil')} 
+              style={{ fontWeight: 'bold', textDecoration: 'underline', cursor: 'pointer', color: '#0056b3' }}
+            >
+              profil
+            </span> avant de pouvoir signer des actes.</p>
+            {!hasSignature && <p>→ Signature manquante</p>}
+            {!hasCachet && <p>→ Cachet manquant</p>}
+          </div>
+        )}
+
         {/* SECTION 3: Actes à signer */}
         <div className="admin-section">
           <h3>✍️ Actes à signer</h3>
@@ -498,7 +534,16 @@ export default function DashboardDPAF() {
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                             👁️ Voir l'acte
                           </button>
-                          <button className="btn-signer" onClick={() => handleSigner(acte)}>
+                          <button 
+                            className="btn-signer" 
+                            onClick={() => handleSigner(acte)}
+                            disabled={!hasSignature || !hasCachet}
+                            title={!hasSignature ? 'Vous devez d\'abord uploader votre signature' : !hasCachet ? 'Vous devez d\'abord uploader votre cachet' : 'Signer l\'acte'}
+                            style={{ 
+                              opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
+                              cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
+                            }}
+                          >
                             ✍️ Signer l'acte
                           </button>
                         </div>
@@ -878,7 +923,12 @@ export default function DashboardDPAF() {
               <button 
                 className="btn-signer" 
                 onClick={() => handleSignerActe(selectedActe.reference)}
-                style={{ background: '#dc3545' }}
+                disabled={!hasSignature || !hasCachet}
+                style={{ 
+                  background: '#dc3545',
+                  opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
+                  cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
+                }}
               >
                 🏛️ Signer avec mon cachet officiel
               </button>
