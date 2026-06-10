@@ -48,14 +48,38 @@ export default function DashboardRH() {
   const [actesGeneres, setActesGeneres] = useState([]);
   const [agentsRecents, setAgentsRecents] = useState([]);
   const [vraisAgents, setVraisAgents] = useState([]);
-  const [annonces, setAnnonces] = useState([]);
+  const [postesVacants, setPostesVacants] = useState([]);
+  const [candidatures, setCandidatures] = useState({});
 
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
+  const [showAddAnnonceModal, setShowAddAnnonceModal] = useState(false);
+  const [showEditAnnonceModal, setShowEditAnnonceModal] = useState(false);
+  const [showCandidaturesModal, setShowCandidaturesModal] = useState(false);
+  const [showAnalyseModal, setShowAnalyseModal] = useState(false);
+  const [showPiecesModal, setShowPiecesModal] = useState(false);
+  const [selectedPoste, setSelectedPoste] = useState(null);
+  const [selectedPosteToEdit, setSelectedPosteToEdit] = useState(null);
+  const [candidaturesPoste, setCandidaturesPoste] = useState([]);
+  const [selectedAnalyse, setSelectedAnalyse] = useState(null);
+  const [selectedPieces, setSelectedPieces] = useState([]);
+  const [selectedCandidatNom, setSelectedCandidatNom] = useState('');
+  const [selectedCandidatId, setSelectedCandidatId] = useState(null);
+
+  const [editAnnonce, setEditAnnonce] = useState({
+    intitule: '',
+    description: '',
+    profil_recherche: '',
+    diplomeRequis: '',
+    directionDemande: '',
+    date_publication: '',
+    date_cloture: '',
+    pieces_requises: []
+  });
 
   // États pour le module Avancements
   const [avancementsStats, setAvancementsStats] = useState({ total: 0, prochain: null });
   const [avancementsAgenda, setAvancementsAgenda] = useState([]);
-  const [alertesAvancement, setAlertesAvancement] = useState([]); // réactivé
+  const [alertesAvancement, setAlertesAvancement] = useState([]);
 
   // Filtres du calendrier
   const [calendrierAnnee, setCalendrierAnnee] = useState(new Date().getFullYear().toString());
@@ -85,6 +109,17 @@ export default function DashboardRH() {
     echelon: 'A1-1'
   });
 
+  const [newAnnonce, setNewAnnonce] = useState({
+    intitule: '',
+    description: '',
+    profil_recherche: '',
+    diplomeRequis: '',
+    directionDemande: '',
+    date_publication: new Date().toISOString().split('T')[0],
+    date_cloture: '',
+    pieces_requises: []
+  });
+
   const userName = `${userInfo.prenom} ${userInfo.nom}`.trim();
   const matricule = localStorage.getItem('userMatricule');
 
@@ -100,10 +135,11 @@ export default function DashboardRH() {
     }
 
     const loadAll = async () => {
-      await fetchData();               // maintenant le calcul est attendu
+      await fetchData();
       await fetchAvancementsStats();
-      await fetchAlertesAvancement();  // les alertes sont chargées APRES le calcul
+      await fetchAlertesAvancement();
       await fetchAvancementsAgenda(new Date().getFullYear().toString(), '');
+      await fetchPostesVacants();
     };
     loadAll();
   }, []);
@@ -112,10 +148,8 @@ export default function DashboardRH() {
     setLoading(true);
     try {
       const matriculeRH = localStorage.getItem('userMatricule');
-      // Vérification silencieuse des avancements
       await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
 
-      // 1. CHARGER LES AGENTS
       const agentsRes = await fetch('http://localhost:8000/api/agents/');
       if (agentsRes.ok) {
         const agentsData = await agentsRes.json();
@@ -124,7 +158,6 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, totalAgents: agentsData.length }));
       }
 
-      // 2. Demandes assignées au RH
       const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matriculeRH}/`);
       if (assigneesRes.ok) {
         const data = await assigneesRes.json();
@@ -132,7 +165,6 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
       }
 
-      // 3. Demandes en cours de traitement
       const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matriculeRH}/`);
       if (enCoursRes.ok) {
         const data = await enCoursRes.json();
@@ -140,7 +172,6 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, demandesEnCours: data.length }));
       }
 
-      // 4. Actes générés à envoyer
       const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
@@ -148,14 +179,12 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
 
-      // 5. Demandes terminées
       const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matriculeRH}/`);
       if (termineesRes.ok) {
         const data = await termineesRes.json();
         setDemandesTerminees(data);
       }
 
-      // 6. Compter tous les documents expirés
       const expiredRes = await fetch('http://localhost:8000/api/documents/expired-count/');
       if (expiredRes.ok) {
         const data = await expiredRes.json();
@@ -166,6 +195,274 @@ export default function DashboardRH() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchPostesVacants = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/postes-vacants/');
+      if (res.ok) {
+        const data = await res.json();
+        setPostesVacants(data);
+        setStats(prev => ({ ...prev, annoncesActives: data.filter(p => p.statut === 'publie').length }));
+        
+        for (const poste of data) {
+          await fetchCandidaturesByPoste(poste.id);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement postes vacants:', error);
+    }
+  };
+
+  const fetchCandidaturesByPoste = async (posteId) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${posteId}/`);
+      if (res.ok) {
+        const data = await res.json();
+        setCandidatures(prev => ({ ...prev, [posteId]: data }));
+      }
+    } catch (error) {
+      console.error('Erreur chargement candidatures:', error);
+    }
+  };
+
+  const handleCreateAnnonce = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:8000/api/postes-vacants/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newAnnonce,
+          statut: 'publie'
+        })
+      });
+      if (res.ok) {
+        alert('✅ Annonce créée avec succès !');
+        setShowAddAnnonceModal(false);
+        setNewAnnonce({
+          intitule: '',
+          description: '',
+          profil_recherche: '',
+          diplomeRequis: '',
+          directionDemande: '',
+          date_publication: new Date().toISOString().split('T')[0],
+          date_cloture: '',
+          pieces_requises: []
+        });
+        await fetchPostesVacants();
+      } else {
+        const error = await res.json();
+        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleModifierAnnonce = (poste) => {
+    setSelectedPosteToEdit(poste);
+    setEditAnnonce({
+      intitule: poste.intitule,
+      description: poste.description || '',
+      profil_recherche: poste.profil_recherche || '',
+      diplomeRequis: poste.diplomeRequis || '',
+      directionDemande: poste.directionDemande || '',
+      date_publication: poste.date_publication,
+      date_cloture: poste.date_cloture || '',
+      pieces_requises: poste.pieces_requises || []
+    });
+    setShowEditAnnonceModal(true);
+  };
+
+  const handleUpdateAnnonce = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`http://localhost:8000/api/postes-vacants/${selectedPosteToEdit.id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editAnnonce)
+      });
+      if (res.ok) {
+        alert('✅ Annonce modifiée avec succès !');
+        setShowEditAnnonceModal(false);
+        await fetchPostesVacants();
+      } else {
+        const error = await res.json();
+        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleCloturerAnnonce = async (posteId) => {
+    if (!window.confirm('Confirmer la clôture de cette annonce ?')) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/postes-vacants/${posteId}/cloturer/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        alert('✅ Annonce clôturée');
+        await fetchPostesVacants();
+      } else {
+        alert('❌ Erreur lors de la clôture');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleVoirCandidatures = async (poste) => {
+    setSelectedPoste(poste);
+    try {
+      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${poste.id}/`);
+      if (res.ok) {
+        const data = await res.json();
+        const sortedData = [...data].sort((a, b) => (b.score_eligibilite || 0) - (a.score_eligibilite || 0));
+        setCandidaturesPoste(sortedData);
+        setShowCandidaturesModal(true);
+      } else {
+        alert('Erreur lors du chargement des candidatures');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleVoirAnalyse = (candidat) => {
+    setSelectedAnalyse(candidat);
+    setShowAnalyseModal(true);
+  };
+
+  const handleVoirPieces = async (candidatureId, candidatNom, candidatId) => {
+    setSelectedCandidatNom(candidatNom);
+    setSelectedCandidatId(candidatureId);
+    try {
+      const res = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/pieces/`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedPieces(data);
+        setShowPiecesModal(true);
+      } else {
+        alert('Erreur lors du chargement des pièces');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  const handleAnalyserCandidature = async (candidatureId) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/analyser/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`✅ Analyse terminée - Score: ${data.score}/100`);
+        if (selectedPoste) {
+          await handleVoirCandidatures(selectedPoste);
+        }
+        await fetchPostesVacants();
+      } else {
+        alert('❌ Erreur lors de l\'analyse');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleAnalyserToutesCandidatures = async () => {
+    if (!selectedPoste) return;
+    
+    let analysées = 0;
+    for (const cand of candidaturesPoste) {
+      if (cand.score_eligibilite === 0 || cand.score_eligibilite === null) {
+        await handleAnalyserCandidature(cand.id);
+        analysées++;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    alert(`✅ ${analysées} candidature(s) analysée(s)`);
+  };
+
+  const exporterCandidaturesExcel = () => {
+    if (!selectedPoste) return;
+    
+    const data = candidaturesPoste.map((cand, index) => ({
+      'Rang': index + 1,
+      'Matricule': cand.agent_matricule,
+      'Nom': cand.agent_nom,
+      'Prénom': cand.agent_prenom,
+      'Poste actuel': cand.agent_poste || '-',
+      'Date dépôt': new Date(cand.date_soumission).toLocaleDateString('fr-FR'),
+      'Score IA (%)': cand.score_eligibilite || 0,
+      'Analyse IA': cand.analyse_ia ? cand.analyse_ia.substring(0, 200) : '-'
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Candidatures_${selectedPoste.intitule}`);
+    XLSX.writeFile(wb, `Candidatures_${selectedPoste.intitule}.xlsx`);
+  };
+
+  const exporterCandidaturesPDF = () => {
+    if (!selectedPoste) return;
+    
+    const doc = new jsPDF();
+    const logoUrl = '/logo_MND.png';
+    doc.addImage(logoUrl, 'PNG', 10, 5, 50, 50);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(11, 25, 44);
+    doc.text(`Candidatures - ${selectedPoste.intitule}`, 70, 25);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')}`, 70, 35);
+    doc.text(`Nombre de candidats: ${candidaturesPoste.length}`, 70, 43);
+    
+    doc.setDrawColor(212, 175, 55);
+    doc.setLineWidth(0.5);
+    doc.line(14, 55, 196, 55);
+    
+    const data = candidaturesPoste.map((cand, index) => [
+      index + 1,
+      `${cand.agent_nom} ${cand.agent_prenom}`,
+      cand.agent_poste || '-',
+      `${cand.score_eligibilite || 0}%`
+    ]);
+    
+    autoTable(doc, {
+      startY: 62,
+      head: [['Rang', 'Candidat', 'Poste actuel', 'Score']],
+      body: data,
+      theme: 'grid',
+      headStyles: { fillColor: [11, 25, 44], textColor: [212, 175, 55] },
+      styles: { fontSize: 9, cellPadding: 3 },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+    
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Ministère du Numérique et de la Digitalisation - Page ${i} / ${pageCount}`, 14, 285);
+    }
+    
+    doc.save(`Candidatures_${selectedPoste.intitule}.pdf`);
+  };
+
+  const getScoreClass = (score) => {
+    if (score >= 70) return 'score-high';
+    if (score >= 40) return 'score-medium';
+    return 'score-low';
   };
 
   const handleTraiterDemande = async (demandeId) => {
@@ -195,8 +492,7 @@ export default function DashboardRH() {
     }
     setLoading(true);
     try {
-      const annee = new Date().getFullYear();
-      const refNumber = `${annee}${Date.now()}`;
+      const refNumber = `${new Date().getFullYear()}${Date.now()}`;
       const reference = `${refNumber}`;
       const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
@@ -293,7 +589,10 @@ export default function DashboardRH() {
       'valide': { class: 'status-approved', text: 'Validé' },
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
       'actif': { class: 'status-active', text: 'Actif' },
-      'inactif': { class: 'status-inactive', text: 'Inactif' }
+      'inactif': { class: 'status-inactive', text: 'Inactif' },
+      'publie': { class: 'status-active', text: '📢 Publiée' },
+      'cloture': { class: 'status-inactive', text: '🔒 Clôturée' },
+      'deposee': { class: 'status-pending', text: '📋 Déposée' }
     };
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
     return <span className={`status-badge ${status.class}`}>{status.text}</span>;
@@ -409,7 +708,6 @@ export default function DashboardRH() {
     input.click();
   };
 
-  // Export Excel générique
   const handleExportExcel = async (type) => {
     try {
       let data = [];
@@ -598,7 +896,6 @@ export default function DashboardRH() {
     navigate(`/rh/documents/${agentMatricule}`);
   };
 
-  // Fonctions Avancements
   const fetchAvancementsStats = async () => {
     try {
       const res = await fetch('http://localhost:8000/api/avancements/periode/?annee=' + new Date().getFullYear());
@@ -635,7 +932,6 @@ export default function DashboardRH() {
       } catch (e) { console.error(e); }
   };
 
-  // Génération du bordereau en PDF (inchangée)
   const handleExportBordereau = async () => {
     try {
       const annee = bordereauAnnee;
@@ -685,7 +981,6 @@ export default function DashboardRH() {
         let dernierDate = null;
         if (ancienneteJours >= premierDelaiAnnees * 365) {
           const nbAvancements = 1 + Math.floor((ancienneteJours - premierDelaiAnnees * 365) / (2 * 365));
-          // Le dernier avancement a eu lieu (premierDelaiAnnees + (nbAvancements - 1) * 2) années après la prise de service
           dernierDate = addYears(datePriseService, premierDelaiAnnees + (nbAvancements - 1) * 2);
         }
 
@@ -744,13 +1039,11 @@ export default function DashboardRH() {
     }
   };
 
-  // Pagination calendrier
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentItems = avancementsAgenda.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(avancementsAgenda.length / itemsPerPage);
 
-  // Calcul des avancements prévus dans les 7 jours pour la carte dashboard
   const alertesSemaine = alertesAvancement.filter(a => a.jours_restants <= 7).length;
 
   if (permissionsLoading || loading) {
@@ -838,7 +1131,6 @@ export default function DashboardRH() {
                   <span className="rh-stat-label">Annonces actives</span>
                 </div>
               </div>
-              {/* Nouvelle carte : Avancements cette semaine */}
               <div className="rh-stat-card">
                 <div className="rh-stat-icon">📈</div>
                 <div className="rh-stat-info">
@@ -848,7 +1140,6 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Demandes assignées */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>📋 Demandes assignées à traiter</h3>
@@ -876,7 +1167,6 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Demandes en cours */}
             <div className="rh-card full-width">
               <div className="rh-card-header"><h3>⚙️ Demandes en cours de traitement</h3></div>
               <div className="rh-table-container">
@@ -901,7 +1191,6 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Actes générés */}
             <div className="rh-card full-width">
               <div className="rh-card-header"><h3>📄 Actes générés - En attente d'envoi</h3></div>
               <div className="rh-table-container">
@@ -931,7 +1220,6 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Derniers agents inscrits */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>👥 Derniers agents inscrits</h3>
@@ -960,7 +1248,6 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* Section Exports */}
             <div className="rh-card full-width">
               <div className="rh-card-header"><h3>📑 Exporter des rapports</h3></div>
               <div className="rh-export-options">
@@ -1060,18 +1347,44 @@ export default function DashboardRH() {
           <div className="rh-section">
             <div className="rh-actions-bar">
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary">➕ Nouvelle annonce</button>
-                <button className="btn-rh-primary">📢 Appel à candidature</button>
+                <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}>➕ Nouvelle annonce</button>
               </div>
             </div>
             <div className="rh-card full-width">
               <div className="rh-card-header"><h3>📢 Annonces et appels à candidature</h3></div>
               <div className="rh-table-container">
                 <table className="rh-table">
-                  <thead><tr><th>Titre</th><th>Date publication</th><th>Date clôture</th><th>Statut</th><th>Candidatures</th><th>Actions</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Titre</th>
+                      <th>Date publication</th>
+                      <th>Date clôture</th>
+                      <th>Statut</th>
+                      <th>Candidatures</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    <tr><td>Recrutement Assistant RH</td><td>2026-05-15</td><td>2026-06-15</td><td>{getStatutBadge('Active')}</td><td>12</td><td className="rh-actions-cell"><button className="btn-icon" title="Voir candidatures">👥</button><button className="btn-icon" title="Modifier">✏️</button></td></tr>
-                    <tr><td>Appel à candidature - Chef projet</td><td>2026-05-10</td><td>2026-05-30</td><td>{getStatutBadge('Active')}</td><td>8</td><td className="rh-actions-cell"><button className="btn-icon" title="Voir candidatures">👥</button><button className="btn-icon" title="Modifier">✏️</button></td></tr>
+                    {postesVacants.length === 0 ? (
+                      <tr><td colSpan="6" className="text-center">📭 Aucune annonce publiée</td></tr>
+                    ) : (
+                      postesVacants.map(poste => (
+                        <tr key={poste.id}>
+                          <td><strong>{poste.intitule}</strong><br/><small>{poste.description?.substring(0, 50)}...</small></td>
+                          <td>{new Date(poste.date_publication).toLocaleDateString('fr-FR')}</td>
+                          <td>{poste.date_cloture ? new Date(poste.date_cloture).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>{getStatutBadge(poste.statut)}</td>
+                          <td>{candidatures[poste.id]?.length || 0} candidat(s)</td>
+                          <td className="rh-actions-cell">
+                            <button className="btn-icon" title="Voir candidatures" onClick={() => handleVoirCandidatures(poste)}>👥</button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierAnnonce(poste)}>✏️</button>
+                            {poste.statut === 'publie' && (
+                              <button className="btn-icon" title="Clôturer" onClick={() => handleCloturerAnnonce(poste.id)}>🔒</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1106,7 +1419,6 @@ export default function DashboardRH() {
             </div>
           </div>
 
-          {/* Calendrier */}
           <div className="rh-card full-width">
             <div className="rh-card-header">
               <h3>📅 Calendrier des avancements</h3>
@@ -1148,7 +1460,6 @@ export default function DashboardRH() {
             )}
           </div>
 
-          {/* Bordereau */}
           <div className="rh-card full-width">
             <div className="rh-card-header"><h3>📋 Bordereau des avancements</h3></div>
             <div style={{ padding: '20px' }}>
@@ -1166,7 +1477,360 @@ export default function DashboardRH() {
         </div>
       )}
 
-      {/* Modals */}
+      {/* Modal Ajouter Annonce */}
+      {showAddAnnonceModal && (
+        <div className="modal-overlay" onClick={() => setShowAddAnnonceModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>➕ Nouvelle annonce</h3>
+              <button className="modal-close" onClick={() => setShowAddAnnonceModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreateAnnonce}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Intitulé du poste *</label>
+                    <input type="text" value={newAnnonce.intitule} onChange={(e) => setNewAnnonce({...newAnnonce, intitule: e.target.value})} required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Description *</label>
+                    <textarea value={newAnnonce.description} onChange={(e) => setNewAnnonce({...newAnnonce, description: e.target.value})} rows="3" required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Profil recherché</label>
+                    <textarea value={newAnnonce.profil_recherche} onChange={(e) => setNewAnnonce({...newAnnonce, profil_recherche: e.target.value})} rows="2" />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Diplôme requis</label>
+                    <input type="text" value={newAnnonce.diplomeRequis} onChange={(e) => setNewAnnonce({...newAnnonce, diplomeRequis: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Direction demandeuse</label>
+                    <select value={newAnnonce.directionDemande} onChange={(e) => setNewAnnonce({...newAnnonce, directionDemande: e.target.value})}>
+                      <option value="">Sélectionner</option>
+                      <option value="DDIGIT">DDIGIT</option>
+                      <option value="DSI">DSI</option>
+                      <option value="DNUM">DNUM</option>
+                      <option value="DPAF">DPAF</option>
+                      <option value="SGM">SGM</option>
+                      <option value="SG">SG</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date de publication</label>
+                    <input type="date" value={newAnnonce.date_publication} onChange={(e) => setNewAnnonce({...newAnnonce, date_publication: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Date de clôture</label>
+                    <input type="date" value={newAnnonce.date_cloture} onChange={(e) => setNewAnnonce({...newAnnonce, date_cloture: e.target.value})} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Pièces requises</label>
+                    <select multiple value={newAnnonce.pieces_requises} onChange={(e) => setNewAnnonce({...newAnnonce, pieces_requises: Array.from(e.target.selectedOptions, o => o.value)})}>
+                      <option value="CV">CV</option>
+                      <option value="LM">Lettre de motivation</option>
+                      <option value="DIPLOME">Diplôme</option>
+                      <option value="ATTESTATION">Attestation de travail</option>
+                      <option value="CNI">Carte d'identité</option>
+                    </select>
+                    <small>Maintenez Ctrl pour sélectionner plusieurs</small>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => setShowAddAnnonceModal(false)}>Annuler</button>
+                <button type="submit" className="btn-rh-primary">✅ Publier l'annonce</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Modifier Annonce */}
+      {showEditAnnonceModal && selectedPosteToEdit && (
+        <div className="modal-overlay" onClick={() => setShowEditAnnonceModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>✏️ Modifier l'annonce</h3>
+              <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}>✕</button>
+            </div>
+            <form onSubmit={handleUpdateAnnonce}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Intitulé du poste *</label>
+                    <input type="text" value={editAnnonce.intitule} onChange={(e) => setEditAnnonce({...editAnnonce, intitule: e.target.value})} required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Description *</label>
+                    <textarea value={editAnnonce.description} onChange={(e) => setEditAnnonce({...editAnnonce, description: e.target.value})} rows="3" required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Profil recherché</label>
+                    <textarea value={editAnnonce.profil_recherche} onChange={(e) => setEditAnnonce({...editAnnonce, profil_recherche: e.target.value})} rows="2" />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Diplôme requis</label>
+                    <input type="text" value={editAnnonce.diplomeRequis} onChange={(e) => setEditAnnonce({...editAnnonce, diplomeRequis: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Direction demandeuse</label>
+                    <select value={editAnnonce.directionDemande} onChange={(e) => setEditAnnonce({...editAnnonce, directionDemande: e.target.value})}>
+                      <option value="">Sélectionner</option>
+                      <option value="DDIGIT">DDIGIT</option>
+                      <option value="DSI">DSI</option>
+                      <option value="DNUM">DNUM</option>
+                      <option value="DPAF">DPAF</option>
+                      <option value="SGM">SGM</option>
+                      <option value="SG">SG</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date de publication</label>
+                    <input type="date" value={editAnnonce.date_publication} onChange={(e) => setEditAnnonce({...editAnnonce, date_publication: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Date de clôture</label>
+                    <input type="date" value={editAnnonce.date_cloture} onChange={(e) => setEditAnnonce({...editAnnonce, date_cloture: e.target.value})} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Pièces requises</label>
+                    <select multiple value={editAnnonce.pieces_requises} onChange={(e) => setEditAnnonce({...editAnnonce, pieces_requises: Array.from(e.target.selectedOptions, o => o.value)})}>
+                      <option value="CV">CV</option>
+                      <option value="LM">Lettre de motivation</option>
+                      <option value="DIPLOME">Diplôme</option>
+                      <option value="ATTESTATION">Attestation de travail</option>
+                      <option value="CNI">Carte d'identité</option>
+                    </select>
+                    <small>Maintenez Ctrl pour sélectionner plusieurs</small>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn-rh-secondary" onClick={() => setShowEditAnnonceModal(false)}>Annuler</button>
+                <button type="submit" className="btn-rh-primary">💾 Enregistrer les modifications</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Voir Candidatures */}
+      {showCandidaturesModal && selectedPoste && (
+        <div className="modal-overlay" onClick={() => setShowCandidaturesModal(false)}>
+          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>👥 Candidatures - {selectedPoste.intitule}</h3>
+              <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {candidaturesPoste.length === 0 ? (
+                <p className="text-center">📭 Aucune candidature pour ce poste</p>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                      <button className="btn-export-excel" onClick={exporterCandidaturesExcel} style={{ marginRight: '10px' }}>
+                        📊 Exporter Excel
+                      </button>
+                      <button className="btn-export-pdf" onClick={exporterCandidaturesPDF}>
+                        📄 Exporter PDF
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="rh-table-container">
+                    <table className="rh-table">
+                      <thead>
+                        <tr>
+                          <th>Rang</th>
+                          <th>Candidat</th>
+                          <th>Poste actuel</th>
+                          <th>Date dépôt</th>
+                          <th>Score IA</th>
+                          <th>Analyse IA</th>
+                          <th>Pièces</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {candidaturesPoste.map((cand, index) => (
+                          <tr key={cand.id}>
+                            <td>
+                              <strong>#{index + 1}</strong>
+                              {index === 0 && <span style={{ marginLeft: '8px' }}>🏆</span>}
+                            </td>
+                            <td>
+                              {cand.agent_nom} {cand.agent_prenom}<br/>
+                              <small style={{ color: '#64748B' }}>{cand.agent_matricule}</small>
+                            </td>
+                            <td>{cand.agent_poste || '-'}</td>
+                            <td>{new Date(cand.date_soumission).toLocaleDateString('fr-FR')}</td>
+                            <td>
+                              <span className={`score-badge ${getScoreClass(cand.score_eligibilite)}`}>
+                                {cand.score_eligibilite || 0}%
+                              </span>
+                            </td>
+                            <td>
+                              <button 
+                                className="btn-view-analysis" 
+                                onClick={() => handleVoirAnalyse(cand)}
+                                style={{ background: '#0B192C', color: '#D4AF37', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Voir analyse
+                              </button>
+                            </td>
+                            <td className="rh-actions-cell">
+                              <button className="btn-icon" title="Voir pièces" onClick={() => handleVoirPieces(cand.id, `${cand.agent_nom} ${cand.agent_prenom}`, cand.agent_matricule)}>📎</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-rh-secondary" onClick={() => setShowCandidaturesModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Analyse IA */}
+      {showAnalyseModal && selectedAnalyse && (
+        <div className="modal-overlay" onClick={() => setShowAnalyseModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>🤖 Analyse IA - {selectedAnalyse.agent_nom} {selectedAnalyse.agent_prenom}</h3>
+              <button className="modal-close" onClick={() => setShowAnalyseModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '20px' }}>
+                <strong>Score global :</strong>
+                <span className={`score-badge ${getScoreClass(selectedAnalyse.score_eligibilite)}`} style={{ marginLeft: '10px', fontSize: '1.1rem' }}>
+                  {selectedAnalyse.score_eligibilite || 0}%
+                </span>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <strong>Analyse détaillée :</strong>
+                <div style={{ 
+                  background: '#F8FAFC', 
+                  padding: '15px', 
+                  borderRadius: '12px', 
+                  marginTop: '10px',
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: '1.6'
+                }}>
+                  {selectedAnalyse.analyse_ia || "Analyse non disponible"}
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748B', borderTop: '1px solid #E2E8F0', paddingTop: '10px' }}>
+                <strong>Informations :</strong><br/>
+                Matricule : {selectedAnalyse.agent_matricule}<br/>
+                Poste actuel : {selectedAnalyse.agent_poste || '-'}<br/>
+                Date de candidature : {new Date(selectedAnalyse.date_soumission).toLocaleDateString('fr-FR')}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-rh-secondary" onClick={() => setShowAnalyseModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Voir Pièces de la candidature */}
+      {showPiecesModal && (
+        <div className="modal-overlay" onClick={() => setShowPiecesModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+            <div className="modal-header">
+              <h3>📎 Pièces jointes - {selectedCandidatNom}</h3>
+              <button className="modal-close" onClick={() => setShowPiecesModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {selectedPieces.length === 0 ? (
+                <p className="text-center">📭 Aucune pièce jointe pour cette candidature</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {selectedPieces.map((piece) => (
+                    <div key={piece.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '15px',
+                      background: '#F8FAFC',
+                      borderRadius: '12px',
+                      border: '1px solid #E2E8F0'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '1.8rem' }}>
+                          {piece.type === 'CV' && '📄'}
+                          {piece.type === 'LM' && '📝'}
+                          {piece.type === 'DIPLOME' && '🎓'}
+                          {piece.type === 'CNI' && '🪪'}
+                          {!['CV', 'LM', 'DIPLOME', 'CNI'].includes(piece.type) && '📎'}
+                        </span>
+                        <div>
+                          <strong style={{ color: '#0B192C' }}>{piece.type}</strong>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#64748B' }}>{piece.nom_fichier}</p>
+                          <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#94A3B8' }}>Uploadé le {new Date(piece.date_upload).toLocaleDateString('fr-FR')}</p>
+                        </div>
+                      </div>
+                      <button
+                        className="btn-view-piece"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = piece.contenu;
+                          link.download = piece.nom_fichier;
+                          link.click();
+                        }}
+                        style={{
+                          background: '#0B192C',
+                          color: '#D4AF37',
+                          border: 'none',
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        ⬇️ Télécharger
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-rh-secondary" onClick={() => setShowPiecesModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajouter Agent */}
       {showAddAgentModal && (
         <div className="modal-overlay" onClick={closeAddAgentModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>

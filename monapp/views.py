@@ -4788,3 +4788,676 @@ def get_demandes_historique_dpaf(request, matricule_dpaf):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ==================== MODULE 7 - POSTES VACANTS & CANDIDATURES ====================
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def postes_vacants(request):
+    """GET: Liste des postes vacants | POST: Créer une nouvelle annonce"""
+    
+    if request.method == "GET":
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, intitule, description, profil_recherche, date_publication, 
+                           date_cloture, statut, directionDemande, diplomeRequis, pieces_requises
+                    FROM poste_vacant
+                    ORDER BY date_publication DESC
+                """)
+                postes = cursor.fetchall()
+            
+            result = []
+            for p in postes:
+                result.append({
+                    'id': p[0],
+                    'intitule': p[1],
+                    'description': p[2],
+                    'profil_recherche': p[3],
+                    'date_publication': str(p[4]) if p[4] else None,
+                    'date_cloture': str(p[5]) if p[5] else None,
+                    'statut': p[6],
+                    'directionDemande': p[7],
+                    'diplomeRequis': p[8],
+                    'pieces_requises': json.loads(p[9]) if p[9] else []
+                })
+            
+            return JsonResponse(result, safe=False)
+        except Exception as e:
+            print(f"ERREUR GET postes_vacants: {str(e)}")
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            
+            pieces_requises_json = json.dumps(data.get('pieces_requises', []))
+            
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO poste_vacant 
+                    (intitule, description, profil_recherche, date_publication, date_cloture, 
+                     statut, directionDemande, diplomeRequis, pieces_requises)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, [
+                    data.get('intitule'),
+                    data.get('description'),
+                    data.get('profil_recherche', ''),
+                    data.get('date_publication'),
+                    data.get('date_cloture'),
+                    'publie',
+                    data.get('directionDemande'),
+                    data.get('diplomeRequis', ''),
+                    pieces_requises_json
+                ])
+                
+                poste_id = cursor.lastrowid
+            
+            # Notifier tous les agents
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT matricule FROM agent WHERE actif = 1")
+                agents = cursor.fetchall()
+                
+                for agent in agents:
+                    cursor.execute("""
+                        INSERT INTO notification (agent_id, message, type_notification, date_envoi, lue)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, [
+                        agent[0],
+                        f"📢 Nouvelle annonce : {data.get('intitule')} - Postulez avant {data.get('date_cloture')}",
+                        'NOUVELLE_ANNONCE',
+                        date.today(),
+                        0
+                    ])
+            
+            return JsonResponse({'success': True, 'id': poste_id, 'message': 'Annonce créée avec succès'})
+            
+        except Exception as e:
+            print(f"ERREUR POST postes_vacants: {str(e)}")
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def cloturer_poste_vacant(request, poste_id):
+    """Clôturer une annonce"""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                UPDATE poste_vacant SET statut = 'cloture'
+                WHERE id = %s
+            """, [poste_id])
+        
+        return JsonResponse({'success': True, 'message': 'Annonce clôturée avec succès'})
+        
+    except Exception as e:
+        print(f"ERREUR cloturer_poste_vacant: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def postuler(request):
+    """Agent dépose une candidature (sans analyse IA - l'analyse se fait après upload)"""
+    print("=" * 60)
+    print("🔍 [DEBUG] postuler() a été appelée")
+    print("=" * 60)
+    
+    try:
+        data = json.loads(request.body)
+        matricule = data.get('matricule')
+        poste_id = data.get('poste_id')
+        
+        print(f"📌 Matricule: {matricule}, Poste ID: {poste_id}")
+        
+        if not matricule or not poste_id:
+            return JsonResponse({'error': 'Matricule et poste_id requis'}, status=400)
+        
+        with connection.cursor() as cursor:
+            # Vérifier si l'agent existe
+            cursor.execute("SELECT actif FROM agent WHERE matricule = %s", [matricule])
+            agent_exists = cursor.fetchone()
+            if not agent_exists:
+                return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+            
+            if agent_exists[0] != 1:
+                return JsonResponse({'error': 'Compte agent désactivé'}, status=400)
+            
+            # Vérifier si l'agent a déjà postulé
+            cursor.execute("""
+                SELECT COUNT(*) FROM candidature 
+                WHERE agent_id = %s AND poste_vacant_id = %s
+            """, [matricule, poste_id])
+            if cursor.fetchone()[0] > 0:
+                return JsonResponse({'error': 'Vous avez déjà postulé à cette annonce'}, status=400)
+            
+            # Vérifier que l'annonce est encore ouverte
+            cursor.execute("""
+                SELECT statut, date_cloture, intitule FROM poste_vacant WHERE id = %s
+            """, [poste_id])
+            poste = cursor.fetchone()
+            
+            if not poste:
+                return JsonResponse({'error': 'Annonce non trouvée'}, status=404)
+            
+            if poste[0] != 'publie':
+                return JsonResponse({'error': 'Cette annonce est clôturée'}, status=400)
+            
+            if poste[1] and poste[1] < date.today():
+                return JsonResponse({'error': 'Date de clôture dépassée'}, status=400)
+            
+            # Créer la candidature avec score 0 (en attente d'analyse)
+            cursor.execute("""
+                INSERT INTO candidature (agent_id, poste_vacant_id, date_soumission, score_eligibilite, statut, rang, analyse_ia)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, [matricule, poste_id, date.today(), 0, 'deposee', None, None])
+            
+            candidature_id = cursor.lastrowid
+            print(f"✅ Candidature créée avec ID: {candidature_id}")
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'Candidature créée, veuillez uploader vos documents', 
+            'candidature_id': candidature_id
+        })
+        
+    except Exception as e:
+        print(f"❌ [DEBUG] ERREUR dans postuler: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+def extraire_texte_piece(piece_id):
+    """Extrait le texte d'un fichier uploadé (PDF, DOCX, Image) avec EasyOCR"""
+    try:
+        from docx import Document
+        import io
+        import PyPDF2
+        import easyocr
+        
+        # Initialiser EasyOCR une seule fois
+        if not hasattr(extraire_texte_piece, 'reader'):
+            print("📥 Initialisation d'EasyOCR (téléchargement des modèles)...")
+            extraire_texte_piece.reader = easyocr.Reader(['fr', 'en'], gpu=False)
+            print("✅ EasyOCR prêt")
+        
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT cheminfichier, nom_fichier FROM piece WHERE id = %s", [piece_id])
+            piece = cursor.fetchone()
+            
+            if not piece:
+                print(f"Piece {piece_id} non trouvée")
+                return ""
+            
+            fichier_base64 = piece[0]
+            nom_fichier = piece[1] or ""
+            
+            print(f"Extraction pour {nom_fichier} (piece_id: {piece_id})")
+            
+            if ',' in fichier_base64:
+                fichier_base64 = fichier_base64.split(',')[1]
+            
+            fichier_bytes = base64.b64decode(fichier_base64)
+            print(f"Taille du fichier: {len(fichier_bytes)} bytes")
+            
+            # ==================== PDF ====================
+            if nom_fichier.lower().endswith('.pdf') or fichier_bytes.startswith(b'%PDF'):
+                try:
+                    pdf_reader = PyPDF2.PdfReader(io.BytesIO(fichier_bytes))
+                    texte = ""
+                    for page in pdf_reader.pages:
+                        page_text = page.extract_text() or ""
+                        texte += page_text
+                    print(f"PDF extrait: {len(texte)} caractères")
+                    return texte[:3000]
+                except Exception as e:
+                    print(f"Erreur extraction PDF: {e}")
+                    return "Fichier PDF - extraction non disponible"
+            
+            # ==================== DOCX ====================
+            elif nom_fichier.lower().endswith('.docx') or fichier_bytes.startswith(b'PK'):
+                try:
+                    doc = Document(io.BytesIO(fichier_bytes))
+                    texte = '\n'.join([para.text for para in doc.paragraphs if para.text])
+                    print(f"DOCX extrait: {len(texte)} caractères")
+                    return texte[:3000]
+                except Exception as e:
+                    print(f"Erreur extraction DOCX: {e}")
+                    return "Fichier DOCX - extraction non disponible"
+            
+            # ==================== IMAGES (JPG, PNG, etc.) ====================
+            elif nom_fichier.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')):
+                try:
+                    print("🖼️ [EasyOCR] Analyse de l'image...")
+                    
+                    # Convertir les bytes en format compatible EasyOCR
+                    # EasyOCR accepte: string (chemin), bytes, ou numpy array
+                    # On va passer les bytes directement
+                    
+                    # Redimensionner si trop grande pour accélérer (optionnel)
+                    from PIL import Image
+                    img = Image.open(io.BytesIO(fichier_bytes))
+                    
+                    if img.width > 1500:
+                        ratio = 1500 / img.width
+                        new_size = (1500, int(img.height * ratio))
+                        img = img.resize(new_size, Image.Resampling.LANCZOS)
+                        print(f"Image redimensionnée à {new_size}")
+                    
+                    # Convertir en bytes après redimensionnement
+                    img_bytes = io.BytesIO()
+                    img.save(img_bytes, format='PNG')
+                    img_bytes = img_bytes.getvalue()
+                    
+                    # Utiliser EasyOCR avec les bytes
+                    result = extraire_texte_piece.reader.readtext(img_bytes)
+                    texte = ' '.join([r[1] for r in result])
+                    
+                    print(f"EasyOCR extrait: {len(texte)} caractères")
+                    if len(texte) > 0:
+                        print(f"Extrait: {texte[:200]}...")
+                    else:
+                        print("Aucun texte détecté dans l'image")
+                    
+                    return texte[:3000] if texte else "Image - aucun texte détecté"
+                    
+                except Exception as e:
+                    print(f"Erreur EasyOCR: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return "Image - OCR non disponible"
+            
+            else:
+                print(f"Format non supporté: {nom_fichier}")
+                return "Format de fichier non supporté"
+            
+    except Exception as e:
+        print(f"Erreur extraction texte piece {piece_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return ""
+ 
+
+def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, diplome_requis, profil_recherche):
+    """Analyse une candidature avec Ollama et retourne un score et une analyse"""
+    prompt = f"""
+    Tu es un expert RH au Ministère du Numérique et de la Digitalisation du Bénin.
+    
+    **POSTE À POURVOIR :**
+    - Diplôme requis : {diplome_requis if diplome_requis else 'Non spécifié'}
+    - Profil recherché : {profil_recherche if profil_recherche else 'Non spécifié'}
+    
+    **CANDIDATURE :**
+    - CV : {cv_text[:1500] if cv_text else 'Non fourni'}
+    - Lettre de motivation : {lettre_text[:1000] if lettre_text else 'Non fournie'}
+    - Diplôme fourni : {diplome_text[:500] if diplome_text else 'Non fourni'}
+    
+    Réponds UNIQUEMENT au format JSON suivant :
+    {{
+        "score": 0-100,
+        "analyse": "Texte d'analyse détaillée (max 500 caractères)",
+        "points_forts": ["point1", "point2"],
+        "points_faibles": ["point1", "point2"],
+        "verification_diplome": "valide|invalide|non_verifiable"
+    }}
+    
+    Critères d'évaluation :
+    - Diplôme (0-40 points) : Est-ce que le diplôme fourni correspond au diplôme requis ?
+    - CV (0-35 points) : Expérience, compétences, parcours pertinent
+    - Lettre de motivation (0-25 points) : Personnalisation, motivation, adéquation
+    """
+    
+    try:
+        import ollama
+        import json
+        
+        response = ollama.chat(
+            model='llama3.2:3b',
+            messages=[{
+                'role': 'system',
+                'content': "Tu es un expert RH. Réponds uniquement en JSON valide, sans texte avant ou après."
+            }, {
+                'role': 'user',
+                'content': prompt
+            }]
+        )
+        
+        resultat = json.loads(response['message']['content'])
+        return resultat.get('score', 0), resultat.get('analyse', 'Analyse non disponible')
+        
+    except Exception as e:
+        print(f"Erreur Ollama pour candidature {candidature_id}: {e}")
+        return 0, f"Erreur d'analyse IA: {str(e)}"
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def analyser_candidature(request, candidature_id):
+    """Analyse une candidature avec IA et met à jour le score_eligibilite et analyse_ia"""
+    print(f"🔍 [DEBUG] analyser_candidature() appelée pour ID: {candidature_id}")
+    
+    try:
+        with connection.cursor() as cursor:
+            # Vérifier que la candidature existe
+            cursor.execute("SELECT id FROM candidature WHERE id = %s", [candidature_id])
+            if not cursor.fetchone():
+                return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
+            
+            # Récupérer les pièces de la candidature
+            cursor.execute("""
+                SELECT p.id, tp.libelle
+                FROM piece p
+                JOIN type_piece tp ON p.type_piece_id = tp.id
+                WHERE p.candidature_id = %s
+            """, [candidature_id])
+            pieces = cursor.fetchall()
+            
+            print(f"📄 {len(pieces)} pièce(s) trouvée(s)")
+            
+            # Récupérer les infos du poste
+            cursor.execute("""
+                SELECT p.diplomeRequis, p.profil_recherche, p.intitule
+                FROM candidature c
+                JOIN poste_vacant p ON c.poste_vacant_id = p.id
+                WHERE c.id = %s
+            """, [candidature_id])
+            poste = cursor.fetchone()
+            
+            if not poste:
+                return JsonResponse({'error': 'Poste non trouvé'}, status=404)
+            
+            diplome_requis = poste[0] or ''
+            profil_recherche = poste[1] or ''
+            poste_intitule = poste[2] or ''
+            
+            print(f"📌 Poste: {poste_intitule}")
+            print(f"📌 Diplôme requis: {diplome_requis}")
+            
+            # Extraire les textes des pièces
+            cv_text = ""
+            lettre_text = ""
+            diplome_text = ""
+            
+            for piece in pieces:
+                piece_id = piece[0]
+                type_libelle = piece[1]
+                print(f"   - Traitement: {type_libelle}")
+                
+                texte = extraire_texte_piece(piece_id)
+                print(f"     Texte extrait: {len(texte)} caractères")
+                
+                if type_libelle == 'CV':
+                    cv_text = texte
+                elif type_libelle == 'LM':
+                    lettre_text = texte
+                elif 'DIPLOME' in type_libelle.upper():
+                    diplome_text = texte
+            
+            print(f"📊 Résumé: CV={len(cv_text)}, LM={len(lettre_text)}, Diplôme={len(diplome_text)}")
+            
+            # Analyser avec IA
+            score_ia, analyse_ia = analyser_candidature_avec_ia(
+                candidature_id, cv_text, lettre_text, diplome_text, 
+                diplome_requis, profil_recherche
+            )
+            
+            print(f"✅ Score IA: {score_ia}")
+            
+            # Mettre à jour la candidature
+            cursor.execute("""
+                UPDATE candidature 
+                SET score_eligibilite = %s, analyse_ia = %s
+                WHERE id = %s
+            """, [score_ia, analyse_ia, candidature_id])
+            
+            # Mettre à jour le rang
+            cursor.execute("""
+                UPDATE candidature c
+                SET c.rang = (
+                    SELECT COUNT(*) + 1 FROM candidature c2 
+                    WHERE c2.poste_vacant_id = c.poste_vacant_id 
+                    AND c2.score_eligibilite > c.score_eligibilite
+                )
+                WHERE c.id = %s
+            """, [candidature_id])
+            
+            # Notifier l'agent
+            cursor.execute("""
+                SELECT a.matricule, a.nom, a.prenom
+                FROM candidature c
+                JOIN agent a ON c.agent_id = a.matricule
+                WHERE c.id = %s
+            """, [candidature_id])
+            agent_info = cursor.fetchone()
+            
+            if agent_info:
+                cursor.execute("""
+                    INSERT INTO notification (agent_id, message, type_notification, date_envoi, lue)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, [
+                    agent_info[0],
+                    f"🤖 Analyse IA terminée pour {poste_intitule} - Score: {score_ia}/100",
+                    'ANALYSE_IA',
+                    date.today(),
+                    0
+                ])
+        
+        return JsonResponse({
+            'success': True,
+            'score': score_ia,
+            'analyse': analyse_ia,
+            'message': f'Analyse terminée - Score: {score_ia}/100'
+        })
+        
+    except Exception as e:
+        print(f"❌ ERREUR analyser_candidature: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_candidatures_by_poste(request, poste_id):
+    """Récupérer toutes les candidatures pour un poste (déjà triées par score)"""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT c.id, c.agent_id, c.date_soumission, c.score_eligibilite, c.statut, c.rang, c.analyse_ia,
+                       a.nom, a.prenom, a.poste
+                FROM candidature c
+                JOIN agent a ON c.agent_id = a.matricule
+                WHERE c.poste_vacant_id = %s
+                ORDER BY c.score_eligibilite DESC, c.date_soumission ASC
+            """, [poste_id])
+            candidatures = cursor.fetchall()
+        
+        result = []
+        for idx, c in enumerate(candidatures):
+            result.append({
+                'id': c[0],
+                'agent_matricule': c[1],
+                'date_soumission': str(c[2]),
+                'score_eligibilite': c[3] if c[3] is not None else 0,
+                'statut': c[4],
+                'rang': c[5] if c[5] is not None else idx + 1,
+                'analyse_ia': c[6],
+                'agent_nom': c[7],
+                'agent_prenom': c[8],
+                'agent_poste': c[9] or '-'
+            })
+        
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"ERREUR get_candidatures_by_poste: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_piece_candidature(request, candidature_id):
+    """Upload une pièce pour une candidature"""
+    try:
+        data = json.loads(request.body)
+        type_document = data.get('type_document')
+        file_base64 = data.get('file_base64')
+        file_name = data.get('file_name')
+        
+        if not type_document or not file_base64 or not file_name:
+            return JsonResponse({'error': 'type_document, file_base64 et file_name requis'}, status=400)
+        
+        with connection.cursor() as cursor:
+            # Vérifier que la candidature existe
+            cursor.execute("""
+                SELECT c.agent_id, p.intitule 
+                FROM candidature c
+                JOIN poste_vacant p ON c.poste_vacant_id = p.id
+                WHERE c.id = %s
+            """, [candidature_id])
+            candidature = cursor.fetchone()
+            
+            if not candidature:
+                return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
+            
+            # Récupérer ou créer le type de pièce correspondant
+            cursor.execute("SELECT id FROM type_piece WHERE libelle = %s", [type_document])
+            type_piece = cursor.fetchone()
+            
+            if not type_piece:
+                cursor.execute("""
+                    INSERT INTO type_piece (libelle, obligatoire, duree_validite)
+                    VALUES (%s, %s, %s)
+                """, [type_document, 0, ''])
+                type_piece_id = cursor.lastrowid
+            else:
+                type_piece_id = type_piece[0]
+            
+            # Supprimer l'ancienne pièce du même type pour cette candidature
+            cursor.execute("""
+                DELETE FROM piece WHERE candidature_id = %s AND type_piece_id = %s
+            """, [candidature_id, type_piece_id])
+            
+            # Créer la nouvelle pièce
+            cursor.execute("""
+                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, [
+                candidature_id,
+                type_piece_id,
+                file_name,
+                date.today(),
+                1,
+                file_base64
+            ])
+        
+        return JsonResponse({'success': True, 'message': f'{type_document} ajouté à la candidature'})
+        
+    except Exception as e:
+        print(f"ERREUR upload_piece_candidature: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_poste_vacant(request, poste_id):
+    """Modifier un poste vacant"""
+    try:
+        data = json.loads(request.body)
+        pieces_requises_json = json.dumps(data.get('pieces_requises', []))
+        
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                UPDATE poste_vacant 
+                SET intitule = %s, description = %s, profil_recherche = %s,
+                    date_publication = %s, date_cloture = %s,
+                    directionDemande = %s, diplomeRequis = %s, pieces_requises = %s
+                WHERE id = %s
+            """, [
+                data.get('intitule'),
+                data.get('description'),
+                data.get('profil_recherche', ''),
+                data.get('date_publication'),
+                data.get('date_cloture'),
+                data.get('directionDemande'),
+                data.get('diplomeRequis', ''),
+                pieces_requises_json,
+                poste_id
+            ])
+        
+        return JsonResponse({'success': True, 'message': 'Annonce modifiée avec succès'})
+        
+    except Exception as e:
+        print(f"ERREUR update_poste_vacant: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def exporter_candidatures(request, poste_id):
+    """Exporter la liste des candidatures triées (pour le RH)"""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY c.score_eligibilite DESC) as rang,
+                    a.matricule, a.nom, a.prenom, a.poste as poste_actuel,
+                    c.score_eligibilite, c.analyse_ia, c.date_soumission,
+                    p.intitule as poste_vise
+                FROM candidature c
+                JOIN agent a ON c.agent_id = a.matricule
+                JOIN poste_vacant p ON c.poste_vacant_id = p.id
+                WHERE c.poste_vacant_id = %s
+                ORDER BY c.score_eligibilite DESC
+            """, [poste_id])
+            result = cursor.fetchall()
+        
+        data = []
+        for r in result:
+            data.append({
+                'Rang': r[0],
+                'Matricule': r[1],
+                'Nom': r[2],
+                'Prénom': r[3],
+                'Poste actuel': r[4] or '-',
+                'Score IA (%)': r[5] if r[5] is not None else 0,
+                'Analyse IA': (r[6] or '-')[:500] if r[6] else '-',
+                'Date dépôt': str(r[7]) if r[7] else '-'
+            })
+        
+        return JsonResponse({'success': True, 'data': data, 'total': len(data)})
+        
+    except Exception as e:
+        print(f"ERREUR exporter_candidatures: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_candidature_pieces(request, candidature_id):
+    """Récupérer toutes les pièces jointes à une candidature"""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT p.id, tp.libelle, p.nom_fichier, p.date_upload, p.cheminfichier
+                FROM piece p
+                JOIN type_piece tp ON p.type_piece_id = tp.id
+                WHERE p.candidature_id = %s
+            """, [candidature_id])
+            pieces = cursor.fetchall()
+        
+        result = []
+        for p in pieces:
+            result.append({
+                'id': p[0],
+                'type': p[1],
+                'nom_fichier': p[2],
+                'date_upload': str(p[3]),
+                'contenu': p[4]  # base64 du fichier
+            })
+        
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"ERREUR get_candidature_pieces: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
