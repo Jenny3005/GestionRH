@@ -4795,3 +4795,46 @@ def get_demandes_historique_dpaf(request, matricule_dpaf):
         return JsonResponse(result, safe=False)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+# ==================== ARCHIVAGE ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_archives(request):
+    """Récupérer les actes à archiver ET déjà archivés"""
+    try:
+        # ✅ MAINTENANT : inclut aussi les actes déjà archivés
+        actes = ActeAdministratif.objects.filter(
+            statut__in=['termine', 'signe', 'remis', 'archive']
+        ).select_related('demande__agent').order_by('-date_generation')
+        
+        result = []
+        for a in actes:
+            if a.demande:
+                result.append({
+                    'reference': a.reference,
+                    'type_acte': a.type_acte,
+                    'agent_nom': a.demande.agent.nom,
+                    'agent_prenom': a.demande.agent.prenom,
+                    'agent_matricule': a.demande.agent.matricule,
+                    'agent_direction': a.demande.agent.direction or 'Non renseignée',
+                    'date_generation': str(a.date_generation) if a.date_generation else None,
+                    'statut': a.statut,
+                })
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def archiver_acte(request, reference):
+    """Archiver un acte (changer son statut à 'archive')"""
+    try:
+        acte = ActeAdministratif.objects.get(reference=reference)
+        acte.statut = 'archive'
+        acte.save()
+        return JsonResponse({'success': True, 'message': f'Acte {reference} archivé avec succès'})
+    except ActeAdministratif.DoesNotExist:
+        return JsonResponse({'error': 'Acte non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
