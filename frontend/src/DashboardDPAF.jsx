@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version avec modale d'assignation améliorée et historique
+// DashboardDPAF.jsx - Version avec filtre selon le rôle (DPAF ou DAPAF) et timeline dynamique
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +6,19 @@ import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import './App.css';
+
+// Fonction pour normaliser le rôle (identique à PortalNav)
+function normalizeRole(role) {
+  if (!role || typeof role !== 'string') return '';
+  let r = role.trim().toLowerCase();
+  try {
+    r = r.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  } catch (e) {}
+  r = r.replace(/[\s_\\]+/g, '/');
+  r = r.replace(/[^a-z0-9\/-]/g, '');
+  r = r.replace(/\/+/, '/');
+  return r;
+}
 
 export default function DashboardDPAF() {
   const navigate = useNavigate();
@@ -18,7 +31,7 @@ export default function DashboardDPAF() {
   const [demandesHistorique, setDemandesHistorique] = useState([]);
   const [actesASigner, setActesASigner] = useState([]);
   const [agentsRH, setAgentsRH] = useState([]);
-  const [activeTab, setActiveTab] = useState('encours'); // 'encours' ou 'historique'
+  const [activeTab, setActiveTab] = useState('encours');
   const [hasSignature, setHasSignature] = useState(false);
   const [hasCachet, setHasCachet] = useState(false);
   
@@ -46,8 +59,65 @@ export default function DashboardDPAF() {
   });
 
   const matricule = localStorage.getItem('userMatricule');
+  const rawRole = localStorage.getItem('userRole');
+  const userRole = normalizeRole(rawRole);
+  
   const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
   const userEmail = localStorage.getItem('userEmail');
+
+  const getTypesASigner = () => {
+    if (userRole === 'dpaf') {
+      return [
+        'Attestation de travail',           // ← Attestation de travail
+        'Absence',                          // ← Type de demande
+        'Reprise de service',               // ← Type de demande
+        "Autorisation d'absence exceptionnelle"  // ← L'acte généré pour absence
+      ];
+    } else if (userRole === 'dapaf') {
+      return [
+        'Autorisation de jouissance de congé administratif',
+        'Attestation de présence au poste', 
+        'Attestation de validité de services', 
+        'Certificat de non-jouissance de congé'
+      ];
+    }
+    return [];
+  };
+
+  // ✅ Types selon destinataire
+  const typesDPAF = ['Absence', 'Reprise de service', 'Attestation de travail'];
+  const typesDAPAF = ['Congé', 'Autorisation de jouissance de congé administratif', 'Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
+
+  // ✅ Libellé du rôle pour l'affichage
+  const getRoleLabel = () => {
+    if (userRole === 'dpaf') return 'DPAF - Direction Planification';
+    if (userRole === 'dapaf') return 'DAPAF - Direction Affaires Politiques';
+    return 'Direction';
+  };
+
+  // ✅ Message d'information selon le rôle
+  const getInfoMessage = () => {
+    if (userRole === 'dpaf') {
+      return "ℹ️ Types d'actes signés par le DPAF : Attestation de travail, Absence, Reprise de service";
+    } else if (userRole === 'dapaf') {
+      return "ℹ️ Types d'actes signés par le DAPAF : Attestation de présence, Attestation de validité de services, Certificat de non-jouissance de congé";
+    }
+    return "";
+  };
+
+  // ✅ Déterminer le destinataire d'une demande
+  const getDestinataire = (typeDemande) => {
+    if (typesDPAF.includes(typeDemande)) return 'DPAF';
+    if (typesDAPAF.includes(typeDemande)) return 'DAPAF';
+    return 'DPAF';
+  };
+
+  // ✅ Déterminer le statut de transmission correspondant
+  const getStatutTransmis = (typeDemande) => {
+    if (typesDPAF.includes(typeDemande)) return 'transmise_dpaf';
+    if (typesDAPAF.includes(typeDemande)) return 'transmise_dapaf';
+    return 'transmise_dpaf';
+  };
 
   useEffect(() => {
     if (!matricule) {
@@ -58,9 +128,8 @@ export default function DashboardDPAF() {
     fetchAgentsRH();
     fetchHistorique();
     checkSignatureCachet();
-  }, []);
+  }, [userRole]);
 
-  // Charger UNIQUEMENT les agents avec rôle 'rh'
   const fetchAgentsRH = async () => {
     try {
       let response = await fetch('/api/agents/rh/');
@@ -91,61 +160,79 @@ export default function DashboardDPAF() {
     }
   };
 
-  // Charger l'historique des demandes traitées
   const fetchHistorique = async () => {
     try {
-      const response = await fetch(`/api/dpaf/demandes-historique/${matricule}/`);
-      if (response.ok) {
-        const data = await response.json();
-        setDemandesHistorique(data);
-        setStats(prev => ({ ...prev, historique_count: data.length }));
-      }
+        const response = await fetch(`/api/dashboard/demandes-historique/${matricule}/`);
+        if (response.ok) {
+            const data = await response.json();
+            setDemandesHistorique(data);
+            setStats(prev => ({ ...prev, historique_count: data.length }));
+        }
     } catch (error) {
-      console.error('Erreur chargement historique:', error);
+        console.error('Erreur chargement historique:', error);
     }
   };
 
-  // Charger toutes les données en parallèle
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [transmisesRes, assigneesRes, actesRes] = await Promise.all([
-        fetch(`/api/dpaf/demandes-transmises/${matricule}/`),
-        fetch(`/api/dpaf/demandes-assignees/${matricule}/`),
-        fetch(`/api/dpaf/actes-a-signer/${matricule}/`)
-      ]);
-      
-      let transmisesData = [];
-      if (transmisesRes.ok) {
-        transmisesData = await transmisesRes.json();
-        setDemandesTransmises(transmisesData);
-      }
+        const [transmisesRes, assigneesRes, actesRes] = await Promise.all([
+            fetch(`/api/dashboard/demandes-a-assigner/${matricule}/`),
+            fetch(`/api/dashboard/demandes-assignees/${matricule}/`),
+            fetch(`/api/dashboard/actes-a-signer/${matricule}/`)
+        ]);
+        
+        let transmisesData = [];
+        if (transmisesRes.ok) {
+            transmisesData = await transmisesRes.json();
+            console.log('📋 Demandes à assigner:', transmisesData);
+            setDemandesTransmises(transmisesData);
+        }
 
-      let assigneesData = [];
-      if (assigneesRes.ok) {
-        assigneesData = await assigneesRes.json();
-        setDemandesAssignees(assigneesData);
-      }
+        
 
-      let actesData = [];
-      if (actesRes.ok) {
-        actesData = await actesRes.json();
-        setActesASigner(actesData);
-      }
+        let assigneesData = [];
+        if (assigneesRes.ok) {
+            assigneesData = await assigneesRes.json();
+            console.log('📋 Demandes assignées:', assigneesData);
+            setDemandesAssignees(assigneesData);
+        }
 
-      setStats(prev => ({
-        ...prev,  // ✅ Conserve l'historique_count déjà mis à jour
-        a_assigner: transmisesData.length,
-        assignees: assigneesData.length,
-        en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
-        terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
-        actes_a_signer: actesData.length,
-      }));
+        let actesData = [];
+        if (actesRes.ok) {
+            actesData = await actesRes.json();
+            console.log('📋 Actes à signer (BRUT):', actesData);
+            
+            // ✅ Affiche tous les types d'actes reçus
+            actesData.forEach(acte => {
+                console.log(`   - type_acte reçu: "${acte.type_acte}"`);
+            });
+            
+            const typesASigner = getTypesASigner();
+            console.log('📋 Types à signer pour DPAF:', typesASigner);
+            
+            const actesFiltres = actesData.filter(acte => {
+                const inclus = typesASigner.includes(acte.type_acte);
+                console.log(`   "${acte.type_acte}" → ${inclus ? '✅ INCLUS' : '❌ EXCLU'}`);
+                return inclus;
+            });
+            
+            setActesASigner(actesFiltres);
+        }
+
+        setStats(prev => ({
+            ...prev,
+            a_assigner: transmisesData.length,
+            assignees: assigneesData.length,
+            en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
+            terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
+            actes_a_signer: actesData.filter(a => getTypesASigner().includes(a.type_acte)).length,
+        }));
 
     } catch (error) {
-      console.error('Erreur chargement:', error);
+        console.error('Erreur chargement:', error);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
@@ -187,26 +274,32 @@ export default function DashboardDPAF() {
 
   const handleSignerActe = async (reference) => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/dpaf/signer-acte/${reference}/`, {
+      // Déterminer l'URL et le paramètre selon le rôle
+      const url = userRole === 'dpaf' 
+        ? `/api/dpaf/signer-acte/${reference}/`
+        : `/api/dapaf/signer-acte/${reference}/`;
+      
+      // ✅ Le nom du paramètre doit correspondre à ce qu'attend la fonction dans views.py
+      const body = userRole === 'dpaf'
+        ? { dpaf_matricule: matricule, commentaire: signatureCommentaire }
+        : { dapaf_matricule: matricule, commentaire: signatureCommentaire };
+      
+      const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dpaf_matricule: matricule,
-          commentaire: signatureCommentaire
-        })
+        body: JSON.stringify(body)
       });
       
       if (response.ok) {
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const urlBlob = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = urlBlob;
         a.download = `Acte_Signe_${reference}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(urlBlob);
         
         alert('✅ Acte signé avec succès !');
         setShowSignerModal(false);
@@ -278,12 +371,14 @@ export default function DashboardDPAF() {
 
   const getStatusBadge = (statut) => {
     const badges = {
-      'transmise_dpaf': <span className="badge-warning">📤 Transmise</span>,
+      'transmise_dpaf': <span className="badge-warning">📤 Transmise au DPAF</span>,
+      'transmise_dapaf': <span className="badge-warning">📤 Transmise au DAPAF</span>,
       'assignee_rh': <span className="badge-info">👥 Assignée RH</span>,
       'en_cours_traitement': <span className="badge-info">⚙️ En cours</span>,
       'acte_genere': <span className="badge-success">📄 Acte généré</span>,
       'termine': <span className="badge-success">✅ Terminé</span>,
-      'attente_signature_dpaf': <span className="badge-warning">✍️ En attente de signature</span>,
+      'attente_signature_dpaf': <span className="badge-warning">✍️ En attente signature DPAF</span>,
+      'attente_signature_dapaf': <span className="badge-warning">✍️ En attente signature DAPAF</span>,
       'signe': <span className="badge-success">✅ Signé</span>,
       'remis': <span className="badge-success">📋 Remis à l'agent</span>
     };
@@ -309,7 +404,7 @@ export default function DashboardDPAF() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - DPAF</h2>
+            <h2>📊 Tableau de bord - {getRoleLabel()}</h2>
             <p>Gestion et assignment des demandes aux agents RH et signature des actes</p>
           </div>
         </section>
@@ -352,6 +447,7 @@ export default function DashboardDPAF() {
                   <th>Agent</th>
                   <th>Matricule</th>
                   <th>Type</th>
+                  <th>Destinataire</th>
                   <th>Date transmission</th>
                   <th>Actions</th>
                 </tr>
@@ -367,12 +463,24 @@ export default function DashboardDPAF() {
                       <td>{d.agent_nom} {d.agent_prenom}</td>
                       <td>{d.agent_matricule}</td>
                       <td>{d.type_demande}</td>
+                      <td>
+                        <span style={{ 
+                          background: getDestinataire(d.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5',
+                          color: getDestinataire(d.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46',
+                          padding: '4px 8px',
+                          borderRadius: '20px',
+                          fontSize: '0.7rem',
+                          fontWeight: 'bold'
+                        }}>
+                          {getDestinataire(d.type_demande)}
+                        </span>
+                       </td>
                       <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <button className="btn-assigner" onClick={() => handleVoirDetails(d)}>
                           👥 Assigner à un RH
                         </button>
-                      </td>
+                       </td>
                     </tr>
                   ))
                 )}
@@ -483,6 +591,19 @@ export default function DashboardDPAF() {
           </div>
         )}
 
+        {/* Message info sur les types d'actes signés selon le rôle */}
+        <div style={{ 
+          background: '#EFF6FF', 
+          padding: '12px 15px', 
+          borderRadius: '8px', 
+          marginBottom: '20px',
+          borderLeft: '4px solid #3B82F6'
+        }}>
+          <p style={{ margin: 0, fontSize: '0.85rem' }}>
+            {getInfoMessage()}
+          </p>
+        </div>
+
         {(!hasSignature || !hasCachet) && actesASigner.length > 0 && (
           <div style={{ 
             background: '#fff3cd', 
@@ -503,9 +624,9 @@ export default function DashboardDPAF() {
           </div>
         )}
 
-        {/* SECTION 3: Actes à signer */}
+        {/* SECTION 3: Actes à signer (filtrés selon le rôle) */}
         <div className="admin-section">
-          <h3>✍️ Actes à signer</h3>
+          <h3>✍️ Actes à signer par {getRoleLabel()}</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -526,7 +647,9 @@ export default function DashboardDPAF() {
                   actesASigner.map((acte) => (
                     <tr key={acte.reference}>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
-                      <td>{acte.type_acte}</td>
+                      <td>
+                        <span className="badge-info">{acte.type_acte}</span>
+                      </td>
                       <td><code>{acte.reference}</code></td>
                       <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
@@ -557,7 +680,7 @@ export default function DashboardDPAF() {
         </div>
       </main>
 
-      {/* MODAL ASSIGNER À UN AGENT RH - VERSION ÉLÉGANTE */}
+      {/* MODAL ASSIGNER À UN AGENT RH */}
       {showAssignerModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowAssignerModal(false)}>
           <div className="modal-content assigner-modal-elegant" onClick={(e) => e.stopPropagation()}>
@@ -603,6 +726,15 @@ export default function DashboardDPAF() {
                     <div className="detail-value-with-icon-elegant">
                       <span className="detail-icon-elegant">📌</span>
                       <span className="type-badge-elegant">{selectedDemande.type_demande}</span>
+                    </div>
+                  </div>
+                  <div className="demande-detail-item-elegant">
+                    <span className="detail-label-elegant">Destinataire</span>
+                    <div className="detail-value-with-icon-elegant">
+                      <span className="detail-icon-elegant">🎯</span>
+                      <span className="type-badge-elegant" style={{ background: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5', color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46' }}>
+                        {getDestinataire(selectedDemande.type_demande)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -697,7 +829,7 @@ export default function DashboardDPAF() {
         </div>
       )}
 
-      {/* MODAL SUIVI DE LA DEMANDE - VERSION AMÉLIORÉE */}
+      {/* MODAL SUIVI DE LA DEMANDE - VERSION AVEC TIMELINE DYNAMIQUE DPAF/DAPAF */}
       {showSuiviModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowSuiviModal(false)}>
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
@@ -731,6 +863,15 @@ export default function DashboardDPAF() {
                   </div>
                 </div>
                 <div className="detail-item">
+                  <span className="detail-icon">🎯</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Destinataire</span>
+                    <strong className="detail-value" style={{ color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#2563EB' : '#059669' }}>
+                      {getDestinataire(selectedDemande.type_demande)}
+                    </strong>
+                  </div>
+                </div>
+                <div className="detail-item">
                   <span className="detail-icon">👥</span>
                   <div className="detail-content">
                     <span className="detail-label">Assigné à</span>
@@ -739,13 +880,13 @@ export default function DashboardDPAF() {
                 </div>
               </div>
 
-              {/* Timeline moderne - CORRIGÉE */}
+              {/* Timeline dynamique */}
               <div className="suivi-timeline-modern">
                 <h4 className="timeline-title">📅 Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
                   {/* Étape 1 - Demande soumise */}
-                  <div className={`timeline-modern-step ${selectedDemande.date_soumission ? 'completed' : 'active'}`}>
+                  <div className="timeline-modern-step completed">
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -760,24 +901,41 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 2 - Transmission au DPAF */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut !== 'transmise_dpaf' && selectedDemande.statut !== 'assignee_rh' && selectedDemande.statut !== 'en_cours_traitement' && selectedDemande.statut !== 'acte_genere' && selectedDemande.statut !== 'remis' ? 'pending' : selectedDemande.statut === 'transmise_dpaf' ? 'active' : 'completed'}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">📤</span>
-                        <span className="step-title">Transmission au DPAF</span>
-                        <span className="step-status">Par la secrétaire</span>
+                  {/* Étape 2 - Transmission (DPAF ou DAPAF selon type) */}
+                  {(() => {
+                    const destinataire = getDestinataire(selectedDemande.type_demande);
+                    const statutTransmis = getStatutTransmis(selectedDemande.type_demande);
+                    
+                    const isCompleted = selectedDemande.statut === statutTransmis || 
+                                       selectedDemande.statut === 'assignee_rh' || 
+                                       selectedDemande.statut === 'en_cours_traitement' || 
+                                       selectedDemande.statut === 'acte_genere' || 
+                                       selectedDemande.statut === 'remis' ||
+                                       selectedDemande.statut === 'signe';
+                    const isActive = selectedDemande.statut === statutTransmis;
+                    
+                    return (
+                      <div className={`timeline-modern-step ${isCompleted ? 'completed' : isActive ? 'active' : 'pending'}`}>
+                        <div className="timeline-modern-marker">
+                          <div className="marker-dot"></div>
+                          <div className="marker-line"></div>
+                        </div>
+                        <div className="timeline-modern-content">
+                          <div className="step-header">
+                            <span className="step-icon">📤</span>
+                            <span className="step-title">Transmission au {destinataire}</span>
+                            <span className="step-status">Par la secrétaire</span>
+                          </div>
+                          <p className="step-description">
+                            Demande transmise au {destinataire} pour assignment à un agent RH
+                          </p>
+                        </div>
                       </div>
-                      <p className="step-description">Demande transmise pour assignment à un agent RH</p>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Étape 3 - Assignation à un agent RH */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' ? 'pending' : ''}`}>
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' || selectedDemande.statut === 'transmise_dapaf' ? 'pending' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -793,7 +951,7 @@ export default function DashboardDPAF() {
                   </div>
 
                   {/* Étape 4 - Traitement par l'agent RH */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -809,7 +967,7 @@ export default function DashboardDPAF() {
                   </div>
 
                   {/* Étape 5 - Génération de l'acte */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -824,21 +982,30 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {/* Étape 6 - Signature DPAF */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'attente_signature_dpaf' ? 'active' : selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">✍️</span>
-                        <span className="step-title">Signature par le DPAF</span>
-                        <span className="step-status">En attente de signature</span>
+                  {/* Étape 6 - Signature (DPAF ou DAPAF selon type) */}
+                  {(() => {
+                    const signataire = getDestinataire(selectedDemande.type_demande);
+                    const statutAttente = signataire === 'DPAF' ? 'attente_signature_dpaf' : 'attente_signature_dapaf';
+                    
+                    return (
+                      <div className={`timeline-modern-step ${selectedDemande.statut === statutAttente ? 'active' : selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
+                        <div className="timeline-modern-marker">
+                          <div className="marker-dot"></div>
+                          <div className="marker-line"></div>
+                        </div>
+                        <div className="timeline-modern-content">
+                          <div className="step-header">
+                            <span className="step-icon">✍️</span>
+                            <span className="step-title">Signature par le {signataire}</span>
+                            <span className="step-status">En attente de signature</span>
+                          </div>
+                          <p className="step-description">
+                            Le {signataire} signe l'acte avec son cachet officiel
+                          </p>
+                        </div>
                       </div>
-                      <p className="step-description">Le DPAF signe l'acte avec son cachet officiel</p>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Étape 7 - Remise à l'agent */}
                   <div className={`timeline-modern-step ${selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
@@ -861,7 +1028,7 @@ export default function DashboardDPAF() {
                 <div className="suivi-commentaire-card">
                   <div className="commentaire-header">
                     <span className="commentaire-icon">📝</span>
-                    <h4>Instructions du DPAF</h4>
+                    <h4>Instructions du service</h4>
                   </div>
                   <div className="commentaire-content">
                     <p>{selectedDemande.commentaire_dpaf}</p>
@@ -897,7 +1064,7 @@ export default function DashboardDPAF() {
               
               <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                 <p><strong>Signataire :</strong> {userName}</p>
-                <p><strong>Fonction :</strong> Directeur de la Planification, de l'Administration et des Finances</p>
+                <p><strong>Fonction :</strong> {userRole === 'dapaf' ? 'Directeur des Affaires Politiques, Administratives et Financières' : 'Directeur de la Planification, de l\'Administration et des Finances'}</p>
                 <p><strong>Date :</strong> {new Date().toLocaleDateString('fr-FR')}</p>
                 <p><strong>Heure :</strong> {new Date().toLocaleTimeString('fr-FR')}</p>
               </div>
@@ -1006,9 +1173,9 @@ export default function DashboardDPAF() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
