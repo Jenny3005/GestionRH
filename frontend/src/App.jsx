@@ -10,6 +10,10 @@ export default function App() {
   const [userEmail, setUserEmail] = useState('');
   const [postesVacants, setPostesVacants] = useState([]);
   const [loadingPostes, setLoadingPostes] = useState(true);
+  const [notesService, setNotesService] = useState([]);
+  const [loadingNotes, setLoadingNotes] = useState(true);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
   const navigate = useNavigate();
 
   // Vérifier si l'utilisateur est connecté au chargement
@@ -31,8 +35,9 @@ export default function App() {
       setUserEmail(savedEmail);
     }
 
-    // Charger les postes vacants
+    // Charger les données
     fetchPostesVacants();
+    fetchNotesService();
   }, []);
 
   const fetchPostesVacants = async () => {
@@ -54,20 +59,22 @@ export default function App() {
     }
   };
 
-  const [actualites] = useState([
-    {
-      id: 1,
-      tag: "Note de Service",
-      titre: "Campagne d'évaluation annuelle des performances des agents au titre de l'année 2026",
-      date: "18 Mai 2026"
-    },
-    {
-      id: 2,
-      tag: "Communiqué",
-      titre: "Lancement du nouveau processus de dématérialisation des demandes de congés via le SGRH",
-      date: "15 Mai 2026"
+  const fetchNotesService = async () => {
+    setLoadingNotes(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/notes-service/');
+      if (response.ok) {
+        const data = await response.json();
+        setNotesService(data);
+      } else {
+        console.error('Erreur chargement notes de service');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+    } finally {
+      setLoadingNotes(false);
     }
-  ]);
+  };
 
   // Fonction pour vérifier si l'utilisateur est connecté avant action
   const requireLogin = (action) => {
@@ -101,12 +108,9 @@ export default function App() {
     });
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
-    setIsLoggedIn(false);
-    setUserName('');
-    setUserEmail('');
-    navigate('/'); 
+  const handleViewFullNote = (note) => {
+    setSelectedNote(note);
+    setShowNoteModal(true);
   };
 
   // Formater la date
@@ -114,6 +118,23 @@ export default function App() {
     if (!dateString) return 'Date non définie';
     const date = new Date(dateString);
     return date.toLocaleDateString('fr-FR');
+  };
+
+  // Obtenir l'icône du tag
+  const getTagIcon = (tag) => {
+    const icons = {
+      'Note de Service': '📋',
+      'Communiqué': '📢',
+      'Actualité': '📰',
+      'Information': 'ℹ️'
+    };
+    return icons[tag] || '📌';
+  };
+
+  // Fonction pour afficher le contenu HTML depuis la BDD
+  const renderContenuHTML = (contenu) => {
+    if (!contenu) return <p>Aucun contenu disponible</p>;
+    return <div dangerouslySetInnerHTML={{ __html: contenu }} />;
   };
 
   return (
@@ -197,6 +218,7 @@ export default function App() {
           
           <div className="left-column">
             
+            {/* Opportunités de Carrière */}
             <section className="info-card-section">
               <div className="section-header-premium">
                 <span className="icon">💼</span>
@@ -246,29 +268,72 @@ export default function App() {
               )}
             </section>
 
+            {/* Notes de Service - DYNAMIQUE AVEC MODAL */}
             <section className="info-card-section mt-2">
               <div className="section-header-premium">
                 <span className="icon">📢</span>
                 <h3>Notes de Service</h3>
               </div>
-              <div className="news-list">
-                {actualites.map((actu) => (
-                  <div key={actu.id} className="news-item">
-                    <div className="news-meta">
-                      <span className="news-tag-style">{actu.tag}</span>
-                      <span className="news-date-style">{actu.date}</span>
+              
+              {loadingNotes ? (
+                <div className="loading-notes" style={{ textAlign: 'center', padding: '40px' }}>
+                  <p>Chargement des actualités...</p>
+                </div>
+              ) : notesService.length === 0 ? (
+                <div className="no-notes" style={{ textAlign: 'center', padding: '40px', background: '#F8FAFC', borderRadius: '12px' }}>
+                  <p>📭 Aucune note de service pour le moment.</p>
+                </div>
+              ) : (
+                <div className="news-list">
+                  {notesService.map((note) => (
+                    <div key={note.id} className="news-item">
+                      <div className="news-meta">
+                        <span className="news-tag-style">
+                          {getTagIcon(note.tag)} {note.tag || 'Note de Service'}
+                        </span>
+                        <span className="news-date-style">
+                          {formatDate(note.date_publication)}
+                        </span>
+                      </div>
+                      <h4>{note.titre}</h4>
+                      <p style={{ color: '#475569', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '0.5rem' }}>
+                        {note.contenu?.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                      </p>
+                      <div className="news-actions">
+                        {note.fichier_pdf && (
+                          <a 
+                            href={note.fichier_pdf} 
+                            className="news-link-btn" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                          >
+                            📄 Télécharger le PDF →
+                          </a>
+                        )}
+                        {note.contenu && (
+                          <a 
+                            href="#lire" 
+                            className="news-link-btn"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleViewFullNote(note);
+                            }}
+                          >
+                            📖 Lire la note complète →
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <h4>{actu.titre}</h4>
-                    <a href="#lire" className="news-link-btn">Lire le document →</a>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
           </div>
 
           <div className="right-column">
             
+            {/* Vos Applications RH */}
             <section className="sidebar-links-card">
               <h3>Vos Applications RH</h3>
               <div className="title-divider-gold"></div>
@@ -320,6 +385,7 @@ export default function App() {
               </div>
             </section>
 
+            {/* Liens Utiles */}
             <section className="sidebar-links-card mt-2">
               <h3>Liens Utiles</h3>
               <div className="title-divider-gold"></div>
@@ -338,6 +404,44 @@ export default function App() {
 
         </div>
       </main>
+
+      {/* MODAL NOTE DE SERVICE COMPLÈTE */}
+      {showNoteModal && selectedNote && (
+        <div className="note-modal-overlay" onClick={() => setShowNoteModal(false)}>
+          <div className="note-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="note-modal-close" onClick={() => setShowNoteModal(false)}>✕</button>
+            
+            <div className="note-modal-header">
+              <div className="note-modal-tag">
+                {getTagIcon(selectedNote.tag)} {selectedNote.tag || 'Note de Service'}
+              </div>
+              <h2>{selectedNote.titre}</h2>
+              <div className="note-modal-meta">
+                <span>📅 Publiée le : {formatDate(selectedNote.date_publication)}</span>
+                {selectedNote.created_by && <span>👤 Publié par : {selectedNote.created_by}</span>}
+                {selectedNote.statut && <span>✅ Statut : {selectedNote.statut}</span>}
+              </div>
+            </div>
+            
+            <div className="note-modal-body">
+              {renderContenuHTML(selectedNote.contenu)}
+            </div>
+            
+            {selectedNote.fichier_pdf && (
+              <div className="note-modal-footer">
+                <a 
+                  href={selectedNote.fichier_pdf} 
+                  className="btn-pdf-download"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  📄 Télécharger la version PDF
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
