@@ -263,3 +263,16 @@ class Validation(models.Model):
         managed = False
         db_table = 'validation'
 
+class NoteService(models.Model):
+    titre = models.CharField(max_length=255)
+    contenu = models.TextField(blank=True, null=True)
+    tag = models.CharField(max_length=100, default='Note de Service')
+    date_publication = models.DateField()
+    fichier_pdf = models.TextField(blank=True, null=True)
+    statut = models.CharField(max_length=50, default='publie')
+    created_by = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'note_service'
