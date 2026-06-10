@@ -118,6 +118,10 @@ urlpatterns = [
     path('avancements/periode/', views.get_avancements_periode, name='get_avancements_periode'),
     path('avancements/alertes/', views.check_alertes_avancement, name='check_alertes_avancement'),
     path('avancements/bordereau/', views.generer_bordereau, name='generer_bordereau'),
+
+    # ==================== ARCHIVAGE ====================
+    path('actes/archives/', views.get_actes_archives, name='get_actes_archives'),
+    path('actes/<path:reference>/archiver/', views.archiver_acte, name='archiver_acte'),
     
     # Module 7 - Postes vacants
     path('postes-vacants/', views.postes_vacants, name='postes_vacants'),

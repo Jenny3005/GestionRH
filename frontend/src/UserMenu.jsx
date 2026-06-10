@@ -134,6 +134,11 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
               📁 Mes documents
             </button>
           )}
+          {userRole === 'rh' && (
+            <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/archivage'); }}>
+              🗄️ Archivage
+            </button>
+          )}
           
           {/* Liens supplémentaires */}
           {additionalLinks.length > 0 && <div className="dropdown-divider"></div>}
