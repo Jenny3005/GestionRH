@@ -210,6 +210,7 @@ class PosteVacant(models.Model):
     directiondemande = models.CharField(db_column='directionDemande', max_length=100, blank=True, null=True)  # Field name made lowercase.
     diplomerequis = models.CharField(db_column='diplomeRequis', max_length=100, blank=True, null=True)  # Field name made lowercase.
     pieces_requises = models.JSONField(blank=True, null=True)
+
     class Meta:
         managed = False
         db_table = 'poste_vacant'
@@ -275,3 +276,17 @@ class Validation(models.Model):
     class Meta:
         managed = False
         db_table = 'validation'
+
+class NoteService(models.Model):
+    titre = models.CharField(max_length=255)
+    contenu = models.TextField(blank=True, null=True)
+    tag = models.CharField(max_length=100, default='Note de Service')
+    date_publication = models.DateField()
+    fichier_pdf = models.TextField(blank=True, null=True)
+    statut = models.CharField(max_length=50, default='publie')
+    created_by = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'note_service'
