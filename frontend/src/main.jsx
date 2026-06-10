@@ -21,7 +21,11 @@ import AdminTypesPiece from './AdminTypesPiece';
 import AdminPermissions from './AdminPermissions';
 import Profil from './Profil';
 import ChooseRole from './ChooseRole';
+<<<<<<< HEAD
 import Postuler from './Postuler';
+=======
+import ArchivagePage from './ArchivagePage';
+>>>>>>> Mary
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte
@@ -53,7 +57,11 @@ createRoot(document.getElementById('root')).render(
       <Route path="/rh/dashboard" element={<DashboardRH />} />
       <Route path="/dpaf/dashboard" element={<DashboardDPAF />} />
       <Route path="/rh/documents/:matricule" element={<RHDocuments />} />
+<<<<<<< HEAD
       <Route path="/postuler" element={<Postuler />} />
+=======
+      <Route path="/archivage" element={<ArchivagePage />} />
+>>>>>>> Mary
     </Routes>
   </BrowserRouter>
 );

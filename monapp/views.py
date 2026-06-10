@@ -4762,33 +4762,82 @@ def verifier_conge_par_annee(request, matricule, annee):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_demandes_historique_dpaf(request, matricule_dpaf):
-    """Récupérer l'historique des demandes traitées par le DPAF"""
+    """Récupérer toutes les demandes (historique complet)"""
     try:
-        demandes = Demande.objects.filter(
-            statut__in=['attente_signature_dpaf', 'signe', 'remis', 'termine']
-        ).select_related('agent', 'type_demande', 'agent_rh')
+        # ❌ AVANT : filtré par statuts finaux
+        # demandes = Demande.objects.filter(statut__in=['termine', 'signe', 'remis', 'refuse'])
+        
+        # ✅ APRÈS : toutes les demandes, sans filtre
+        demandes = Demande.objects.select_related(
+            'agent', 'type_demande', 'agent_rh'
+        ).order_by('-date_soumission')
         
         result = []
         for d in demandes:
+            # Récupérer l'agent RH s'il existe
+            agent_rh_nom = d.agent_rh.nom if d.agent_rh else None
+            agent_rh_prenom = d.agent_rh.prenom if d.agent_rh else None
+            
             result.append({
                 'id': d.id,
                 'agent_nom': d.agent.nom,
                 'agent_prenom': d.agent.prenom,
                 'agent_matricule': d.agent.matricule,
                 'type_demande': d.type_demande.libelle if d.type_demande else 'Inconnu',
-                'agent_rh_nom': d.agent_rh.nom if d.agent_rh else '-',
-                'agent_rh_prenom': d.agent_rh.prenom if d.agent_rh else '-',
                 'statut': d.statut,
-                'date_soumission': str(d.date_soumission) if d.date_soumission else '-'
+                'date_soumission': str(d.date_soumission),
+                'date_assignation': str(getattr(d, 'date_assignation', '')) or None,
+                'agent_rh_nom': agent_rh_nom,
+                'agent_rh_prenom': agent_rh_prenom,
+                'numerosuivi': d.numerosuivi,
             })
         
         return JsonResponse(result, safe=False)
     except Exception as e:
-        print(f"ERREUR get_demandes_historique_dpaf: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==================== ARCHIVAGE ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_actes_archives(request):
+    """Récupérer les actes à archiver ET déjà archivés"""
+    try:
+        # ✅ MAINTENANT : inclut aussi les actes déjà archivés
+        actes = ActeAdministratif.objects.filter(
+            statut__in=['termine', 'signe', 'remis', 'archive']
+        ).select_related('demande__agent').order_by('-date_generation')
+        
+        result = []
+        for a in actes:
+            if a.demande:
+                result.append({
+                    'reference': a.reference,
+                    'type_acte': a.type_acte,
+                    'agent_nom': a.demande.agent.nom,
+                    'agent_prenom': a.demande.agent.prenom,
+                    'agent_matricule': a.demande.agent.matricule,
+                    'agent_direction': a.demande.agent.direction or 'Non renseignée',
+                    'date_generation': str(a.date_generation) if a.date_generation else None,
+                    'statut': a.statut,
+                })
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def archiver_acte(request, reference):
+    """Archiver un acte (changer son statut à 'archive')"""
+    try:
+        acte = ActeAdministratif.objects.get(reference=reference)
+        acte.statut = 'archive'
+        acte.save()
+        return JsonResponse({'success': True, 'message': f'Acte {reference} archivé avec succès'})
+    except ActeAdministratif.DoesNotExist:
+        return JsonResponse({'error': 'Acte non trouvé'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 # ==================== MODULE 7 - POSTES VACANTS & CANDIDATURES ====================
 
