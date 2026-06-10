@@ -23,6 +23,8 @@ import Profil from './Profil';
 import ChooseRole from './ChooseRole';
 import Postuler from './Postuler';
 import ArchivagePage from './ArchivagePage';
+import CandidaturesPage from './CandidaturesPage';
+
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte
@@ -56,6 +58,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/rh/documents/:matricule" element={<RHDocuments />} />
       <Route path="/postuler" element={<Postuler />} />
       <Route path="/archivage" element={<ArchivagePage />} />
+      <Route path="/postes" element={<CandidaturesPage />} />
     </Routes>
   </BrowserRouter>
 );

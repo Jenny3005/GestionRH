@@ -29,7 +29,7 @@ from .emails import (
 )
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
-    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement
+    DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement, Candidature
 )
 import json
 import random
@@ -5216,38 +5216,59 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     - Lettre de motivation : {lettre_text[:1000] if lettre_text else 'Non fournie'}
     - Diplôme fourni : {diplome_text[:500] if diplome_text else 'Non fourni'}
     
-    Réponds UNIQUEMENT au format JSON suivant :
-    {{
-        "score": 0-100,
-        "analyse": "Texte d'analyse détaillée (max 500 caractères)",
-        "points_forts": ["point1", "point2"],
-        "points_faibles": ["point1", "point2"],
-        "verification_diplome": "valide|invalide|non_verifiable"
-    }}
+    Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après.
     
-    Critères d'évaluation :
-    - Diplôme (0-40 points) : Est-ce que le diplôme fourni correspond au diplôme requis ?
-    - CV (0-35 points) : Expérience, compétences, parcours pertinent
-    - Lettre de motivation (0-25 points) : Personnalisation, motivation, adéquation
+    Format exact :
+    {{"score": 0-100, "analyse": "texte", "points_forts": ["p1","p2"], "points_faibles": ["p1","p2"], "verification_diplome": "valide"}}
+    
+    IMPORTANT : Échappe les guillemets dans les textes avec un backslash comme ceci : \"
+    Exemple : "analyse": "Le candidat a un \\"excellent\\" profil"
     """
     
     try:
         import ollama
         import json
+        import re
         
         response = ollama.chat(
             model='llama3.2:3b',
+            format='json',  # ← AJOUTEZ CECI si votre version Ollama le supporte
             messages=[{
                 'role': 'system',
-                'content': "Tu es un expert RH. Réponds uniquement en JSON valide, sans texte avant ou après."
+                'content': "Tu es un expert RH. Tu réponds uniquement en JSON valide."
             }, {
                 'role': 'user',
                 'content': prompt
             }]
         )
         
-        resultat = json.loads(response['message']['content'])
+        reponse_brute = response['message']['content']
+        
+        # Nettoyage : extraire uniquement le JSON
+        match = re.search(r'\{.*\}', reponse_brute, re.DOTALL)
+        if match:
+            reponse_brute = match.group()
+        
+        # Remplacer les guillemets simples non échappés dans les chaînes
+        # (solution de secours)
+        reponse_brute = re.sub(r'(?<!\\)"', '\\"', reponse_brute)
+        reponse_brute = re.sub(r'\\"([^"]*?)\\"', r'"\1"', reponse_brute)
+        
+        resultat = json.loads(reponse_brute)
         return resultat.get('score', 0), resultat.get('analyse', 'Analyse non disponible')
+        
+    except json.JSONDecodeError as e:
+        print(f"Erreur JSON pour candidature {candidature_id}: {e}")
+        print(f"Réponse brute: {reponse_brute[:500]}")
+        
+        # Fallback : extraire le score avec regex
+        score_match = re.search(r'score["\']?\s*:\s*(\d+)', reponse_brute)
+        score = int(score_match.group(1)) if score_match else 0
+        
+        analyse_match = re.search(r'analyse["\']?\s*:\s*["\']([^"\']+)', reponse_brute)
+        analyse = analyse_match.group(1) if analyse_match else "Erreur d'analyse"
+        
+        return score, analyse
         
     except Exception as e:
         print(f"Erreur Ollama pour candidature {candidature_id}: {e}")
@@ -5671,3 +5692,39 @@ def note_service_detail(request, note_id):
             return JsonResponse({'success': True})
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_candidatures_agent(request):
+    """Récupérer les candidatures d'un agent"""
+    try:
+        matricule = request.GET.get('matricule')
+        if not matricule:
+            return JsonResponse({'error': 'Matricule requis'}, status=400)
+        
+        try:
+            agent = Agent.objects.get(matricule=matricule)
+        except Agent.DoesNotExist:
+            return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        
+        candidatures = Candidature.objects.filter(
+            agent=agent
+        ).select_related('poste_vacant').order_by('-date_soumission')
+        
+        result = []
+        for c in candidatures:
+            result.append({
+                'id': c.id,
+                'intitule': c.poste_vacant.intitule if c.poste_vacant else 'Poste',
+                'direction': c.poste_vacant.directiondemande if c.poste_vacant else '',
+                'date_soumission': str(c.date_soumission) if c.date_soumission else None,
+                'statut': c.statut or 'En cours',
+                'score_eligibilite': c.score_eligibilite,
+                'rang': c.rang,
+            })
+        
+        return JsonResponse(result, safe=False)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)

@@ -84,13 +84,14 @@ export default function PortalNav() {
       links.push({ href: dashboardPath, label: '📊 Tableau de bord' });
     }
     
-    // Lien vers les notes de service pour RH et admin
-    if (userRole === 'rh' || userRole === 'admin') {
-      links.push({ href: '/rh/notes', label: '📢 Notes de service' });
-    }
     
     links.push({ href: '/demarches', label: '📝 Démarches RH' });
     links.push({ href: '/documents', label: '📄 Documents' });
+
+    // ✅ Candidatures - UNIQUEMENT pour les agents (même avec plusieurs rôles)
+    if (userRole === 'agent' || userRoles.includes('agent')) {
+      links.push({ href: '/postes', label: '🎯 Candidatures' });
+    }
     
     return links;
   };
