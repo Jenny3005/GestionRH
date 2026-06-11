@@ -16,6 +16,7 @@ export default function Postuler() {
   const [poste, setPoste] = useState(null);
   const [posteId, setPosteId] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState({});
+  const [uploadProgress, setUploadProgress] = useState({});
   const [piecesRequises, setPiecesRequises] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
@@ -57,19 +58,95 @@ export default function Postuler() {
     }
   };
 
+  // Fonction pour valider et encoder un fichier
   const handleFileUpload = (type, file) => {
     if (!file) return;
     
+    // 📁 Vérifications du fichier
+    console.log(`📁 Fichier ${type}:`, {
+      name: file.name,
+      size: `${(file.size / 1024).toFixed(2)} KB`,
+      type: file.type
+    });
+    
+    // Vérifier que le fichier n'est pas vide
+    if (file.size === 0) {
+      alert(`❌ Le fichier ${file.name} est vide. Veuillez choisir un fichier valide.`);
+      return;
+    }
+    
+    // Vérifier la taille minimale (1 KB pour éviter les fichiers vides)
+    if (file.size < 1024) {
+      console.warn(`⚠️ Attention: ${file.name} est très petit (${file.size} octets)`);
+    }
+    
+    // Vérifier la taille maximale (10 MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert(`❌ Le fichier ${file.name} dépasse 10 MB. Veuillez le compresser.`);
+      return;
+    }
+    
+    // Vérifier le type de fichier
+    const allowedExtensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      alert(`❌ Format non supporté pour ${file.name}. Formats acceptés: PDF, DOC, DOCX, JPG, PNG`);
+      return;
+    }
+    
+    // Mettre à jour la progression
+    setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+    
     const reader = new FileReader();
+    
+    reader.onloadstart = () => {
+      console.log(`⏳ Encodage de ${type}...`);
+      setUploadProgress(prev => ({ ...prev, [type]: 50 }));
+    };
+    
     reader.onloadend = () => {
+      const base64String = reader.result;
+      const base64Length = base64String.length;
+      
+      console.log(`📊 ${type} encodé - Longueur Base64: ${(base64Length / 1024).toFixed(2)} KB`);
+      
+      // Vérifier que le Base64 a une taille raisonnable
+      if (base64Length < 200) {
+        console.error(`❌ ERREUR: Base64 trop court (${base64Length}) pour ${file.name}`);
+        alert(`❌ Erreur: Le fichier ${file.name} n'a pas pu être encodé correctement.`);
+        setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+        return;
+      }
+      
       setUploadedFiles(prev => ({
         ...prev,
         [type]: {
           name: file.name,
-          base64: reader.result
+          base64: base64String,
+          size: file.size,
+          type: file.type
         }
       }));
+      
+      setUploadProgress(prev => ({ ...prev, [type]: 100 }));
+      
+      // Effacer la progression après 1 seconde
+      setTimeout(() => {
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[type];
+          return newProgress;
+        });
+      }, 1000);
     };
+    
+    reader.onerror = (error) => {
+      console.error('❌ Erreur lecture fichier:', error);
+      alert(`❌ Impossible de lire le fichier ${file.name}`);
+      setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+    };
+    
     reader.readAsDataURL(file);
   };
 
@@ -79,13 +156,25 @@ export default function Postuler() {
     setMessage('');
 
     try {
+      // Vérifier que tous les fichiers sont uploadés
+      const missingFiles = piecesRequises.filter(p => !uploadedFiles[p]);
+      if (missingFiles.length > 0) {
+        setMessage({ 
+          type: 'error', 
+          text: `Veuillez joindre: ${missingFiles.join(', ')}` 
+        });
+        setSubmitting(false);
+        return;
+      }
+
       // 1. Créer la candidature
+      console.log('📝 Création de la candidature...');
       const candidatureRes = await fetch('http://localhost:8000/api/candidatures/postuler/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           matricule: userInfo.matricule,
-          poste_id: posteId
+          poste_id: parseInt(posteId)
         })
       });
 
@@ -98,33 +187,66 @@ export default function Postuler() {
       }
 
       const candidatureId = candidatureData.candidature_id;
+      console.log(`✅ Candidature créée avec ID: ${candidatureId}`);
       
-      // 2. Uploader tous les fichiers
+      // 2. Uploader tous les fichiers un par un
+      let uploadErrors = [];
+      
       for (const [type, fileData] of Object.entries(uploadedFiles)) {
-        await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/upload-piece/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type_document: type,
-            file_base64: fileData.base64,
-            file_name: fileData.name
-          })
+        console.log(`📤 Upload ${type} - Taille: ${(fileData.base64.length / 1024).toFixed(2)} KB`);
+        
+        try {
+          const uploadRes = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/upload-piece/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type_document: type,
+              file_base64: fileData.base64,
+              file_name: fileData.name
+            })
+          });
+          
+          const uploadData = await uploadRes.json();
+          console.log(`📥 Réponse upload ${type}:`, uploadData);
+          
+          if (!uploadRes.ok) {
+            uploadErrors.push(`${type}: ${uploadData.error}`);
+          } else {
+            console.log(`✅ ${type} uploadé avec succès`);
+          }
+        } catch (error) {
+          console.error(`❌ Erreur upload ${type}:`, error);
+          uploadErrors.push(`${type}: ${error.message}`);
+        }
+      }
+      
+      if (uploadErrors.length > 0) {
+        setMessage({ 
+          type: 'error', 
+          text: `Erreurs d'upload: ${uploadErrors.join('; ')}` 
         });
+        setSubmitting(false);
+        return;
       }
 
       // 3. LANCER L'ANALYSE IA APRÈS L'UPLOAD
+      console.log('🤖 Lancement de l\'analyse IA...');
       const analyseRes = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/analyser/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
       
       const analyseData = await analyseRes.json();
+      console.log('📊 Résultat analyse:', analyseData);
 
+      const scoreFinal = analyseData.score || candidatureData.score || 0;
+      
       setMessage({ 
         type: 'success', 
-        text: `✅ Candidature envoyée avec succès ! Score IA: ${analyseData.score || candidatureData.score}/100` 
+        text: `✅ Candidature envoyée avec succès ! Score IA: ${scoreFinal}/100` 
       });
       
+      // Nettoyer et rediriger
       setTimeout(() => {
         localStorage.removeItem('selectedPosteId');
         localStorage.removeItem('selectedPosteIntitule');
@@ -132,8 +254,8 @@ export default function Postuler() {
       }, 3000);
 
     } catch (error) {
-      console.error('Erreur:', error);
-      setMessage({ type: 'error', text: 'Erreur de connexion au serveur' });
+      console.error('❌ Erreur globale:', error);
+      setMessage({ type: 'error', text: 'Erreur de connexion au serveur: ' + error.message });
     } finally {
       setSubmitting(false);
     }
@@ -161,6 +283,13 @@ export default function Postuler() {
     return labels[type] || type;
   };
 
+  // Formater la taille du fichier
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} o`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  };
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
@@ -178,7 +307,6 @@ export default function Postuler() {
       </header>
 
       <main className="intranet-main">
-        {/* Hero section plus petite pour ce formulaire */}
         <section className="demarches-hero" style={{ padding: '3rem 2rem' }}>
           <div className="demarches-hero-content">
             <h1>📝 Candidature interne</h1>
@@ -186,7 +314,6 @@ export default function Postuler() {
           </div>
         </section>
 
-        {/* Formulaire centré */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
@@ -204,7 +331,6 @@ export default function Postuler() {
             marginBottom: '3rem'
           }}>
             
-            {/* Message de succès/erreur */}
             {message && (
               <div style={{
                 padding: '16px 24px',
@@ -221,7 +347,6 @@ export default function Postuler() {
             <form onSubmit={handleSubmit}>
               <div style={{ padding: '2rem' }}>
                 
-                {/* Carte d'information du candidat */}
                 <div style={{
                   background: 'linear-gradient(135deg, #0B192C 0%, #1E2E44 100%)',
                   borderRadius: '16px',
@@ -238,7 +363,6 @@ export default function Postuler() {
                   </div>
                 </div>
 
-                {/* Carte du poste */}
                 <div style={{
                   background: '#F8FAFC',
                   borderRadius: '16px',
@@ -255,7 +379,6 @@ export default function Postuler() {
                   </div>
                 </div>
 
-                {/* Pièces jointes */}
                 <div style={{ marginBottom: '2rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.2rem' }}>
                     <span style={{ fontSize: '1.3rem' }}>📎</span>
@@ -277,13 +400,15 @@ export default function Postuler() {
                             <div>
                               <strong style={{ color: '#0B192C', fontSize: '1rem' }}>{getFileLabel(piece)}</strong>
                               <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#64748B' }}>
-                                Format acceptés: PDF, DOC, JPG, PNG
+                                Formats: PDF, DOC, DOCX, JPG, PNG
                               </p>
                             </div>
                           </div>
                           {uploadedFiles[piece] ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span style={{ color: '#059669', fontSize: '0.85rem' }}>✅ {uploadedFiles[piece].name}</span>
+                              <span style={{ color: '#059669', fontSize: '0.85rem' }}>
+                                ✅ {uploadedFiles[piece].name} ({formatFileSize(uploadedFiles[piece].size)})
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => setUploadedFiles(prev => {
@@ -306,22 +431,23 @@ export default function Postuler() {
                             </div>
                           ) : (
                             <label style={{
-                              background: '#0B192C',
+                              background: uploadProgress[piece] ? '#94A3B8' : '#0B192C',
                               color: 'white',
                               padding: '8px 18px',
                               borderRadius: '10px',
-                              cursor: 'pointer',
+                              cursor: uploadProgress[piece] ? 'wait' : 'pointer',
                               fontSize: '0.8rem',
                               fontWeight: '500',
                               transition: 'all 0.2s',
                               display: 'inline-block'
                             }}>
-                              📂 Choisir un fichier
+                              {uploadProgress[piece] ? `⏳ ${uploadProgress[piece]}%` : '📂 Choisir un fichier'}
                               <input
                                 type="file"
                                 accept=".pdf,.doc,.docx,.jpg,.png,.jpeg"
                                 style={{ display: 'none' }}
                                 onChange={(e) => handleFileUpload(piece, e.target.files[0])}
+                                disabled={!!uploadProgress[piece]}
                               />
                             </label>
                           )}
@@ -331,7 +457,6 @@ export default function Postuler() {
                   </div>
                 </div>
 
-                {/* Boutons */}
                 <div style={{ 
                   display: 'flex', 
                   justifyContent: 'space-between',
@@ -396,7 +521,6 @@ export default function Postuler() {
                   </div>
                 )}
 
-                {/* Score d'éligibilité (si déjà calculé) */}
                 {poste?.diplomeRequis && (
                   <div style={{
                     marginTop: '1.5rem',
