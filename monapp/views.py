@@ -4870,26 +4870,112 @@ def extraire_texte_piece(piece_id):
         return ""
 
 def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, diplome_requis, profil_recherche):
+    """Analyse une candidature avec Ollama et retourne un score et une analyse"""
+    print("\n" + "=" * 70)
+    print("🔍 [DEBUG] analyser_candidature_avec_ia() a été appelée")
+    print(f"📌 Candidature ID: {candidature_id}")
+    print("=" * 70)
+    
+    # Vérifier quels documents sont disponibles
+    cv_disponible = cv_text and len(cv_text.strip()) > 50
+    lettre_disponible = lettre_text and len(lettre_text.strip()) > 50
+    diplome_disponible = diplome_text and len(diplome_text.strip()) > 50
+    
+    print(f"📊 Documents disponibles:")
+    print(f"   - CV: {'✅' if cv_disponible else '❌'} ({len(cv_text) if cv_text else 0} caractères)")
+    print(f"   - Lettre de motivation: {'✅' if lettre_disponible else '❌'} ({len(lettre_text) if lettre_text else 0} caractères)")
+    print(f"   - Diplôme: {'✅' if diplome_disponible else '❌'} ({len(diplome_text) if diplome_text else 0} caractères)")
+    
+    # Cas éliminatoires
+    if not cv_disponible:
+        return 0, "❌ CV manquant - dossier incomplet"
+    if not diplome_disponible:
+        return 0, "❌ Diplôme manquant - dossier incomplet"
+    
+    # Construire le prompt pour analyse réelle du contenu
     prompt = f"""
-    Tu es un expert RH. Diplôme requis: {diplome_requis if diplome_requis else 'Non spécifié'}
-    Profil recherché: {profil_recherche if profil_recherche else 'Non spécifié'}
-    CV: {cv_text[:1500] if cv_text else 'Non fourni'}
-    LM: {lettre_text[:1000] if lettre_text else 'Non fournie'}
-    Diplôme: {diplome_text[:500] if diplome_text else 'Non fourni'}
-    Réponds UNIQUEMENT avec JSON: {{"score": 0-100, "analyse": "texte", "points_forts": ["p1","p2"], "points_faibles": ["p1","p2"], "verification_diplome": "valide"}}
-    Échappe les guillemets: \"
+    Tu es un expert RH. Analyse le CONTENU de ces documents et évalue la candidature.
+    
+    **POSTE :**
+    - Diplôme requis : {diplome_requis if diplome_requis else 'Non spécifié'}
+    - Profil recherché : {profil_recherche if profil_recherche else 'Non spécifié'}
+    
+    **CONTENU DU CV :**
+    {cv_text[:2500]}
+    
+    **CONTENU DU DIPLÔME :**
+    {diplome_text[:800]}
     """
+    
+    if lettre_disponible:
+        prompt += f"""
+    **CONTENU DE LA LETTRE DE MOTIVATION :**
+    {lettre_text[:1000]}
+    """
+    else:
+        prompt += """
+    **LETTRE DE MOTIVATION :** Non fournie (optionnel)
+    """
+    
+    prompt += """
+    
+    **ÉVALUATION À FAIRE (basée sur le CONTENU) :**
+    
+    1. DIPLÔME (0-40 points) :
+       - Regarde le niveau réel du diplôme (Bac, Licence, Master, Doctorat)
+       - Compare avec le diplôme requis
+       - Note en fonction de la correspondance
+    
+    2. CV - EXPÉRIENCE (0-30 points) :
+       - Années d'expérience professionnelle
+       - Pertinence de l'expérience par rapport au poste
+       - Postes occupés et responsabilités
+    
+    3. CV - COMPÉTENCES (0-20 points) :
+       - Compétences techniques mentionnées
+       - Compétences en gestion d'équipe
+       - Formations complémentaires
+    
+    4. CV - ANCIENNETÉ FONCTION PUBLIQUE (0-10 points) :
+       - Si mentionné, années dans la fonction publique
+       - 5+ ans = 10 points, 3-4 ans = 7 points, 1-2 ans = 5 points
+    
+    5. LETTRE DE MOTIVATION (0-20 points) : UNIQUEMENT SI FOURNIE
+       - Personnalisation
+       - Motivation
+       - Adéquation avec le poste
+    
+    **RÈGLES :**
+    - Analyse le CONTENU réel, pas juste la présence des documents
+    - Sois précis dans ton analyse (cite des éléments du CV)
+    - La lettre de motivation est optionnelle, ne pénalise pas son absence
+    
+    Réponds UNIQUEMENT au format JSON :
+    {
+        "score": 0-100,
+        "analyse": "Analyse détaillée basée sur le contenu du CV et du diplôme",
+        "diplome_analyse": "Niveau constaté et correspondance",
+        "experience_analyse": "Années et pertinence",
+        "competences_analyse": "Compétences identifiées",
+        "points_forts": ["point1", "point2"],
+        "points_faibles": ["point1", "point2"],
+        "verification_diplome": "valide|invalide|niveau_inferieur"
+    }
+    """
+    
     try:
         import ollama
         import json
         import re
         
+        print("📡 Envoi du contenu à l'IA pour analyse...")
+        
         response = ollama.chat(
             model='llama3.2:3b',
-            format='json',  # ← AJOUTEZ CECI si votre version Ollama le supporte
+            format='json',
             messages=[{
                 'role': 'system',
-                'content': "Tu es un expert RH. Tu réponds uniquement en JSON valide."
+                'content': "Expert RH. Analyse le CONTENU des documents. Sois précis et cite des éléments. JSON uniquement."
             }, {
                 'role': 'user',
                 'content': prompt
@@ -4897,24 +4983,88 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         )
         
         reponse_brute = response['message']['content']
+        print(f"📥 Réponse brute reçue: {len(reponse_brute)} caractères")
         
-        # Nettoyage : extraire uniquement le JSON
+        # Extraire le JSON
         match = re.search(r'\{.*\}', reponse_brute, re.DOTALL)
         if match:
             reponse_brute = match.group()
         
-        # Remplacer les guillemets simples non échappés dans les chaînes
-        # (solution de secours)
-        reponse_brute = re.sub(r'(?<!\\)"', '\\"', reponse_brute)
-        reponse_brute = re.sub(r'\\"([^"]*?)\\"', r'"\1"', reponse_brute)
-        
         resultat = json.loads(reponse_brute)
-        return resultat.get('score', 0), resultat.get('analyse', 'Analyse non disponible')
+        score = resultat.get('score', 0)
+        analyse = resultat.get('analyse', '')
+        
+        print(f"\n📊 RÉSULTAT DE L'ANALYSE:")
+        print(f"   Diplôme: {resultat.get('diplome_analyse', 'N/A')}")
+        print(f"   Expérience: {resultat.get('experience_analyse', 'N/A')}")
+        print(f"   Compétences: {resultat.get('competences_analyse', 'N/A')}")
+        print(f"   Score: {score}/100")
+        
+        return score, analyse
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Erreur JSON: {e}")
+        print(f"📄 Réponse brute: {reponse_brute[:500]}")
+        
+        # Fallback : extraction basique du diplôme
+        diplome_lower = diplome_text.lower()
+        score = 0
+        analyse_points = []
+        
+        # Analyse du diplôme
+        if "master" in diplome_lower or "bac+5" in diplome_lower or "ingénieur" in diplome_lower:
+            score += 40
+            analyse_points.append("Diplôme niveau Master/BAC+5")
+        elif "licence" in diplome_lower or "bac+3" in diplome_lower:
+            score += 25
+            analyse_points.append("Diplôme niveau Licence/BAC+3 (inférieur au requis)")
+        elif "baccalaureat" in diplome_lower or "baccalaureat" in diplome_lower or "bac" in diplome_lower:
+            score += 10
+            analyse_points.append("Diplôme niveau Baccalauréat (insuffisant pour le poste)")
+        else:
+            analyse_points.append("Diplôme non identifié")
+        
+        # Analyse du CV
+        cv_lower = cv_text.lower()
+        
+        # Chercher l'expérience
+        import re
+        annee_match = re.search(r'(\d+)\s*(?:ans|années|ans d\'expérience)', cv_lower)
+        if annee_match:
+            annees = int(annee_match.group(1))
+            if annees >= 5:
+                score += 30
+                analyse_points.append(f"{annees} ans d'expérience")
+            elif annees >= 3:
+                score += 20
+                analyse_points.append(f"{annees} ans d'expérience")
+            else:
+                score += 10
+                analyse_points.append(f"{annees} ans d'expérience")
+        else:
+            analyse_points.append("Expérience non clairement mentionnée")
+        
+        # Chercher les compétences de gestion
+        if "équipe" in cv_lower or "team" in cv_lower or "management" in cv_lower or "gestion" in cv_lower:
+            score += 20
+            analyse_points.append("Expérience en gestion d'équipe")
+        
+        # Chercher l'ancienneté fonction publique
+        if "fonction publique" in cv_lower or "ministère" in cv_lower or "public" in cv_lower:
+            score += 10
+            analyse_points.append("Expérience dans la fonction publique")
+        
+        score = min(100, score)
+        analyse = " | ".join(analyse_points)
+        
+        print(f"\n🔄 Fallback - Score: {score}/100")
+        print(f"   {analyse}")
+        
+        return score, analyse
         
     except Exception as e:
-        print(f"Erreur Ollama: {e}")
-        return 0, f"Erreur IA: {str(e)}"
-
+        print(f"❌ Erreur: {e}")
+        return 0, f"Erreur d'analyse: {str(e)}"
 
 @csrf_exempt
 @require_http_methods(["POST"])
