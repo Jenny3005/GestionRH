@@ -164,7 +164,7 @@ export default function AdminAgents() {
           });
         }
         
-        alert(`✅ Agent ajouté avec succès !\n\n📧 Un email d'activation a été envoyé à ${formData.email}`);
+        alert(`✅ Agent ajouté avec succès !\n\n Un email d'activation a été envoyé à ${formData.email}`);
         
         setShowModal(false);
         setFormData({
@@ -369,7 +369,7 @@ export default function AdminAgents() {
                   }
                 }
               } catch (e) {
-                warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Date prise service invalide`);
+                warnings.push(` Ligne ${lineNum} (${matricule}): Date prise service invalide`);
               }
             }
             
@@ -398,7 +398,7 @@ export default function AdminAgents() {
                   }
                 }
               } catch (e) {
-                warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Date naissance invalide`);
+                warnings.push(` Ligne ${lineNum} (${matricule}): Date naissance invalide`);
               }
             }
             
@@ -447,7 +447,7 @@ export default function AdminAgents() {
           return;
         }
         
-        const confirmMessage = `📊 RÉSUMÉ DE L'IMPORT\n\n` +
+        const confirmMessage = ` RÉSUMÉ DE L'IMPORT\n\n` +
           `✅ Agents à importer: ${agentsToImport.length}\n` +
           `⚠️ Avertissements: ${warnings.length}\n\n` +
           `${warnings.slice(0, 5).join('\n')}${warnings.length > 5 ? `\n... et ${warnings.length - 5} autres` : ''}\n\n` +
@@ -469,11 +469,11 @@ export default function AdminAgents() {
         
         if (response.ok) {
           let successMessage = `✅ IMPORT TERMINÉ !\n\n`;
-          successMessage += `📥 Succès: ${result.success_count}\n`;
+          successMessage += ` Succès: ${result.success_count}\n`;
           successMessage += `❌ Échecs: ${result.error_count}\n`;
           
           if (result.errors && result.errors.length > 0) {
-            successMessage += `\n⚠️ Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
+            successMessage += `\n Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
           }
           
           alert(successMessage);
@@ -609,10 +609,10 @@ const getRoleLabel = (role) => {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
+                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
               </div>
             )}
           </div>
@@ -636,11 +636,11 @@ const getRoleLabel = (role) => {
               <button className="btn-add" onClick={() => setShowModal(true)} disabled={importing}>➕ Ajouter un agent</button>
             </Can>
             <Can permission="EXPORTER_AGENTS">
-              <button className="btn-export" onClick={exportToExcel} disabled={importing}>📊 Exporter Excel</button>
+              <button className="btn-export" onClick={exportToExcel} disabled={importing}> Exporter Excel</button>
             </Can>
             <Can permission="IMPORTER_AGENTS">
               <button className="btn-import" onClick={() => document.getElementById('importFile').click()} disabled={importing}>
-                {importing ? '⏳ Import en cours...' : '📥 Importer Excel'}
+                {importing ? ' Import en cours...' : ' Importer Excel'}
               </button>
             </Can>
             <input type="file" id="importFile" accept=".xlsx, .xls, .csv" style={{ display: 'none' }} onChange={handleImportExcel} />
@@ -659,7 +659,7 @@ const getRoleLabel = (role) => {
             responsive
             customStyles={customStyles}
             subHeader
-            subHeaderComponent={<div className="table-info">📊 Total : {filteredAgents.length} agent(s) sur {agents.length}</div>}
+            subHeaderComponent={<div className="table-info"> Total : {filteredAgents.length} agent(s) sur {agents.length}</div>}
           />
         </section>
       </main>
@@ -669,7 +669,7 @@ const getRoleLabel = (role) => {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>➕ Inviter un agent</h3>
-            <p className="modal-info">📧 Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
+            <p className="modal-info"> Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
             <form onSubmit={handleAddAgent}>
               <div className="form-row">
                 <div className="form-group"><label>Matricule *</label><input type="text" name="matricule" value={formData.matricule} onChange={handleChange} required /></div>
@@ -739,12 +739,12 @@ const getRoleLabel = (role) => {
                       {getRoleLabel(role.libelle)}
                     </span>
                     <span className="role-description">
-                      {role.libelle === 'admin' && '👑 Accès total à toutes les fonctionnalités'}
-                      {role.libelle === 'agent' && '👤 Soumission de demandes et suivi personnel'}
-                      {role.libelle === 'chef' && '⭐ Validation des congés de son équipe'}
-                      {role.libelle === 'dpaf' && '🏢 Assignment des demandes aux agents RH'}
-                      {role.libelle === 'rh' && '👥 Gestion des agents et des demandes'}
-                      {role.libelle === 'rh/secretaire' && '📋📝 Gestion RH + Transmission au DPAF'}
+                      {role.libelle === 'admin' && ' Accès total à toutes les fonctionnalités'}
+                      {role.libelle === 'agent' && ' Soumission de demandes et suivi personnel'}
+                      {role.libelle === 'chef' && ' Validation des congés de son équipe'}
+                      {role.libelle === 'dpaf' && ' Assignment des demandes aux agents RH'}
+                      {role.libelle === 'rh' && ' Gestion des agents et des demandes'}
+                      {role.libelle === 'rh/secretaire' && ' Gestion RH + Transmission au DPAF'}
                     </span>
                   </label>
                 );

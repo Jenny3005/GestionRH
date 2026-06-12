@@ -368,16 +368,16 @@ export default function AdminTypesPiece() {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}> Rôles</button>
                 <Can permission="GERER_PERMISSIONS">
                   <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
                 </Can>
-                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>📝 Types demande</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>📄 Types pièce</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}> Types demande</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}> Types pièce</button>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
+                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
               </div>
             )}
           </div>
@@ -387,7 +387,7 @@ export default function AdminTypesPiece() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📄 Gestion des Types de Pièce</h2>
+            <h2> Gestion des Types de Pièce</h2>
             <p>Créez, modifiez et gérez les pièces attendues dans les dossiers des agents.</p>
           </div>
         </section>
@@ -423,7 +423,7 @@ export default function AdminTypesPiece() {
             subHeader
             subHeaderComponent={
               <div className="table-info">
-                📊 Total : {filteredTypes.length} type(s) de pièce
+                 Total : {filteredTypes.length} type(s) de pièce
               </div>
             }
           />

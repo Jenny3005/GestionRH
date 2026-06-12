@@ -335,7 +335,7 @@ export default function DashboardAgent() {
           {/* Demandes récentes */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>📋 Demandes récentes</h3>
+              <h3> Demandes récentes</h3>
               <button className="agent-card-btn" onClick={() => navigate('/demarches')}>Voir tout →</button>
             </div>
             <div className="agent-table-container">
@@ -353,7 +353,7 @@ export default function DashboardAgent() {
                   {demandesRecentes.length === 0 ? (
                     <tr>
                       <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
-                        📭 Aucune demande récente
+                         Aucune demande récente
                       </td>
                     </tr>
                   ) : (
@@ -379,7 +379,7 @@ export default function DashboardAgent() {
                           </td>
                           <td className="rh-actions-cell">
                             <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
-                              👁️ Voir suivi
+                               Voir suivi
                             </button>
                           </td>
                         </tr>
@@ -420,7 +420,7 @@ export default function DashboardAgent() {
                 <span>Restant {soldeConge?.jours_restants || 0}j</span>
               </div>
               <button className="btn-detail-solde" onClick={openSoldeModal}>
-                📊 Voir détails
+                 Voir détails
               </button>
             </div>
           </div>
@@ -460,14 +460,14 @@ export default function DashboardAgent() {
                       {notif.type === 'info' && 'ℹ️'}
                       {notif.type === 'warning' && '⏰'}
                       {notif.type === 'danger' && '⚠️'}
-                      {notif.type === 'document' && '📄'}
+                      {notif.type === 'document' && ''}
                       {notif.type === 'expiration' && '⚠️'}
                       {notif.type === 'validation_conge' && '✅'}
-                      {notif.type === 'demande_conge' && '📋'}
-                      {notif.type === 'assignation' && '📌'}
-                      {notif.type === 'acte_disponible' && '📄'}
+                      {notif.type === 'demande_conge' && ''}
+                      {notif.type === 'assignation' && ''}
+                      {notif.type === 'acte_disponible' && ''}
                       {notif.type === 'acte_signe' && '✅'}
-                      {notif.type === 'acte_recu' && '📄'}
+                      {notif.type === 'acte_recu' && ''}
                     </div>
                     <div className="notification-content">
                       <div className="notification-message">{notif.message}</div>
@@ -494,7 +494,7 @@ export default function DashboardAgent() {
           {/* Prochain avancement */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>📈 Prochain avancement</h3>
+              <h3> Prochain avancement</h3>
             </div>
             <div className="avancement-info">
               {avancement ? (
@@ -545,7 +545,7 @@ export default function DashboardAgent() {
         <div className="modal-overlay" onClick={() => setShowSoldeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🌴 Détail du solde de congés</h3>
+              <h3> Détail du solde de congés</h3>
               <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
             </div>
             
@@ -575,7 +575,7 @@ export default function DashboardAgent() {
                 </div>
                 
                 <div className="solde-detail-item highlight">
-                  <div className="solde-detail-icon">🌟</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours restants</span>
                     <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
@@ -597,7 +597,7 @@ export default function DashboardAgent() {
               </div>
               
               <div className="solde-historique">
-                <h4>📋 Informations</h4>
+                <h4> Informations</h4>
                 <ul>
                   <li>✓ 30 jours de congés par an</li>
                   <li>✓ Les congés non pris sont perdus en fin d'année</li>
@@ -612,7 +612,7 @@ export default function DashboardAgent() {
                 setShowSoldeModal(false);
                 navigate('/demandes/conge');
               }}>
-                📝 Demander un congé
+                Demander un congé
               </button>
               <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
                 Fermer
@@ -628,7 +628,7 @@ export default function DashboardAgent() {
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header suivi-modal-header">
               <div className="header-icon-wrapper">
-                <span className="header-icon">📋</span>
+                <span className="header-icon"></span>
                 <h3>Suivi de votre demande</h3>
               </div>
               <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
@@ -691,7 +691,7 @@ export default function DashboardAgent() {
 
               {/* Timeline moderne - AVEC SYSTÈME DE NIVEAU */}
               <div className="suivi-timeline-modern">
-                <h4 className="timeline-title">📅 Chronologie du traitement</h4>
+                <h4 className="timeline-title"> Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
                   {/* Étape 1 - Demande soumise - Niveau 1 */}

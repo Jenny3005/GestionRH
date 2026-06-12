@@ -825,7 +825,7 @@ export default function Documents() {
               </div>
             </div>
             <div className="rh-info-card">
-              <p>👑 <strong>Mode superviseur actif</strong></p>
+              <p> <strong>Mode superviseur actif</strong></p>
               <p>✓ Consultation des dossiers agents</p>
               <p>✓ Actions tracées et horodatées</p>
             </div>
@@ -837,7 +837,7 @@ export default function Documents() {
           <div className="modal-overlay" onClick={() => setShowExpiryModal(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
               <div className="modal-header">
-                <h3>📅 Date d'expiration</h3>
+                <h3> Date d'expiration</h3>
                 <button className="modal-close" onClick={() => setShowExpiryModal(false)}>✕</button>
               </div>
               <div className="modal-body">
@@ -877,7 +877,7 @@ export default function Documents() {
           }}>
             <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header preview-modal-header">
-                <h3>📄 {previewActeTitle}</h3>
+                <h3> {previewActeTitle}</h3>
                 <button className="modal-close" onClick={() => {
                   setShowActePreviewModal(false);
                   if (previewActeUrl) URL.revokeObjectURL(previewActeUrl);

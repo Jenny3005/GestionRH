@@ -168,7 +168,7 @@ export default function AdminPermissions() {
       return;
     }
     
-    if (window.confirm(`⚠️ Êtes-vous sûr de vouloir supprimer la permission "${code}" ?\n\nCette action est irréversible et peut affecter les droits des utilisateurs.`)) {
+    if (window.confirm(` Êtes-vous sûr de vouloir supprimer la permission "${code}" ?\n\nCette action est irréversible et peut affecter les droits des utilisateurs.`)) {
       try {
         const response = await fetch(`http://localhost:8000/api/permissions/${code}/delete/`, {
           method: 'DELETE'
@@ -264,12 +264,12 @@ export default function AdminPermissions() {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}> Rôles</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
+                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
               </div>
             )}
           </div>
@@ -279,7 +279,7 @@ export default function AdminPermissions() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>🔐 Gestion des Permissions</h2>
+            <h2> Gestion des Permissions</h2>
             <p>Gérez les droits d'accès par rôle.</p>
           </div>
         </section>
@@ -294,7 +294,7 @@ export default function AdminPermissions() {
 
         {/* Liste des permissions avec colonne Actions */}
         <div className="permissions-list">
-          <h3>📋 Liste des permissions</h3>
+          <h3> Liste des permissions</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -338,14 +338,14 @@ export default function AdminPermissions() {
 
         {/* Attribution des permissions aux rôles */}
         <div className="roles-permissions">
-          <h3>🔗 Attribuer des permissions aux rôles</h3>
+          <h3> Attribuer des permissions aux rôles</h3>
           <div className="roles-permissions-grid">
             {roles.map((role) => (
               <div key={role.id} className="role-permission-card">
                 <h4>
-                  {role.libelle === 'admin' && '👑 '}
-                  {role.libelle === 'rh' && '📋 '}
-                  {role.libelle === 'chef' && '⭐ '}
+                  {role.libelle === 'admin' }
+                  {role.libelle === 'rh' }
+                  {role.libelle === 'chef' }
                   {role.libelle === 'agent' && '👤 '}
                   {role.libelle === 'admin' ? 'Administrateur' : 
                    role.libelle === 'rh' ? 'Ressources Humaines' : 

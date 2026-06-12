@@ -193,7 +193,7 @@ export default function ArchivagePage() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>🗄️ Archivage</h2>
+            <h2> Archivage</h2>
             <p>Gérez l'archivage des actes administratifs terminés</p>
           </div>
         </section>
@@ -202,7 +202,7 @@ export default function ArchivagePage() {
         <div className="stats-container" style={{ marginBottom: '20px' }}>
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{actes.length}</div>
-            <div className="stat-label">📄 Actes à archiver</div>
+            <div className="stat-label"> Actes à archiver</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{actesArchives.length}</div>
@@ -212,12 +212,12 @@ export default function ArchivagePage() {
 
         {/* Tableau des actes à archiver (sans filtre date) */}
         <div className="admin-section">
-          <h3>📄 Actes à archiver ({actesFiltres.length})</h3>
+          <h3> Actes à archiver ({actesFiltres.length})</h3>
           
           {actesFiltres.length > 0 && (
             <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
               <button className="btn-rh-primary" onClick={handleArchiverSelection} disabled={selectedActes.length === 0}>
-                🗄️ Archiver la sélection ({selectedActes.length})
+                 Archiver la sélection ({selectedActes.length})
               </button>
               <button className="btn-rh-secondary" onClick={handleToutArchiver}>
                 📥 Tout archiver
@@ -282,7 +282,7 @@ export default function ArchivagePage() {
 
         {/* ✅ Tableau des actes archivés AVEC filtres année/mois */}
         <div className="admin-section" style={{ marginTop: '30px' }}>
-          <h3>✅ Actes archivés ({actesArchivesFiltres.length})</h3>
+          <h3> Actes archivés ({actesArchivesFiltres.length})</h3>
           
           {/* Filtres année/mois pour les actes archivés */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -366,7 +366,7 @@ export default function ArchivagePage() {
         <div className="modal-overlay" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
-              <h3>📄 Aperçu de l'acte</h3>
+              <h3> Aperçu de l'acte</h3>
               <button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button>
             </div>
             <div className="modal-body preview-modal-body">

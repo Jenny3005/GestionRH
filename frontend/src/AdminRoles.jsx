@@ -221,9 +221,9 @@ export default function AdminRoles() {
 
   const getRoleLabel = (role) => {
     const labels = {
-      'admin': '👑 Administrateur',
-      'rh': '📋 Ressources Humaines',
-      'chef': '⭐ Chef de service',
+      'admin': ' Administrateur',
+      'rh': ' Ressources Humaines',
+      'chef': ' Chef de service',
       'agent': '👤 Agent'
     };
     return labels[role] || role;
@@ -241,12 +241,12 @@ export default function AdminRoles() {
 
   const getRoleIcon = (role) => {
     const icons = {
-      'admin': '👑',
-      'rh': '📋',
-      'chef': '⭐',
+      'admin': '',
+      'rh': '',
+      'chef': '',
       'agent': '👤'
     };
-    return icons[role] || '🏷️';
+    return icons[role] || '';
   };
 
   const getRoleDescription = (role) => {
@@ -300,14 +300,14 @@ export default function AdminRoles() {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>📊 Tableau de bord</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
                 <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>⚙️ Rôles</button>
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}> Rôles</button>
                 <Can permission="GERER_PERMISSIONS">
                   <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
                 </Can>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}>🔓 Se déconnecter</button>
+                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
               </div>
             )}
           </div>
@@ -317,7 +317,7 @@ export default function AdminRoles() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>⚙️ Gestion des Rôles</h2>
+            <h2> Gestion des Rôles</h2>
             <p>Créez, modifiez et gérez tous les rôles des agents (système + personnalisés).</p>
           </div>
         </section>
@@ -345,7 +345,7 @@ export default function AdminRoles() {
             <p>Chargement...</p>
           ) : filteredRoles.length === 0 ? (
             <div className="empty-state">
-              <p>📭 Aucun rôle trouvé</p>
+              <p>Aucun rôle trouvé</p>
               <Can permission="AJOUTER_ROLE">
                 <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer un rôle</button>
               </Can>
@@ -392,7 +392,7 @@ export default function AdminRoles() {
 
         {/* STATISTIQUES DES RÔLES - RÉPARTITION */}
         <section className="roles-stats">
-          <h3>📊 Répartition des agents par rôle</h3>
+          <h3> Répartition des agents par rôle</h3>
           <div className="stats-roles-grid">
             {roles.length === 0 ? (
               <p>Aucun rôle trouvé</p>
