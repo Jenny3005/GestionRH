@@ -157,7 +157,7 @@ export default function DashboardChef() {
 
         {/* Bouton rafraîchir */}
         <div className="admin-header">
-          <h3>📋 Demandes {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validées' : 'rejetées'}</h3>
+          <h3> Demandes {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validées' : 'rejetées'}</h3>
           <button className="btn-refresh" onClick={fetchDemandes} disabled={loading}>
             🔄 {loading ? 'Chargement...' : 'Rafraîchir'}
           </button>
@@ -180,11 +180,11 @@ export default function DashboardChef() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="8" className="text-center">⏳ Chargement des demandes...</td></tr>
+                  <tr><td colSpan="8" className="text-center"> Chargement des demandes...</td></tr>
                 ) : error ? (
                   <tr><td colSpan="8" className="text-center error-text">❌ {error}</td></tr>
                 ) : filteredDemandes.length === 0 ? (
-                  <tr><td colSpan="8" className="text-center">📭 Aucune demande {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validée' : 'rejetée'}</td></tr>
+                  <tr><td colSpan="8" className="text-center"> Aucune demande {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validée' : 'rejetée'}</td></tr>
                 ) : (
                   filteredDemandes.map((d) => (
                     <tr key={d.id} className={d.statut === 'valide' ? 'row-validated' : d.statut === 'refuse' ? 'row-rejected' : ''}>
@@ -198,7 +198,7 @@ export default function DashboardChef() {
                       <td>
                         {(!d.statut || d.statut === 'en_attente_chef') ? (
                           <button className="btn-validate" onClick={() => setSelectedDemande(d)}>
-                            📝 Traiter
+                             Traiter
                           </button>
                         ) : (
                           <button className="btn-view" onClick={() => setSelectedDemande(d)}>
@@ -222,7 +222,7 @@ export default function DashboardChef() {
           setCommentaire('');
         }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>📝 Demande de {selectedDemande.agent || selectedDemande.nom_demandeur}</h3>
+            <h3> Demande de {selectedDemande.agent || selectedDemande.nom_demandeur}</h3>
             <div className="modal-details">
               <p><strong>Matricule:</strong> {selectedDemande.matricule || selectedDemande.matricule_demandeur}</p>
               <p><strong>Type:</strong> {selectedDemande.type_demande || selectedDemande.type_conge}</p>

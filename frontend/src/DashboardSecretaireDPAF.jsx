@@ -296,7 +296,7 @@ export default function DashboardSecretaire() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - Secrétariat</h2>
+            <h2>Tableau de bord - Secrétariat</h2>
             <p>Transmission des demandes au DPAF (absences) ou DAPAF (congés), suivi des actes</p>
           </div>
         </section>
@@ -323,7 +323,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 1: Demandes validées à transmettre */}
         <div className="admin-section">
-          <h3>📋 Demandes validées par le chef - À transmettre</h3>
+          <h3>Demandes validées par le chef - À transmettre</h3>
           
           <div style={{ 
             display: 'flex',
@@ -411,7 +411,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 2: Actes à transmettre au DPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DPAF (Absences)</h3>
+          <h3> Actes reçus des RH - À transmettre au DPAF (Absences)</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -458,7 +458,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 3: Actes à transmettre au DAPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DAPAF (Congés)</h3>
+          <h3> Actes reçus des RH - À transmettre au DAPAF (Congés)</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -473,7 +473,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesATransmettreDAPAF.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à transmettre au DAPAF</td>
+                    <td colSpan="5" className="text-center"> Aucun acte à transmettre au DAPAF</td>
                   </tr>
                 ) : (
                   actesATransmettreDAPAF.map((acte) => (
@@ -521,7 +521,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesARemettre.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à remettre</td>
+                    <td colSpan="5" className="text-center"> Aucun acte à remettre</td>
                   </tr>
                 ) : (
                   actesARemettre.map((acte) => (
@@ -560,7 +560,7 @@ export default function DashboardSecretaire() {
           }}>
             <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header preview-modal-header">
-                <h3>📄 {previewTitle}</h3>
+                <h3> {previewTitle}</h3>
                 <button className="modal-close" onClick={() => {
                   setShowPreviewModal(false);
                   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -607,7 +607,7 @@ export default function DashboardSecretaire() {
         <div className="modal-overlay" onClick={() => setShowTransmettreModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📤 Transmettre au {destinataireType}</h3>
+              <h3>Transmettre au {destinataireType}</h3>
               <button className="modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -642,7 +642,7 @@ export default function DashboardSecretaire() {
         <div className="modal-overlay" onClick={() => setShowTransmettreActeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📤 Transmettre l'acte au {destinataireType}</h3>
+              <h3> Transmettre l'acte au {destinataireType}</h3>
               <button className="modal-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
             </div>
             <div className="modal-body">

@@ -674,18 +674,18 @@ export default function DashboardRH() {
 
   const getStatutBadge = (statut) => {
     const statusMap = {
-      'assignee_rh': { class: 'status-pending', text: '📋 À traiter' },
-      'en_cours_traitement': { class: 'status-progress', text: '⚙️ En cours' },
-      'acte_genere': { class: 'status-approved', text: '📄 Acte généré' },
-      'envoye_secretaire': { class: 'status-sent', text: '📤 Envoyé secrétaire' },
-      'termine': { class: 'status-approved', text: '✅ Terminé' },
+      'assignee_rh': { class: 'status-pending', text: ' À traiter' },
+      'en_cours_traitement': { class: 'status-progress', text: ' En cours' },
+      'acte_genere': { class: 'status-approved', text: ' Acte généré' },
+      'envoye_secretaire': { class: 'status-sent', text: ' Envoyé secrétaire' },
+      'termine': { class: 'status-approved', text: ' Terminé' },
       'valide': { class: 'status-approved', text: 'Validé' },
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
       'actif': { class: 'status-active', text: 'Actif' },
       'inactif': { class: 'status-inactive', text: 'Inactif' },
       'publie': { class: 'status-active', text: '📢 Publiée' },
       'cloture': { class: 'status-inactive', text: '🔒 Clôturée' },
-      'deposee': { class: 'status-pending', text: '📋 Déposée' }
+      'deposee': { class: 'status-pending', text: ' Déposée' }
     };
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
     return <span className={`status-badge ${status.class}`}>{status.text}</span>;
@@ -1153,16 +1153,16 @@ export default function DashboardRH() {
         </div>
         <nav className="nav-central-links">
           <a href="#" className={`nav-tab-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-            📊 Tableau de bord
+             Tableau de bord
           </a>
           <a href="#" className={`nav-tab-item ${activeTab === 'dossiers' ? 'active' : ''}`} onClick={() => setActiveTab('dossiers')}>
-            📁 Gestion des dossiers
+             Gestion des dossiers
           </a>
           <a href="#" className={`nav-tab-item ${activeTab === 'annonces' ? 'active' : ''}`} onClick={() => setActiveTab('annonces')}>
-            📢 Annonces & candidatures
+             Annonces & candidatures
           </a>
           <a href="#" className={`nav-tab-item ${activeTab === 'avancements' ? 'active' : ''}`} onClick={() => setActiveTab('avancements')}>
-            📈 Avancements
+             Avancements
           </a>
         </nav>
         <div className="nav-right">
@@ -1173,7 +1173,7 @@ export default function DashboardRH() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📋 Gestion des Ressources Humaines</h2>
+            <h2> Gestion des Ressources Humaines</h2>
             <p>Bienvenue {userInfo.prenom} ! Gérez les dossiers, traitez les demandes et pilotez les ressources humaines.</p>
           </div>
         </section>
@@ -1235,7 +1235,7 @@ export default function DashboardRH() {
 
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>📋 Demandes assignées à traiter</h3>
+                <h3> Demandes assignées à traiter</h3>
                 <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tout →</button>
               </div>
               <div className="rh-table-container">
@@ -1261,13 +1261,13 @@ export default function DashboardRH() {
             </div>
 
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>⚙️ Demandes en cours de traitement</h3></div>
+              <div className="rh-card-header"><h3> Demandes en cours de traitement</h3></div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead><tr><th>Agent</th><th>Type</th><th>Date début traitement</th><th>Statut</th><th>Actions</th></tr></thead>
                   <tbody>
                     {demandesEnCours.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center">📭 Aucune demande en cours</td></tr>
+                      <tr><td colSpan="5" className="text-center"> Aucune demande en cours</td></tr>
                     ) : (
                       demandesEnCours.map(demande => (
                         <tr key={demande.id}>
@@ -1275,7 +1275,7 @@ export default function DashboardRH() {
                           <td>{demande.type_demande}</td>
                           <td>{demande.date_debut_traitement ? new Date(demande.date_debut_traitement).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>{getStatutBadge(demande.statut)}</td>
-                          <td><button className="btn-generer" onClick={() => handleGenererActe(demande)}>📄 Générer l'acte</button></td>
+                          <td><button className="btn-generer" onClick={() => handleGenererActe(demande)}> Générer l'acte</button></td>
                         </tr>
                       ))
                     )}
@@ -1285,13 +1285,13 @@ export default function DashboardRH() {
             </div>
 
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>📄 Actes générés - En attente d'envoi</h3></div>
+              <div className="rh-card-header"><h3>Actes générés - En attente d'envoi</h3></div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead><tr><th>Agent</th><th>Type d'acte</th><th>Référence</th><th>Date génération</th><th>Actions</th></tr></thead>
                   <tbody>
                     {actesGeneres.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center">📭 Aucun acte en attente</td></tr>
+                      <tr><td colSpan="5" className="text-center"> Aucun acte en attente</td></tr>
                     ) : (
                       actesGeneres.map(acte => (
                         <tr key={acte.id}>
@@ -1301,8 +1301,8 @@ export default function DashboardRH() {
                           <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <div className="action-buttons-cell">
-                              <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>👁️ Voir l'acte</button>
-                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.reference)}>📤 Envoyer à la secrétaire</button>
+                              <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}> Voir l'acte</button>
+                              <button className="btn-envoyer" onClick={() => handleEnvoyerSecretaire(acte.reference)}> Envoyer à la secrétaire</button>
                             </div>
                           </td>
                         </tr>
@@ -1342,10 +1342,10 @@ export default function DashboardRH() {
             </div>
 
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>📑 Exporter des rapports</h3></div>
+              <div className="rh-card-header"><h3> Exporter des rapports</h3></div>
               <div className="rh-export-options">
                 <div className="export-option">
-                  <h4>📋 Liste des agents</h4>
+                  <h4> Liste des agents</h4>
                   <p>Export complet des agents avec leurs informations</p>
                   <div className="export-buttons">
                     <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}>📊 Excel</button>
@@ -1354,7 +1354,7 @@ export default function DashboardRH() {
                   </div>
                 </div>
                 <div className="export-option">
-                  <h4>📊 Statistiques RH</h4>
+                  <h4> Statistiques RH</h4>
                   <p>Effectifs, recrutements, départs, congés</p>
                   <div className="export-buttons">
                     <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}>📊 Excel</button>
@@ -1362,7 +1362,7 @@ export default function DashboardRH() {
                   </div>
                 </div>
                 <div className="export-option">
-                  <h4>📁 État des dossiers</h4>
+                  <h4> État des dossiers</h4>
                   <p>Complétude et documents manquants par agent</p>
                   <div className="export-buttons">
                     <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}>📊 Excel</button>
@@ -1393,18 +1393,18 @@ export default function DashboardRH() {
               </div>
               <div className="rh-actions-buttons">
                 <button className="btn-rh-primary" onClick={handleAddAgent}>➕ Nouvel agent</button>
-                <button className="btn-rh-secondary" onClick={handleImportAgents}>📤 Importer liste</button>
+                <button className="btn-rh-secondary" onClick={handleImportAgents}>Importer liste</button>
               </div>
             </div>
 
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>📋 Gestion des dossiers agents ({vraisAgents.length} agents)</h3></div>
+              <div className="rh-card-header"><h3> Gestion des dossiers agents ({vraisAgents.length} agents)</h3></div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead><tr><th>Matricule</th><th>Nom & Prénom</th><th>Email</th><th>Poste</th><th>Direction</th><th>Statut</th><th>Action</th></tr></thead>
                   <tbody>
                     {vraisAgents.length === 0 ? (
-                      <tr><td colSpan="7" className="text-center">📭 Aucun agent trouvé</td></tr>
+                      <tr><td colSpan="7" className="text-center"> Aucun agent trouvé</td></tr>
                     ) : (
                       agentsRecents.map(agent => (
                         <tr key={agent.matricule}>
@@ -1449,7 +1449,7 @@ export default function DashboardRH() {
             {/* Tableau des Notes de service */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>📢 Notes de service et actualités</h3>
+                <h3> Notes de service et actualités</h3>
               </div>
               <div className="rh-table-container">
                 <table className="rh-table">
@@ -1473,7 +1473,7 @@ export default function DashboardRH() {
                           <td><span className="status-badge status-active">{note.tag}</span></td>
                           <td>{new Date(note.date_publication).toLocaleDateString('fr-FR')}</td>
                           <td>{note.contenu?.substring(0, 60)}...</td>
-                          <td>{note.fichier_pdf ? <span className="badge-info">📄 PDF</span> : '-'}</td>
+                          <td>{note.fichier_pdf ? <span className="badge-info"> PDF</span> : '-'}</td>
                           <td className="rh-actions-cell">
                             <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}>✏️</button>
                             <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}>🗑️</button>
@@ -1489,7 +1489,7 @@ export default function DashboardRH() {
             {/* Tableau des Annonces (postes vacants) */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>📢 Annonces et appels à candidature</h3>
+                <h3> Annonces et appels à candidature</h3>
               </div>
               <div className="rh-table-container">
                 <table className="rh-table">
@@ -1560,7 +1560,7 @@ export default function DashboardRH() {
 
           <div className="rh-card full-width">
             <div className="rh-card-header">
-              <h3>📅 Calendrier des avancements</h3>
+              <h3> Calendrier des avancements</h3>
               <div>
                 <input type="number" placeholder="Année" value={calendrierAnnee} onChange={(e) => { setCalendrierAnnee(e.target.value); fetchAvancementsAgenda(e.target.value, calendrierMois); }} />
                 <select value={calendrierMois} onChange={(e) => { setCalendrierMois(e.target.value); fetchAvancementsAgenda(calendrierAnnee, e.target.value); }}>
@@ -1600,7 +1600,7 @@ export default function DashboardRH() {
           </div>
 
           <div className="rh-card full-width">
-            <div className="rh-card-header"><h3>📋 Bordereau des avancements</h3></div>
+            <div className="rh-card-header"><h3> Bordereau des avancements</h3></div>
             <div style={{ padding: '20px' }}>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
                 <input type="number" placeholder="Année (ex: 2027)" value={bordereauAnnee} onChange={(e) => setBordereauAnnee(e.target.value)} />
@@ -1700,7 +1700,7 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowEditAnnonceModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✏️ Modifier l'annonce</h3>
+              <h3> Modifier l'annonce</h3>
               <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}>✕</button>
             </div>
             <form onSubmit={handleUpdateAnnonce}>
@@ -1779,7 +1779,7 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowAddNoteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📝 Nouvelle note de service</h3>
+              <h3> Nouvelle note de service</h3>
               <button className="modal-close" onClick={() => setShowAddNoteModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateNote}>
@@ -1801,10 +1801,10 @@ export default function DashboardRH() {
                   <div className="form-group">
                     <label>Tag / Catégorie</label>
                     <select value={newNote.tag} onChange={(e) => setNewNote({...newNote, tag: e.target.value})}>
-                      <option value="Note de Service">📋 Note de Service</option>
-                      <option value="Communiqué">📢 Communiqué</option>
-                      <option value="Actualité">📰 Actualité</option>
-                      <option value="Information">ℹ️ Information</option>
+                      <option value="Note de Service"> Note de Service</option>
+                      <option value="Communiqué"> Communiqué</option>
+                      <option value="Actualité"> Actualité</option>
+                      <option value="Information">ℹ Information</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -2073,7 +2073,7 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowCandidaturesModal(false)}>
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>👥 Candidatures - {selectedPoste.intitule}</h3>
+              <h3> Candidatures - {selectedPoste.intitule}</h3>
               <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -2153,7 +2153,7 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowAnalyseModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
-              <h3>🤖 Analyse IA - {selectedAnalyse.agent_nom} {selectedAnalyse.agent_prenom}</h3>
+              <h3> Analyse IA - {selectedAnalyse.agent_nom} {selectedAnalyse.agent_prenom}</h3>
               <button className="modal-close" onClick={() => setShowAnalyseModal(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -2386,7 +2386,7 @@ export default function DashboardRH() {
       {showPreviewModal && (
         <div className="modal-overlay" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header preview-modal-header"><h3>📄 {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button></div>
+            <div className="modal-header preview-modal-header"><h3> {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button></div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? <iframe src={previewUrl} title={previewTitle} className="pdf-preview-iframe" frameBorder="0" /> : <div className="loading-preview">Chargement de l'aperçu...</div>}
             </div>
@@ -2400,17 +2400,42 @@ export default function DashboardRH() {
 
       </main>
 
+      {/* FOOTER INSTITUTIONNEL */}
       <footer className="mnd-grand-footer">
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
-          <div className="footer-centered-logo-zone"><img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" /><p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p></div>
+          <div className="footer-centered-logo-zone">
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
+          </div>
           <div className="footer-columns-grid">
-            <div className="footer-col"><h4>Navigation Portail</h4><ul><li><a href="#carriere">Mon Profil & Carrière</a></li><li><a href="#demarches">Démarches en Ligne</a></li><li><a href="#documents">Documents & Notes</a></li></ul></div>
-            <div className="footer-col"><h4>Liens Utiles</h4><ul><li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li><li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li><li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li></ul></div>
-            <div className="footer-col"><h4>Contact & Situation</h4><p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p><p>📞 +229 21 30 70 13</p><p>✉️ numerique@gouv.bj</p></div>
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
           </div>
         </div>
-        <div className="footer-bottom-bar"><p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p></div>
+        <div className="footer-bottom-bar">
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
+        </div>
       </footer>
     </div>
   );

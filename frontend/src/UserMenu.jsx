@@ -106,7 +106,7 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
               className="dropdown-item dropdown-parent"
               onClick={toggleDashboardSubmenu}
             >
-              📊 Tableau de bord <span className="submenu-arrow">{dashboardSubmenuOpen ? '▼' : '▶'}</span>
+               Tableau de bord <span className="submenu-arrow">{dashboardSubmenuOpen ? '▼' : '▶'}</span>
             </button>
             {dashboardSubmenuOpen && (
               <div className="dropdown-submenu-content">
@@ -150,7 +150,7 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
           
           <div className="dropdown-divider"></div>
           <button className="dropdown-item logout" onClick={() => { setDropdownOpen(false); handleLogout(); }}>
-            🔓 Se déconnecter
+             Se déconnecter
           </button>
         </div>
       )}
