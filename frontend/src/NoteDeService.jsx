@@ -30,8 +30,8 @@ function NoteDeService({ note, onBack, isLoading }) {
             <div className="ns-card">
                 {/* En-tête basé sur les données de la BDD */}
                 <div className="ns-header">
-                    <h2>📌 RÉPUBLIQUE DE [PAYS]</h2>
-                    <h3>MINISTÈRE / STRUCTURE</h3>
+                    <h2> RÉPUBLIQUE DU BENIN</h2>
+                    <h3>MINISTÈRE DU NUMERIQUE ET DE LA DIGITALISATION</h3>
                     <p className="ns-ref">
                         <strong>NOTE DE SERVICE</strong>
                     </p>
@@ -54,7 +54,7 @@ function NoteDeService({ note, onBack, isLoading }) {
                 )}
 
                 <div className="ns-back">
-                    <button onClick={onBack}>← Retour à la liste</button>
+                    <button onClick={onBack}> Retour à la liste</button>
                 </div>
             </div>
         </div>

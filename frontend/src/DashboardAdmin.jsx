@@ -177,7 +177,7 @@ export default function DashboardAdmin() {
                 </div>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
-                  📊 Tableau de bord
+                   Tableau de bord
                 </button>
                 <Can permission="VOIR_AGENTS">
                   <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
@@ -186,7 +186,7 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
-                    ⚙️ Rôles
+                     Rôles
                   </button>
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
@@ -196,17 +196,17 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
-                    📝 Types de demande
+                     Types de demande
                   </button>
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
-                    📄 Types de pièce
+                     Types de pièce
                   </button>
                 </Can>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
-                  🔓 Se déconnecter
+                   Se déconnecter
                 </button>
               </div>
             )}
@@ -218,7 +218,7 @@ export default function DashboardAdmin() {
         {/* BANDEAU HERO */}
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord Administrateur</h2>
+            <h2> Tableau de bord Administrateur</h2>
             <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les types de demande depuis cet espace.</p>
           </div>
         </section>
@@ -271,7 +271,7 @@ export default function DashboardAdmin() {
 
         {/* LISTE DES AGENTS */}
         <section className="admin-section">
-          <h3>📋 Liste des agents</h3>
+          <h3> Liste des agents</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -288,9 +288,9 @@ export default function DashboardAdmin() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="8" className="text-center">⏳ Chargement...</td></tr>
+                  <tr><td colSpan="8" className="text-center"> Chargement...</td></tr>
                 ) : agents.length === 0 ? (
-                  <tr><td colSpan="8" className="text-center">📭 Aucun agent trouvé</td></tr>
+                  <tr><td colSpan="8" className="text-center"> Aucun agent trouvé</td></tr>
                 ) : (
                   agents.map((agent) => {
                     const normalizedRoles = getUniqueNormalizedRoles(agent.roles);
@@ -345,17 +345,17 @@ export default function DashboardAdmin() {
             </Can>
             <Can permission="GERER_ROLES">
               <button className="admin-action-btn" onClick={() => navigate('/admin/roles')}>
-                ⚙️ Gérer les rôles
+                 Gérer les rôles
               </button>
             </Can>
             <Can permission="GERE_TYPE_DEMANDE">
               <button className="admin-action-btn" onClick={() => navigate('/admin/types-demande')}>
-                📝 Types de demande
+                 Types de demande
               </button>
             </Can>
             <Can permission="GERER_TYPES_PIECE">
               <button className="admin-action-btn" onClick={() => navigate('/admin/types-piece')}>
-                📄 Types de pièce
+                 Types de pièce
               </button>
             </Can>
             <button className="admin-action-btn" onClick={() => fetchAgents()}>

@@ -232,7 +232,7 @@ export default function RHDocuments() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📁 Dossier de {agentInfo?.prenom} {agentInfo?.nom}</h2>
+            <h2> Dossier de {agentInfo?.prenom} {agentInfo?.nom}</h2>
             <p>Matricule : {agentInfo?.matricule} | Complétude : {dossierData?.taux_completude || 0}%</p>
           </div>
         </section>
@@ -372,7 +372,7 @@ export default function RHDocuments() {
         {/* Documents importés avec actions */}
         <div className="rh-card full-width" style={{ margin: '20px' }}>
           <div className="rh-card-header">
-            <h3>📄 Documents importés ({documents.length})</h3>
+            <h3> Documents importés ({documents.length})</h3>
           </div>
           <div className="rh-table-container">
             <table className="rh-table">
@@ -391,7 +391,7 @@ export default function RHDocuments() {
                 ) : (
                   documents.map(doc => (
                     <tr key={doc.id}>
-                      <td>📄 {doc.type_piece_libelle}</td>
+                      <td> {doc.type_piece_libelle}</td>
                       <td>{new Date(doc.date_upload).toLocaleDateString('fr-FR')}</td>
                       <td>{doc.date_expiration ? new Date(doc.date_expiration).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
@@ -423,18 +423,18 @@ export default function RHDocuments() {
                 <label>Type de document</label>
                 <select id="typePieceSelect" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ddd', minWidth: '250px' }}>
                   <option value="">Sélectionner un type...</option>
-                  <option value="1">🆔 Carte Nationale d'Identité</option>
-                  <option value="2">📄 Acte de naissance sécurisé ANIP</option>
-                  <option value="3">📄 Certificat de nationalité</option>
-                  <option value="4">🎓 Diplômes et attestations de formation</option>
-                  <option value="5">📜 Décision de nomination</option>
-                  <option value="6">📋 Certificat de prise de service</option>
-                  <option value="7">⭐ Acte d'avancement</option>
-                  <option value="8">🏥 Certificat médical</option>
-                  <option value="9">✈️ Autorisation d'absence</option>
-                  <option value="10">🏖️ Titre de congé</option>
-                  <option value="11">📑 Attestation de travail</option>
-                  <option value="12">📑 Attestation de présence au poste</option>
+                  <option value="1"> Carte Nationale d'Identité</option>
+                  <option value="2"> Acte de naissance sécurisé ANIP</option>
+                  <option value="3"> Certificat de nationalité</option>
+                  <option value="4"> Diplômes et attestations de formation</option>
+                  <option value="5"> Décision de nomination</option>
+                  <option value="6"> Certificat de prise de service</option>
+                  <option value="7"> Acte d'avancement</option>
+                  <option value="8"> Certificat médical</option>
+                  <option value="9"> Autorisation d'absence</option>
+                  <option value="10"> Titre de congé</option>
+                  <option value="11"> Attestation de travail</option>
+                  <option value="12"> Attestation de présence au poste</option>
                 </select>
               </div>
               <label className="btn-rh-primary" style={{ cursor: 'pointer', padding: '10px 20px' }}>
@@ -463,7 +463,7 @@ export default function RHDocuments() {
         <div className="modal-overlay" onClick={() => setShowExpiryModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
-              <h3>📅 Date d'expiration</h3>
+              <h3> Date d'expiration</h3>
               <button className="modal-close" onClick={() => setShowExpiryModal(false)}>✕</button>
             </div>
             <div className="modal-body">

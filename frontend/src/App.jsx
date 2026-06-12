@@ -123,9 +123,9 @@ export default function App() {
   // Obtenir l'icône du tag
   const getTagIcon = (tag) => {
     const icons = {
-      'Note de Service': '📋',
+      'Note de Service': '',
       'Communiqué': '📢',
-      'Actualité': '📰',
+      'Actualité': '',
       'Information': 'ℹ️'
     };
     return icons[tag] || '📌';
@@ -232,7 +232,7 @@ export default function App() {
                 </div>
               ) : postesVacants.length === 0 ? (
                 <div className="no-postes" style={{ textAlign: 'center', padding: '40px', background: '#F8FAFC', borderRadius: '12px' }}>
-                  <p>📭 Aucune opportunité de carrière pour le moment.</p>
+                  <p> Aucune opportunité de carrière pour le moment.</p>
                   <small>Revenez plus tard pour découvrir les nouvelles annonces.</small>
                 </div>
               ) : (
@@ -281,7 +281,7 @@ export default function App() {
                 </div>
               ) : notesService.length === 0 ? (
                 <div className="no-notes" style={{ textAlign: 'center', padding: '40px', background: '#F8FAFC', borderRadius: '12px' }}>
-                  <p>📭 Aucune note de service pour le moment.</p>
+                  <p> Aucune note de service pour le moment.</p>
                 </div>
               ) : (
                 <div className="news-list">
@@ -307,7 +307,7 @@ export default function App() {
                             target="_blank" 
                             rel="noopener noreferrer"
                           >
-                            📄 Télécharger le PDF →
+                             Télécharger le PDF →
                           </a>
                         )}
                         {note.contenu && (
@@ -319,7 +319,7 @@ export default function App() {
                               handleViewFullNote(note);
                             }}
                           >
-                            📖 Lire la note complète →
+                             Lire la note complète →
                           </a>
                         )}
                       </div>
@@ -417,9 +417,9 @@ export default function App() {
               </div>
               <h2>{selectedNote.titre}</h2>
               <div className="note-modal-meta">
-                <span>📅 Publiée le : {formatDate(selectedNote.date_publication)}</span>
+                <span> Publiée le : {formatDate(selectedNote.date_publication)}</span>
                 {selectedNote.created_by && <span>👤 Publié par : {selectedNote.created_by}</span>}
-                {selectedNote.statut && <span>✅ Statut : {selectedNote.statut}</span>}
+                {selectedNote.statut && <span> Statut : {selectedNote.statut}</span>}
               </div>
             </div>
             
@@ -435,7 +435,7 @@ export default function App() {
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
-                  📄 Télécharger la version PDF
+                   Télécharger la version PDF
                 </a>
               </div>
             )}

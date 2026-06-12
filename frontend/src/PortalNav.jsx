@@ -40,13 +40,13 @@ export function getDashboardPath(role = localStorage.getItem('userRole')) {
 export function getRoleLabel(role = localStorage.getItem('userRole')) {
   role = normalizeRole(role);
   switch(role) {
-    case 'admin': return '👑 Administrateur';
-    case 'rh': return '📋 Ressources Humaines';
-    case 'chef': return '⭐ Chef de service';
-    case 'secretaire': return '📝 Secrétaire DPAF';
-    case 'rh/secretaire': return '📋📝 RH / Secrétaire DPAF';
-    case 'dpaf': return '🏢 DPAF - Direction Planification';
-    case 'dapaf': return '🏢 DAPAF - Direction Affaires Politiques';
+    case 'admin': return ' Administrateur';
+    case 'rh': return ' Ressources Humaines';
+    case 'chef': return ' Chef de service';
+    case 'secretaire': return ' Secrétaire DPAF';
+    case 'rh/secretaire': return ' RH / Secrétaire DPAF';
+    case 'dpaf': return ' DPAF - Direction Planification';
+    case 'dapaf': return ' DAPAF - Direction Affaires Politiques';
     default: return '👤 Agent';
   }
 }
@@ -81,16 +81,16 @@ export default function PortalNav() {
     const links = [];
     
     if (isLoggedIn) {
-      links.push({ href: dashboardPath, label: '📊 Tableau de bord' });
+      links.push({ href: dashboardPath, label: ' Tableau de bord' });
     }
     
     
-    links.push({ href: '/demarches', label: '📝 Démarches RH' });
-    links.push({ href: '/documents', label: '📄 Documents' });
+    links.push({ href: '/demarches', label: ' Démarches RH' });
+    links.push({ href: '/documents', label: ' Documents' });
 
     // ✅ Candidatures - UNIQUEMENT pour les agents (même avec plusieurs rôles)
     if (userRole === 'agent' || userRoles.includes('agent')) {
-      links.push({ href: '/postes', label: '🎯 Candidatures' });
+      links.push({ href: '/postes', label: ' Candidatures' });
     }
     
     return links;

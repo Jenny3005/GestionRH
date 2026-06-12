@@ -72,13 +72,13 @@ export default function ActivateAccount() {
               className="mnd-official-logo" 
             />
           </a>
-          <h1>🔐 Activation de compte</h1>
+          <h1> Activation de compte</h1>
           <p>Matricule : <strong>{matricule}</strong></p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
-            <label>🔒 Nouveau mot de passe</label>
+            <label> Nouveau mot de passe</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -90,7 +90,7 @@ export default function ActivateAccount() {
           </div>
 
           <div className="form-group">
-            <label>🔒 Confirmer le mot de passe</label>
+            <label> Confirmer le mot de passe</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -103,7 +103,7 @@ export default function ActivateAccount() {
           {error && <div className="error-text">❌ {error}</div>}
 
           <button type="submit" className="btn-auth-submit" disabled={loading}>
-            {loading ? '⏳ Activation...' : '✅ Activer mon compte'}
+            {loading ? ' Activation...' : '✅ Activer mon compte'}
           </button>
         </form>
 

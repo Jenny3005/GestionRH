@@ -7,7 +7,7 @@ export default function AdminNav() {
 
   // Garder seulement le tableau de bord dans la navbar
   const links = [
-    { href: '/admin/dashboard', label: '📊 Tableau de bord' }
+    { href: '/admin/dashboard', label: ' Tableau de bord' }
   ];
 
   return (

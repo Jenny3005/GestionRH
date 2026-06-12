@@ -36,9 +36,13 @@ export default function CandidaturesPage() {
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
-        <div className="nav-left-zone">
-          <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
-        </div>
+        <a href="/" className="logo-nav-link">
+          <img 
+            src="/logo_MND.png" 
+            alt="Logo Ministère du Numérique et de la Digitalisation" 
+            className="mnd-official-logo" 
+          />
+        </a>
         <PortalNav />
         <div className="nav-right">
           <UserMenu />

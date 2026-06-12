@@ -819,7 +819,7 @@ export default function Demarches() {
               </div>
               
               <div className="solde-historique">
-                <h4>📋 Informations</h4>
+                <h4> Informations</h4>
                 <ul>
                   <li>✓ 30 jours de congés par an</li>
                   <li>✓ Les congés non pris sont perdus en fin d'année</li>
@@ -834,7 +834,7 @@ export default function Demarches() {
                 setShowSoldeModal(false);
                 setShowCongeForm(true);
               }}>
-                📝 Demander un congé
+                 Demander un congé
               </button>
               <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
                 Fermer
@@ -848,7 +848,7 @@ export default function Demarches() {
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>📅 Demande de congé</h3>
+            <h3> Demande de congé</h3>
             
             {soldeConge && (
               <div className="solde-info">
@@ -907,7 +907,7 @@ export default function Demarches() {
             }}>
               
               <div className="limite-card">
-                <div className="limite-title">📋 RÈGLEMENTATION</div>
+                <div className="limite-title"> RÈGLEMENTATION</div>
                 <div className="limite-value">10 jours par an</div>
                 <div className="limite-subtitle">Maximum autorisé par agent et par année civile</div>
               </div>
@@ -1048,7 +1048,7 @@ export default function Demarches() {
         <div className="modal-overlay" onClick={() => setShowCertificatModal(false)}>
           <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📜 Certificat de non-jouissance de congé</h3>
+              <h3> Certificat de non-jouissance de congé</h3>
               <button className="modal-close" onClick={() => setShowCertificatModal(false)}>✕</button>
             </div>
             

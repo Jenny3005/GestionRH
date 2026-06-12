@@ -185,7 +185,7 @@ export default function DashboardDPAF() {
         let transmisesData = [];
         if (transmisesRes.ok) {
             transmisesData = await transmisesRes.json();
-            console.log('📋 Demandes à assigner:', transmisesData);
+            console.log(' Demandes à assigner:', transmisesData);
             setDemandesTransmises(transmisesData);
         }
 
@@ -194,14 +194,14 @@ export default function DashboardDPAF() {
         let assigneesData = [];
         if (assigneesRes.ok) {
             assigneesData = await assigneesRes.json();
-            console.log('📋 Demandes assignées:', assigneesData);
+            console.log(' Demandes assignées:', assigneesData);
             setDemandesAssignees(assigneesData);
         }
 
         let actesData = [];
         if (actesRes.ok) {
             actesData = await actesRes.json();
-            console.log('📋 Actes à signer (BRUT):', actesData);
+            console.log('📋Actes à signer (BRUT):', actesData);
             
             // ✅ Affiche tous les types d'actes reçus
             actesData.forEach(acte => {
@@ -209,7 +209,7 @@ export default function DashboardDPAF() {
             });
             
             const typesASigner = getTypesASigner();
-            console.log('📋 Types à signer pour DPAF:', typesASigner);
+            console.log(' Types à signer pour DPAF:', typesASigner);
             
             const actesFiltres = actesData.filter(acte => {
                 const inclus = typesASigner.includes(acte.type_acte);
@@ -380,7 +380,7 @@ export default function DashboardDPAF() {
       'attente_signature_dpaf': <span className="badge-warning">✍️ En attente signature DPAF</span>,
       'attente_signature_dapaf': <span className="badge-warning">✍️ En attente signature DAPAF</span>,
       'signe': <span className="badge-success">✅ Signé</span>,
-      'remis': <span className="badge-success">📋 Remis à l'agent</span>
+      'remis': <span className="badge-success"> Remis à l'agent</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -404,7 +404,7 @@ export default function DashboardDPAF() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - {getRoleLabel()}</h2>
+            <h2> Tableau de bord - {getRoleLabel()}</h2>
             <p>Gestion et assignment des demandes aux agents RH et signature des actes</p>
           </div>
         </section>
@@ -413,7 +413,7 @@ export default function DashboardDPAF() {
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{stats.a_assigner}</div>
-            <div className="stat-label">📋 À assigner</div>
+            <div className="stat-label"> À assigner</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
             <div className="stat-number">{stats.assignees}</div>
@@ -429,17 +429,17 @@ export default function DashboardDPAF() {
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#EF4444' }}>
             <div className="stat-number">{stats.actes_a_signer}</div>
-            <div className="stat-label">✍️ Actes à signer</div>
+            <div className="stat-label"> Actes à signer</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#6B7280' }}>
             <div className="stat-number">{stats.historique_count}</div>
-            <div className="stat-label">📜 Historique</div>
+            <div className="stat-label"> Historique</div>
           </div>
         </div>
 
         {/* SECTION 1: Demandes à assigner */}
         <div className="admin-section">
-          <h3>📋 Demandes transmises par le secrétariat</h3>
+          <h3> Demandes transmises par le secrétariat</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -454,9 +454,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                 ) : demandesTransmises.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center">📭 Aucune demande à assigner</td></tr>
+                  <tr><td colSpan="6" className="text-center"> Aucune demande à assigner</td></tr>
                 ) : (
                   demandesTransmises.map((d) => (
                     <tr key={d.id}>
@@ -495,20 +495,20 @@ export default function DashboardDPAF() {
             className={`filter-tab ${activeTab === 'encours' ? 'active' : ''}`} 
             onClick={() => setActiveTab('encours')}
           >
-            📋 Demandes en cours ({stats.assignees})
+             Demandes en cours ({stats.assignees})
           </button>
           <button 
             className={`filter-tab ${activeTab === 'historique' ? 'active' : ''}`} 
             onClick={() => setActiveTab('historique')}
           >
-            📜 Historique des demandes ({stats.historique_count})
+             Historique des demandes ({stats.historique_count})
           </button>
         </div>
 
         {/* SECTION 2: Demandes assignées en cours */}
         {activeTab === 'encours' && (
           <div className="admin-section">
-            <h3>📋 Demandes assignées - Suivi</h3>
+            <h3> Demandes assignées - Suivi</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -523,9 +523,9 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                   ) : demandesAssignees.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center">📭 Aucune demande en cours</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Aucune demande en cours</td></tr>
                   ) : (
                     demandesAssignees.map((d) => (
                       <tr key={d.id}>
@@ -551,7 +551,7 @@ export default function DashboardDPAF() {
         {/* SECTION 2bis: Historique des demandes traitées */}
         {activeTab === 'historique' && (
           <div className="admin-section">
-            <h3>📜 Historique des demandes traitées</h3>
+            <h3> Historique des demandes traitées</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -566,9 +566,9 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                   ) : demandesHistorique.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center">📭 Aucune demande dans l'historique</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Aucune demande dans l'historique</td></tr>
                   ) : (
                     demandesHistorique.map((d) => (
                       <tr key={d.id}>
@@ -640,9 +640,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
+                  <tr><td colSpan="5" className="text-center"> Chargement...</td></tr>
                 ) : actesASigner.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center">📭 Aucun acte à signer</td></tr>
+                  <tr><td colSpan="5" className="text-center"> Aucun acte à signer</td></tr>
                 ) : (
                   actesASigner.map((acte) => (
                     <tr key={acte.reference}>
@@ -667,7 +667,7 @@ export default function DashboardDPAF() {
                               cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
                             }}
                           >
-                            ✍️ Signer l'acte
+                             Signer l'acte
                           </button>
                         </div>
                       </td>
@@ -703,7 +703,7 @@ export default function DashboardDPAF() {
               {/* Carte de la demande */}
               <div className="demande-info-card-elegant">
                 <div className="demande-card-header-elegant">
-                  <span className="card-header-icon">📋</span>
+                  <span className="card-header-icon"></span>
                   <span className="card-header-title">Information de la demande</span>
                 </div>
                 <div className="demande-details-grid-elegant">
@@ -717,21 +717,21 @@ export default function DashboardDPAF() {
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Matricule</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant">🆔</span>
+                      <span className="detail-icon-elegant"></span>
                       <code className="matricule-code-elegant">{selectedDemande.agent_matricule}</code>
                     </div>
                   </div>
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Type de demande</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant">📌</span>
+                      <span className="detail-icon-elegant"></span>
                       <span className="type-badge-elegant">{selectedDemande.type_demande}</span>
                     </div>
                   </div>
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Destinataire</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant">🎯</span>
+                      <span className="detail-icon-elegant"></span>
                       <span className="type-badge-elegant" style={{ background: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5', color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46' }}>
                         {getDestinataire(selectedDemande.type_demande)}
                       </span>
@@ -743,7 +743,7 @@ export default function DashboardDPAF() {
               {/* Sélection agent RH */}
               <div className="selection-section-elegant">
                 <div className="selection-header-elegant">
-                  <span className="selection-header-icon">🎯</span>
+                  <span className="selection-header-icon"></span>
                   <span className="selection-header-title">Sélectionner l'agent RH</span>
                 </div>
                 
@@ -798,7 +798,7 @@ export default function DashboardDPAF() {
               {/* Instructions */}
               <div className="instructions-section-elegant">
                 <div className="instructions-header-elegant">
-                  <span className="instructions-icon">📝</span>
+                  <span className="instructions-icon"></span>
                   <span className="instructions-title">Instructions pour l'agent RH</span>
                   <span className="optional-badge-elegant">Optionnel</span>
                 </div>
@@ -835,7 +835,7 @@ export default function DashboardDPAF() {
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header suivi-modal-header">
               <div className="header-icon-wrapper">
-                <span className="header-icon">📋</span>
+                <span className="header-icon"></span>
                 <h3>Suivi de la demande</h3>
               </div>
               <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
@@ -856,14 +856,14 @@ export default function DashboardDPAF() {
               {/* Carte Détails Demande */}
               <div className="suivi-details-card">
                 <div className="detail-item">
-                  <span className="detail-icon">📌</span>
+                  <span className="detail-icon"></span>
                   <div className="detail-content">
                     <span className="detail-label">Type de demande</span>
                     <strong className="detail-value">{selectedDemande.type_demande}</strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">🎯</span>
+                  <span className="detail-icon"></span>
                   <div className="detail-content">
                     <span className="detail-label">Destinataire</span>
                     <strong className="detail-value" style={{ color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#2563EB' : '#059669' }}>
@@ -882,7 +882,7 @@ export default function DashboardDPAF() {
 
               {/* Timeline dynamique */}
               <div className="suivi-timeline-modern">
-                <h4 className="timeline-title">📅 Chronologie du traitement</h4>
+                <h4 className="timeline-title"> Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
                   {/* Étape 1 - Demande soumise */}
@@ -893,7 +893,7 @@ export default function DashboardDPAF() {
                     </div>
                     <div className="timeline-modern-content">
                       <div className="step-header">
-                        <span className="step-icon">📝</span>
+                        <span className="step-icon"></span>
                         <span className="step-title">Demande soumise</span>
                         <span className="step-status">Par l'agent</span>
                       </div>
@@ -922,7 +922,7 @@ export default function DashboardDPAF() {
                         </div>
                         <div className="timeline-modern-content">
                           <div className="step-header">
-                            <span className="step-icon">📤</span>
+                            <span className="step-icon"></span>
                             <span className="step-title">Transmission au {destinataire}</span>
                             <span className="step-status">Par la secrétaire</span>
                           </div>
@@ -1051,15 +1051,15 @@ export default function DashboardDPAF() {
         <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✍️ Signature de l'acte</h3>
+              <h3> Signature de l'acte</h3>
               <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
             </div>
             
             <div className="modal-body">
               <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>📄 Acte N°:</strong> {selectedActe.reference}</p>
+                <p><strong> Acte N°:</strong> {selectedActe.reference}</p>
                 <p><strong>👤 Agent:</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
-                <p><strong>📋 Type:</strong> {selectedActe.type_acte}</p>
+                <p><strong> Type:</strong> {selectedActe.type_acte}</p>
               </div>
               
               <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -1097,7 +1097,7 @@ export default function DashboardDPAF() {
                   cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
                 }}
               >
-                🏛️ Signer avec mon cachet officiel
+                 Signer avec mon cachet officiel
               </button>
             </div>
           </div>
@@ -1113,7 +1113,7 @@ export default function DashboardDPAF() {
         }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
-              <h3>📄 {previewTitle}</h3>
+              <h3> {previewTitle}</h3>
               <button className="modal-close" onClick={() => {
                 setShowPreviewModal(false);
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
