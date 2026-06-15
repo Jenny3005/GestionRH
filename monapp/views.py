@@ -28,9 +28,10 @@ from .emails import (
     envoyer_email_avancement_agent, 
 )
 from .models import (
-    Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,
+    Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,EnfantAgent,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement, Candidature
 )
+
 import json
 import random
 import base64
@@ -717,6 +718,11 @@ def get_agent_by_matricule(request, matricule):
             agent.adresse = data.get('adresse', agent.adresse)
             agent.corps = data.get('corps', agent.corps)
             agent.echelon = data.get('echelon', agent.echelon)
+            
+            # ⭐ AJOUTE CES LIGNES ⭐
+            agent.lieu_naissance = data.get('lieu_naissance', agent.lieu_naissance)
+            agent.dialectes = data.get('dialectes', agent.dialectes)
+            agent.date_mariage = data.get('date_mariage', agent.date_mariage)
 
             typecontrat = data.get('typecontrat')
             if typecontrat:
@@ -758,6 +764,10 @@ def get_agent_by_matricule(request, matricule):
             'corps': agent.corps or '',
             'echelon': agent.echelon or '',
             'actif': agent.actif,
+            # ⭐ AJOUTE CES LIGNES ⭐
+            'lieu_naissance': agent.lieu_naissance or '',
+            'dialectes': agent.dialectes or '',
+            'date_mariage': str(agent.date_mariage) if agent.date_mariage else '',
             'roles': [r[0] for r in roles]
         })
     except Agent.DoesNotExist:
@@ -765,7 +775,6 @@ def get_agent_by_matricule(request, matricule):
     except Exception as e:
         print(f"Erreur get_agent_by_matricule: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -5453,3 +5462,371 @@ def get_candidatures_agent(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ── Critères par catégorie ──────────────────────────────────────
+CRITERES = {
+    'A': [
+        'Connaissance professionnelle',
+        "Culture générale",
+        "Efficacité et capacité d'encadrement et de direction",
+        'Disponibilité et sens du service public',
+    ],
+    'B': [
+        'Connaissance professionnelle',
+        "Sens de l'organisation et méthode dans le travail",
+        'Assiduité et efficacité',
+        'Sens du service public',
+    ],
+    'C': [
+        'Connaissance professionnelle',
+        'Ponctualité et assiduité',
+        "Soin et rapidité dans l'exécution des tâches",
+        'Conscience professionnelle',
+    ],
+    'D': [
+        'Connaissance professionnelle',
+        'Ponctualité et assiduité',
+        "Soin et rapidité dans l'exécution des tâches",
+        'Conscience professionnelle',
+    ],
+}
+ 
+ 
+def _get_categorie(echelon):
+    """Extrait la catégorie (A/B/C/D) depuis l'échelon."""
+    if not echelon:
+        return 'B'
+    lettre = echelon[0].upper()
+    if lettre in ['A', 'B', 'C', 'D']:
+        return lettre
+    return 'B'
+ 
+ 
+def _calculer_duree_service(date_prise_service, annee_ref):
+    """Calcule la durée de service jusqu'au 31 décembre de annee_ref."""
+    if not date_prise_service:
+        return 0, 0, 0
+    debut = date_prise_service if isinstance(date_prise_service, date) else datetime.strptime(str(date_prise_service), '%Y-%m-%d').date()
+    fin = date(annee_ref, 12, 31)
+    ans = fin.year - debut.year
+    mois = fin.month - debut.month
+    jours = fin.day - debut.day
+    if jours < 0:
+        mois -= 1
+        jours += 30
+    if mois < 0:
+        ans -= 1
+        mois += 12
+    return ans, mois, jours
+ 
+ 
+def _fmt_date(d):
+    """Formate une date en français."""
+    if not d:
+        return '-'
+    mois_fr = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+               'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+    if isinstance(d, str):
+        d = datetime.strptime(d, '%Y-%m-%d').date()
+    return f"{d.day} {mois_fr[d.month - 1]} {d.year}"
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# ENDPOINT 1 : GET/PATCH  /api/agent/<matricule>/bulletin/
+# ──────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(['GET', 'PATCH'])
+def bulletin_agent(request, matricule):
+    from .models import Agent, BulletinInfo
+ 
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        bulletin_info, created = BulletinInfo.objects.get_or_create(agent=agent)
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent introuvable'}, status=404)
+ 
+    if request.method == 'GET':
+        data = {
+            'matricule': agent.matricule,
+            'nom': agent.nom,
+            'prenom': agent.prenom,
+            'date_naissance': str(agent.date_naissance) if agent.date_naissance else None,
+            'lieu_naissance': getattr(agent, 'lieu_naissance', None) or '',
+            'echelon': agent.echelon or '',
+            'corps': agent.corps or '',
+            'poste': agent.poste or '',
+            'direction': agent.direction or '',
+            'date_prise_service': str(agent.date_prise_service) if agent.date_prise_service else None,
+            'typecontrat': agent.typecontrat or '',
+            'dialectes': getattr(agent, 'dialectes', None) or '',
+            'date_mariage': str(agent.date_mariage) if getattr(agent, 'date_mariage', None) else None,
+            'adresse': agent.adresse or '',
+            # Champs de BulletinInfo
+            'diplomes': bulletin_info.diplomes or '',
+            'profession_avant_service': bulletin_info.profession_avant_service or '',
+            'situation_militaire': bulletin_info.situation_militaire or 'Néant',
+            'distinctions_honorifiques': bulletin_info.distinctions_honorifiques or 'Néant',
+            'interruption_duree': bulletin_info.interruption_duree or '',
+            'interruption_cause': bulletin_info.interruption_cause or 'Néant',
+            'proposable_avancement': bulletin_info.proposable_avancement or 'Oui',
+        }
+        return JsonResponse(data)
+ 
+    # PATCH
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+ 
+    # Champs de l'agent
+    champs_agent = [
+        'lieu_naissance', 'dialectes', 'date_mariage', 'adresse'
+    ]
+    for champ in champs_agent:
+        if champ in body:
+            valeur = body[champ] if body[champ] != '' else None
+            setattr(agent, champ, valeur)
+    agent.save()
+ 
+    # Champs de BulletinInfo
+    champs_bulletin = [
+        'diplomes', 'profession_avant_service', 'situation_militaire',
+        'distinctions_honorifiques', 'interruption_duree', 'interruption_cause',
+        'proposable_avancement'
+    ]
+    for champ in champs_bulletin:
+        if champ in body:
+            valeur = body[champ] if body[champ] != '' else None
+            setattr(bulletin_info, champ, valeur)
+    bulletin_info.save()
+ 
+    return JsonResponse({'success': True, 'message': 'Informations mises à jour'})
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# ENDPOINT 2 : GET/POST  /api/agent/<matricule>/enfants/
+# ──────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+def enfants_agent(request, matricule):
+    from .models import Agent, EnfantAgent
+    
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        
+        if request.method == "GET":
+            enfants = EnfantAgent.objects.filter(agent=agent)
+            result = []
+            for e in enfants:
+                result.append({
+                    'id': e.id,
+                    'nom': e.nom,
+                    'prenom': e.prenom,
+                    'date_naissance': str(e.date_naissance) if e.date_naissance else None
+                })
+            return JsonResponse(result, safe=False)
+        
+        elif request.method == "POST":
+            data = json.loads(request.body)
+            enfant = EnfantAgent.objects.create(
+                agent=agent,
+                nom=data.get('nom'),
+                prenom=data.get('prenom'),
+                date_naissance=data.get('date_naissance')
+            )
+            return JsonResponse({
+                'success': True,
+                'id': enfant.id,
+                'nom': enfant.nom,
+                'prenom': enfant.prenom,
+                'date_naissance': str(enfant.date_naissance)
+            })
+            
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"Erreur enfants_agent: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# ENDPOINT 3 : DELETE  /api/agent/<matricule>/enfants/<id>/
+# ──────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(['DELETE'])
+def supprimer_enfant(request, matricule, enfant_id):
+    from .models import EnfantAgent
+ 
+    try:
+        enfant = EnfantAgent.objects.get(id=enfant_id, agent__matricule=matricule)
+        enfant.delete()
+        return JsonResponse({'success': True})
+    except EnfantAgent.DoesNotExist:
+        return JsonResponse({'error': 'Enfant introuvable'}, status=404)
+    except Exception as e:
+        print(f"Erreur supprimer_enfant: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+ 
+ 
+# ──────────────────────────────────────────────────────────────
+# ENDPOINT 4 : POST  /api/agent/<matricule>/bulletin/generer/
+# ──────────────────────────────────────────────────────────────
+@csrf_exempt
+@require_http_methods(['POST'])
+def generer_bulletin_pdf(request, matricule):
+    """Génère le Bulletin Individuel de Notes en PDF"""
+    from .models import Agent, EnfantAgent, Avancement, BulletinInfo
+    from docx import Document
+    import io
+    import os
+    from django.conf import settings
+ 
+    try:
+        agent = Agent.objects.get(matricule=matricule)
+        bulletin_info, _ = BulletinInfo.objects.get_or_create(agent=agent)
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent introuvable'}, status=404)
+ 
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        body = {}
+ 
+    annee = body.get('annee', date.today().year)
+    
+    # Récupérer les données depuis le body ou depuis BulletinInfo
+    profession_avant = body.get('profession_avant_service') or bulletin_info.profession_avant_service or '-'
+    situation_militaire = body.get('situation_militaire') or bulletin_info.situation_militaire or 'Néant'
+    distinctions = body.get('distinctions_honorifiques') or bulletin_info.distinctions_honorifiques or 'Néant'
+    interruption_cause = body.get('interruption_cause') or bulletin_info.interruption_cause or 'Néant'
+    interruption_duree = body.get('interruption_duree') or bulletin_info.interruption_duree or '-'
+    proposable = body.get('proposable_avancement') or bulletin_info.proposable_avancement or 'Oui'
+    diplomes = bulletin_info.diplomes or '-'
+ 
+    enfants = EnfantAgent.objects.filter(agent=agent).order_by('date_naissance')
+    
+    # Déterminer la catégorie
+    categorie = _get_categorie(agent.echelon)
+    criteres = CRITERES.get(categorie, CRITERES['B'])
+    ans, mois, jours = _calculer_duree_service(agent.date_prise_service, annee)
+    
+    # Libellé du cadre
+    libelles_cadre = {
+        'A': 'CADRES SUPÉRIEURS ET INGÉNIEURS',
+        'B': 'PERSONNEL DES SERVICES ADMINISTRATIFS',
+        'C': "AGENTS D'EXÉCUTION",
+        'D': 'AGENTS DE SERVICE',
+    }
+    libelle_cadre = libelles_cadre.get(categorie, 'PERSONNEL DES SERVICES ADMINISTRATIFS')
+    texte_cadre = f"CADRE {categorie} : {libelle_cadre}"
+    
+    # Date de la dernière promotion
+    # Récupérer le DERNIER avancement EFFECTIF (date_effective non null)
+    dernier_avancement = Avancement.objects.filter(
+        agent=agent,
+        type_avancement='normal',
+        date_effective__isnull=False  # ← Important : seulement ceux déjà effectués
+    ).order_by('-date_effective').first()
+
+    if dernier_avancement:
+        date_promotion_str = _fmt_date(dernier_avancement.date_effective)
+    else:
+        # Si jamais d'avancement, utiliser la date de nomination
+        date_promotion_str = _fmt_date(agent.date_prise_service)
+    
+    # Construction de la liste des enfants
+    enfants_texte = ""
+    if enfants.exists():
+        liste_enfants = []
+        for e in enfants:
+            liste_enfants.append(f"- {e.nom} {e.prenom}, né(e) le {_fmt_date(e.date_naissance)}")
+        enfants_texte = "\n".join(liste_enfants)
+    else:
+        enfants_texte = "-"
+    
+    # Dates
+    date_prise_service_str = _fmt_date(agent.date_prise_service)
+    date_mariage_str = _fmt_date(agent.date_mariage) if agent.date_mariage else '-'
+    
+    # Classe de recrutement
+    classe_recrutement = agent.echelon.split('-')[0] if agent.echelon and '-' in agent.echelon else agent.echelon or 'B3'
+    
+    # Charger le template Word
+    template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', 'bulletin_template.docx')
+    
+    if not os.path.exists(template_path):
+        return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
+    
+    doc = Document(template_path)
+    
+    # Préparer les remplacements
+    replacements = {
+        '{{ANNEE}}': str(annee),
+        '{{CADRE}}': texte_cadre,
+        '{{NOM_PRENOMS}}': f"{agent.nom} {agent.prenom}".upper(),
+        '{{LIEU_DATE_NAISSANCE}}': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
+        '{{PROFESSION_AVANT}}': profession_avant,
+        '{{SITUATION_MILITAIRE}}': situation_militaire,
+        '{{CLASSE_RECRUTEMENT}}': classe_recrutement,
+        '{{MATRICULE}}': agent.matricule,
+        '{{DIPLOMES}}': diplomes,
+        '{{DATE_NOMINATION}}': date_prise_service_str,
+        '{{DATE_NOMINATION_CADRE}}': date_prise_service_str,
+        '{{GRADE_CLASSE}}': agent.echelon or '-',
+        '{{DATE_PROMOTION}}': date_promotion_str,
+        '{{DUREE_INTERRUPTION}}': interruption_duree,
+        '{{CAUSE_INTERRUPTION}}': interruption_cause,
+        '{{DIALECTES}}': agent.dialectes or '-',
+        '{{DISTINCTIONS}}': distinctions,
+        '{{DATE_MARIAGE}}': date_mariage_str,
+        '{{ENFANTS}}': enfants_texte,
+        '{{ADRESSE_FAMILLE}}': agent.adresse or '-',
+        '{{DEGRE_PARENTE}}': 'Epoux(se)',
+        '{{ANS_SERVICE}}': str(ans),
+        '{{MOIS_SERVICE}}': str(mois),
+        '{{JOURS_SERVICE}}': str(jours),
+        '{{TOTAL_ANS}}': str(ans),
+        '{{TOTAL_MOIS}}': str(mois),
+        '{{TOTAL_JOURS}}': str(jours),
+        '{{PROPOSABLE}}': proposable,
+        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+        '{{VILLE}}': 'Cotonou',
+        '{{CRITERE_1}}': criteres[0] if len(criteres) > 0 else '',
+        '{{CRITERE_2}}': criteres[1] if len(criteres) > 1 else '',
+        '{{CRITERE_3}}': criteres[2] if len(criteres) > 2 else '',
+        '{{CRITERE_4}}': criteres[3] if len(criteres) > 3 else '',
+    }
+    
+    # Remplacer dans tous les paragraphes
+    for paragraph in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in paragraph.text:
+                paragraph.text = paragraph.text.replace(key, value)
+    
+    # Remplacer dans les tableaux
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for key, value in replacements.items():
+                        if key in paragraph.text:
+                            paragraph.text = paragraph.text.replace(key, value)
+    
+    # Sauvegarder en mémoire
+    docx_bytes = io.BytesIO()
+    doc.save(docx_bytes)
+    docx_bytes.seek(0)
+    
+    # Convertir en PDF
+    try:
+        pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes.getvalue())
+    except Exception as e:
+        print(f"Erreur conversion PDF: {e}")
+        response = HttpResponse(docx_bytes.getvalue(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.docx"'
+        return response
+    
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.pdf"'
+    return response

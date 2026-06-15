@@ -161,5 +161,13 @@ urlpatterns = [
     path('secretaire/actes-recus/<str:matricule_secretaire>/', views.get_actes_recus_secretaire, name='get_actes_recus_secretaire'),
     path('secretaire/transmettre-acte/<path:reference>/', views.transmettre_acte, name='transmettre_acte'),
     path('secretaire/remettre-acte/<path:reference>/', views.remettre_acte, name='remettre_acte'),
+
+    # ==================== BULLETIN DE NOTES ====================
+    path('agent/<str:matricule>/bulletin/', views.bulletin_agent, name='bulletin_agent'),
+    path('agent/<str:matricule>/bulletin/generer/', views.generer_bulletin_pdf, name='generer_bulletin_pdf'),
+    path('agent/<str:matricule>/enfants/', views.enfants_agent, name='enfants_agent'),
+    path('agent/<str:matricule>/enfants/<int:enfant_id>/', views.supprimer_enfant, name='supprimer_enfant'),
+
+
     
 ]
