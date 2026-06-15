@@ -4,7 +4,6 @@ import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import './App.css';
 
-// Fonction pour normaliser le rôle
 function normalizeRole(role) {
   if (!role || typeof role !== 'string') return '';
   let r = role.trim().toLowerCase();
@@ -23,16 +22,15 @@ export default function Profil() {
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  
-  // États pour la signature et le cachet
+
   const [signaturePreview, setSignaturePreview] = useState(null);
   const [cachetPreview, setCachetPreview] = useState(null);
   const [signatureLoading, setSignatureLoading] = useState(false);
   const [cachetLoading, setCachetLoading] = useState(false);
-  
+
   const signatureInputRef = useRef(null);
   const cachetInputRef = useRef(null);
-  
+
   const [userInfo, setUserInfo] = useState({
     matricule: localStorage.getItem('userMatricule') || '',
     nom: localStorage.getItem('userNom') || '',
@@ -46,32 +44,29 @@ export default function Profil() {
     date_naissance: '',
     adresse: '',
     corps: '',
-    echelon: ''
+    echelon: '',
+    // Nouveaux champs complémentaires
+    lieu_naissance: '',
+    dialectes: '',
+    date_mariage: '',
   });
 
   const matricule = localStorage.getItem('userMatricule');
   const rawRole = localStorage.getItem('userRole');
   const userRole = normalizeRole(rawRole);
-  
-  // ✅ Vérifier si l'utilisateur est DPAF ou DAPAF (tous les deux ont droit à signature/cachet)
+
   const canManageSignatureCachet = userRole === 'dpaf' || userRole === 'dapaf';
-  
-  // ✅ Obtenir le label du rôle pour l'affichage
+
   const getRoleLabel = () => {
-    if (userRole === 'dpaf') return 'Directeur de la Planification, de l\'Administration et des Finances';
-    if (userRole === 'dapaf') return 'Directeur des Affaires Politiques, Administratives et Financières';
+    if (userRole === 'dpaf') return "Directeur de la Planification, de l'Administration et des Finances";
+    if (userRole === 'dapaf') return "Directeur des Affaires Politiques, Administratives et Financières";
     return '';
   };
 
   useEffect(() => {
-    if (!matricule) {
-      navigate('/auth');
-      return;
-    }
+    if (!matricule) { navigate('/auth'); return; }
     fetchUserInfo();
-    if (canManageSignatureCachet) {
-      fetchSignatureCachet();
-    }
+    if (canManageSignatureCachet) fetchSignatureCachet();
   }, []);
 
   const fetchUserInfo = async () => {
@@ -92,7 +87,11 @@ export default function Profil() {
           date_naissance: data.date_naissance || '',
           adresse: data.adresse || '',
           corps: data.corps || '',
-          echelon: data.echelon || ''
+          echelon: data.echelon || '',
+          // Nouveaux champs
+          lieu_naissance: data.lieu_naissance || '',
+          dialectes: data.dialectes || '',
+          date_mariage: data.date_mariage || '',
         });
       }
     } catch (error) {
@@ -100,7 +99,6 @@ export default function Profil() {
     }
   };
 
-  // Récupérer la signature et le cachet existants
   const fetchSignatureCachet = async () => {
     try {
       const response = await fetch(`/api/agent/signature-cachet/${matricule}/`);
@@ -114,45 +112,31 @@ export default function Profil() {
     }
   };
 
-  // Upload de la signature
   const handleSignatureUpload = async (e) => {
     if (!canManageSignatureCachet) return;
-    
     const file = e.target.files[0];
     if (!file) return;
-    
-    if (!file.type.match('image.*')) {
-      alert('Veuillez sélectionner une image (PNG, JPEG)');
-      return;
-    }
-    
-    if (file.size > 2 * 1024 * 1024) {
-      alert('L\'image ne doit pas dépasser 2MB');
-      return;
-    }
-    
+    if (!file.type.match('image.*')) { alert('Veuillez sélectionner une image (PNG, JPEG)'); return; }
+    if (file.size > 2 * 1024 * 1024) { alert("L'image ne doit pas dépasser 2MB"); return; }
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result;
       setSignaturePreview(base64);
       setSignatureLoading(true);
-      
       try {
         const response = await fetch(`/api/agent/upload-signature/${matricule}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ signature: base64 })
         });
-        
         if (response.ok) {
           setSuccessMessage('✅ Signature enregistrée avec succès');
           setTimeout(() => setSuccessMessage(''), 3000);
         } else {
           const error = await response.json();
-          alert(error.error || 'Erreur lors de l\'enregistrement');
+          alert(error.error || "Erreur lors de l'enregistrement");
         }
       } catch (error) {
-        console.error('Erreur:', error);
         alert('Erreur de connexion');
       } finally {
         setSignatureLoading(false);
@@ -161,45 +145,31 @@ export default function Profil() {
     reader.readAsDataURL(file);
   };
 
-  // Upload du cachet
   const handleCachetUpload = async (e) => {
     if (!canManageSignatureCachet) return;
-    
     const file = e.target.files[0];
     if (!file) return;
-    
-    if (!file.type.match('image.*')) {
-      alert('Veuillez sélectionner une image (PNG, JPEG)');
-      return;
-    }
-    
-    if (file.size > 2 * 1024 * 1024) {
-      alert('L\'image ne doit pas dépasser 2MB');
-      return;
-    }
-    
+    if (!file.type.match('image.*')) { alert('Veuillez sélectionner une image (PNG, JPEG)'); return; }
+    if (file.size > 2 * 1024 * 1024) { alert("L'image ne doit pas dépasser 2MB"); return; }
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result;
       setCachetPreview(base64);
       setCachetLoading(true);
-      
       try {
         const response = await fetch(`/api/agent/upload-cachet/${matricule}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cachet: base64 })
         });
-        
         if (response.ok) {
           setSuccessMessage('✅ Cachet officiel enregistré avec succès');
           setTimeout(() => setSuccessMessage(''), 3000);
         } else {
           const error = await response.json();
-          alert(error.error || 'Erreur lors de l\'enregistrement');
+          alert(error.error || "Erreur lors de l'enregistrement");
         }
       } catch (error) {
-        console.error('Erreur:', error);
         alert('Erreur de connexion');
       } finally {
         setCachetLoading(false);
@@ -208,47 +178,31 @@ export default function Profil() {
     reader.readAsDataURL(file);
   };
 
-  // Supprimer la signature
   const handleDeleteSignature = async () => {
     if (!canManageSignatureCachet) return;
-    
     if (window.confirm('Voulez-vous vraiment supprimer votre signature ?')) {
       try {
-        const response = await fetch(`/api/agent/delete-signature/${matricule}/`, {
-          method: 'DELETE'
-        });
-        
+        const response = await fetch(`/api/agent/delete-signature/${matricule}/`, { method: 'DELETE' });
         if (response.ok) {
           setSignaturePreview(null);
           setSuccessMessage('✅ Signature supprimée');
           setTimeout(() => setSuccessMessage(''), 3000);
         }
-      } catch (error) {
-        console.error('Erreur:', error);
-        alert('Erreur de connexion');
-      }
+      } catch (error) { alert('Erreur de connexion'); }
     }
   };
 
-  // Supprimer le cachet
   const handleDeleteCachet = async () => {
     if (!canManageSignatureCachet) return;
-    
     if (window.confirm('Voulez-vous vraiment supprimer votre cachet ?')) {
       try {
-        const response = await fetch(`/api/agent/delete-cachet/${matricule}/`, {
-          method: 'DELETE'
-        });
-        
+        const response = await fetch(`/api/agent/delete-cachet/${matricule}/`, { method: 'DELETE' });
         if (response.ok) {
           setCachetPreview(null);
           setSuccessMessage('✅ Cachet supprimé');
           setTimeout(() => setSuccessMessage(''), 3000);
         }
-      } catch (error) {
-        console.error('Erreur:', error);
-        alert('Erreur de connexion');
-      }
+      } catch (error) { alert('Erreur de connexion'); }
     }
   };
 
@@ -261,14 +215,12 @@ export default function Profil() {
     setLoading(true);
     setSuccessMessage('');
     setErrorMessage('');
-    
     try {
       const response = await fetch(`/api/agent/${matricule}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userInfo)
       });
-      
       if (response.ok) {
         setSuccessMessage('Informations mises à jour avec succès !');
         localStorage.setItem('userNom', userInfo.nom);
@@ -289,12 +241,8 @@ export default function Profil() {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('fr-FR');
-    } catch {
-      return dateStr;
-    }
+    try { return new Date(dateStr).toLocaleDateString('fr-FR'); }
+    catch { return dateStr; }
   };
 
   return (
@@ -306,9 +254,7 @@ export default function Profil() {
           </a>
         </div>
         <PortalNav />
-        <div className="nav-right">
-          <UserMenu />
-        </div>
+        <div className="nav-right"><UserMenu /></div>
       </header>
 
       <main className="intranet-main">
@@ -319,7 +265,7 @@ export default function Profil() {
           </div>
         </section>
 
-        {/* Bouton Modifier */}
+        {/* Boutons action */}
         <div className="profil-actions-top">
           {!isEditing ? (
             <button className="btn-edit-profil-top" onClick={() => setIsEditing(true)}>
@@ -330,17 +276,13 @@ export default function Profil() {
               <button className="btn-save-top" onClick={handleSave} disabled={loading}>
                 {loading ? 'Enregistrement...' : '💾 Enregistrer'}
               </button>
-              <button className="btn-cancel-top" onClick={() => {
-                setIsEditing(false);
-                fetchUserInfo();
-              }}>
+              <button className="btn-cancel-top" onClick={() => { setIsEditing(false); fetchUserInfo(); }}>
                 ❌ Annuler
               </button>
             </div>
           )}
         </div>
 
-        {/* Messages */}
         {successMessage && (
           <div className="alert-success">
             <span className="alert-icon">✅</span>
@@ -356,8 +298,8 @@ export default function Profil() {
 
         <div className="agent-profile-section">
           <div className="agent-info-grid">
-            
-            {/* Carte 1: Informations personnelles */}
+
+            {/* Carte 1 : Informations personnelles */}
             <div className="agent-card">
               <div className="agent-card-header">
                 <h3>📋 Informations personnelles</h3>
@@ -369,56 +311,44 @@ export default function Profil() {
                 </div>
                 <div className="info-row">
                   <label>Nom *</label>
-                  {isEditing ? (
-                    <input type="text" name="nom" value={userInfo.nom} onChange={handleInputChange} required />
-                  ) : (
-                    <span>{userInfo.nom || '-'}</span>
-                  )}
+                  {isEditing ? <input type="text" name="nom" value={userInfo.nom} onChange={handleInputChange} required />
+                    : <span>{userInfo.nom || '-'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Prénom *</label>
-                  {isEditing ? (
-                    <input type="text" name="prenom" value={userInfo.prenom} onChange={handleInputChange} required />
-                  ) : (
-                    <span>{userInfo.prenom || '-'}</span>
-                  )}
+                  {isEditing ? <input type="text" name="prenom" value={userInfo.prenom} onChange={handleInputChange} required />
+                    : <span>{userInfo.prenom || '-'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Date de naissance</label>
+                  {isEditing ? <input type="date" name="date_naissance" value={userInfo.date_naissance} onChange={handleInputChange} />
+                    : <span>{formatDate(userInfo.date_naissance)}</span>}
+                </div>
+                <div className="info-row">
+                  <label>Lieu de naissance</label>
                   {isEditing ? (
-                    <input type="date" name="date_naissance" value={userInfo.date_naissance} onChange={handleInputChange} />
-                  ) : (
-                    <span>{formatDate(userInfo.date_naissance)}</span>
-                  )}
+                    <input type="text" name="lieu_naissance" value={userInfo.lieu_naissance} onChange={handleInputChange} placeholder="Ex : Cotonou" />
+                  ) : <span>{userInfo.lieu_naissance || 'Non renseigné'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Téléphone</label>
-                  {isEditing ? (
-                    <input type="tel" name="telephone" value={userInfo.telephone} onChange={handleInputChange} />
-                  ) : (
-                    <span>{userInfo.telephone || 'Non renseigné'}</span>
-                  )}
+                  {isEditing ? <input type="tel" name="telephone" value={userInfo.telephone} onChange={handleInputChange} />
+                    : <span>{userInfo.telephone || 'Non renseigné'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Email professionnel</label>
-                  {isEditing ? (
-                    <input type="email" name="email" value={userInfo.email} onChange={handleInputChange} required />
-                  ) : (
-                    <span>{userInfo.email}</span>
-                  )}
+                  {isEditing ? <input type="email" name="email" value={userInfo.email} onChange={handleInputChange} required />
+                    : <span>{userInfo.email}</span>}
                 </div>
                 <div className="info-row">
-                  <label>Adresse</label>
-                  {isEditing ? (
-                    <textarea name="adresse" value={userInfo.adresse} onChange={handleInputChange} rows="2" />
-                  ) : (
-                    <span>{userInfo.adresse || 'Non renseignée'}</span>
-                  )}
+                  <label>Adresse personnelle</label>
+                  {isEditing ? <textarea name="adresse" value={userInfo.adresse} onChange={handleInputChange} rows="2" placeholder="Ex : Quartier, Ville, Code postal" />
+                    : <span>{userInfo.adresse || 'Non renseignée'}</span>}
                 </div>
               </div>
             </div>
 
-            {/* Carte 2: Informations professionnelles */}
+            {/* Carte 2 : Informations professionnelles */}
             <div className="agent-card">
               <div className="agent-card-header">
                 <h3>💼 Informations professionnelles</h3>
@@ -426,19 +356,13 @@ export default function Profil() {
               <div className="agent-card-content">
                 <div className="info-row">
                   <label>Poste occupé</label>
-                  {isEditing ? (
-                    <input type="text" name="poste" value={userInfo.poste} onChange={handleInputChange} />
-                  ) : (
-                    <span>{userInfo.poste || 'Agent'}</span>
-                  )}
+                  {isEditing ? <input type="text" name="poste" value={userInfo.poste} onChange={handleInputChange} />
+                    : <span>{userInfo.poste || 'Agent'}</span>}
                 </div>
                 <div className="info-row">
-                  <label>Direction</label>
-                  {isEditing ? (
-                    <input type="text" name="direction" value={userInfo.direction} onChange={handleInputChange} />
-                  ) : (
-                    <span>{userInfo.direction || 'À renseigner'}</span>
-                  )}
+                  <label>Direction / Service</label>
+                  {isEditing ? <input type="text" name="direction" value={userInfo.direction} onChange={handleInputChange} />
+                    : <span>{userInfo.direction || 'À renseigner'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Type de contrat</label>
@@ -449,22 +373,17 @@ export default function Profil() {
                       <option value="ACE">ACE</option>
                       <option value="AAE">AAE</option>
                     </select>
-                  ) : (
-                    <span>{userInfo.typecontrat || 'APE'}</span>
-                  )}
+                  ) : <span>{userInfo.typecontrat || 'APE'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Date de prise de service</label>
-                  {isEditing ? (
-                    <input type="date" name="date_prise_service" value={userInfo.date_prise_service} onChange={handleInputChange} />
-                  ) : (
-                    <span>{formatDate(userInfo.date_prise_service)}</span>
-                  )}
+                  {isEditing ? <input type="date" name="date_prise_service" value={userInfo.date_prise_service} onChange={handleInputChange} />
+                    : <span>{formatDate(userInfo.date_prise_service)}</span>}
                 </div>
               </div>
             </div>
 
-            {/* Carte 3: Informations de carrière */}
+            {/* Carte 3 : Informations de carrière */}
             <div className="agent-card">
               <div className="agent-card-header">
                 <h3>📈 Informations de carrière</h3>
@@ -472,19 +391,13 @@ export default function Profil() {
               <div className="agent-card-content">
                 <div className="info-row">
                   <label>Corps</label>
-                  {isEditing ? (
-                    <input type="text" name="corps" value={userInfo.corps} onChange={handleInputChange} placeholder="Ex: Ingénieur des Travaux Informatiques" />
-                  ) : (
-                    <span>{userInfo.corps || 'Non renseigné'}</span>
-                  )}
+                  {isEditing ? <input type="text" name="corps" value={userInfo.corps} onChange={handleInputChange} placeholder="Ex: Ingénieur des Travaux Informatiques" />
+                    : <span>{userInfo.corps || 'Non renseigné'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Échelon</label>
-                  {isEditing ? (
-                    <input type="text" name="echelon" value={userInfo.echelon} onChange={handleInputChange} placeholder="Ex: A1-6" />
-                  ) : (
-                    <span>{userInfo.echelon || 'Non renseigné'}</span>
-                  )}
+                  {isEditing ? <input type="text" name="echelon" value={userInfo.echelon} onChange={handleInputChange} placeholder="Ex: A1-6" />
+                    : <span>{userInfo.echelon || 'Non renseigné'}</span>}
                 </div>
                 <div className="info-row">
                   <label>Ancienneté</label>
@@ -492,19 +405,44 @@ export default function Profil() {
                     {userInfo.date_prise_service ? (() => {
                       const start = new Date(userInfo.date_prise_service);
                       const now = new Date();
-                      const years = now.getFullYear() - start.getFullYear();
-                      const months = now.getMonth() - start.getMonth();
-                      let totalYears = years;
-                      if (months < 0) totalYears--;
-                      return `${totalYears} an${totalYears > 1 ? 's' : ''}`;
+                      let years = now.getFullYear() - start.getFullYear();
+                      if (now.getMonth() < start.getMonth()) years--;
+                      return `${years} an${years > 1 ? 's' : ''}`;
                     })() : '-'}
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Carte 4 : Informations complémentaires */}
+            <div className="agent-card">
+              <div className="agent-card-header">
+                <h3>📝 Informations complémentaires</h3>
+                <span style={{ fontSize: '11px', color: '#6b7280', background: '#F3F4F6', padding: '3px 8px', borderRadius: '10px' }}>
+                  Utilisées pour votre bulletin de notes
+                </span>
+              </div>
+              <div className="agent-card-content">
+                <div className="info-row">
+                  <label>Dialectes parlés</label>
+                  {isEditing ? (
+                    <input type="text" name="dialectes" value={userInfo.dialectes}
+                      onChange={handleInputChange} placeholder="Ex : Fon, Yoruba" />
+                  ) : <span>{userInfo.dialectes || 'Non renseigné'}</span>}
+                </div>
+                <div className="info-row">
+                  <label>Date de mariage</label>
+                  {isEditing ? (
+                    <input type="date" name="date_mariage" value={userInfo.date_mariage}
+                      onChange={handleInputChange} />
+                  ) : <span>{userInfo.date_mariage ? formatDate(userInfo.date_mariage) : 'Non renseigné'}</span>}
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          {/* ✅ SECTION SIGNATURE & CACHET - POUR DPAF ET DAPAF */}
+          {/* Section Signature & Cachet — DPAF / DAPAF uniquement */}
           {canManageSignatureCachet && (
             <div className="signature-cachet-card">
               <div className="card-header">
@@ -512,7 +450,7 @@ export default function Profil() {
                 <p className="card-subtitle">Espace réservé au {getRoleLabel()}</p>
               </div>
               <div className="signature-cachet-grid">
-                
+
                 {/* Signature */}
                 <div className="signature-box">
                   <h4>📝 Ma signature</h4>
@@ -520,14 +458,7 @@ export default function Profil() {
                     {signaturePreview ? (
                       <div className="preview-container">
                         <img src={signaturePreview} alt="Signature" className="signature-img" />
-                        <button 
-                          className="btn-delete"
-                          onClick={handleDeleteSignature}
-                          disabled={signatureLoading}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
+                        <button className="btn-delete" onClick={handleDeleteSignature} disabled={signatureLoading} title="Supprimer">🗑️</button>
                       </div>
                     ) : (
                       <div className="empty-preview">
@@ -536,20 +467,11 @@ export default function Profil() {
                       </div>
                     )}
                   </div>
-                  <button 
-                    className="btn-upload"
-                    onClick={() => signatureInputRef.current.click()}
-                    disabled={signatureLoading}
-                  >
+                  <button className="btn-upload" onClick={() => signatureInputRef.current.click()} disabled={signatureLoading}>
                     {signatureLoading ? 'Chargement...' : (signaturePreview ? '📤 Changer' : '📤 Télécharger')}
                   </button>
-                  <input
-                    type="file"
-                    ref={signatureInputRef}
-                    accept="image/png,image/jpeg,image/jpg"
-                    onChange={handleSignatureUpload}
-                    style={{ display: 'none' }}
-                  />
+                  <input type="file" ref={signatureInputRef} accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleSignatureUpload} style={{ display: 'none' }} />
                   <p className="help-text">PNG/JPEG, max 2MB (fond transparent recommandé)</p>
                 </div>
 
@@ -560,14 +482,7 @@ export default function Profil() {
                     {cachetPreview ? (
                       <div className="preview-container">
                         <img src={cachetPreview} alt="Cachet" className="cachet-img" />
-                        <button 
-                          className="btn-delete"
-                          onClick={handleDeleteCachet}
-                          disabled={cachetLoading}
-                          title="Supprimer"
-                        >
-                          🗑️
-                        </button>
+                        <button className="btn-delete" onClick={handleDeleteCachet} disabled={cachetLoading} title="Supprimer">🗑️</button>
                       </div>
                     ) : (
                       <div className="empty-preview">
@@ -576,22 +491,14 @@ export default function Profil() {
                       </div>
                     )}
                   </div>
-                  <button 
-                    className="btn-upload"
-                    onClick={() => cachetInputRef.current.click()}
-                    disabled={cachetLoading}
-                  >
+                  <button className="btn-upload" onClick={() => cachetInputRef.current.click()} disabled={cachetLoading}>
                     {cachetLoading ? 'Chargement...' : (cachetPreview ? '📤 Changer' : '📤 Télécharger')}
                   </button>
-                  <input
-                    type="file"
-                    ref={cachetInputRef}
-                    accept="image/png,image/jpeg,image/jpg"
-                    onChange={handleCachetUpload}
-                    style={{ display: 'none' }}
-                  />
+                  <input type="file" ref={cachetInputRef} accept="image/png,image/jpeg,image/jpg"
+                    onChange={handleCachetUpload} style={{ display: 'none' }} />
                   <p className="help-text warning">⚠️ Le cachet engage officiellement votre service</p>
                 </div>
+
               </div>
             </div>
           )}
@@ -617,9 +524,9 @@ export default function Profil() {
             <div className="footer-col">
               <h4>Liens Utiles</h4>
               <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
