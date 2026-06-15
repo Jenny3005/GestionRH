@@ -40,6 +40,10 @@ class Agent(models.Model):
     actif = models.IntegerField(blank=True, null=True)
     signature = models.TextField(null=True, blank=True)   # Stocke l'image de signature en base64
     cachet = models.TextField(null=True, blank=True)
+    lieu_naissance     = models.CharField(max_length=150, blank=True, null=True)
+    dialectes          = models.CharField(max_length=150, blank=True, null=True)
+    date_mariage       = models.DateField(blank=True, null=True)
+
 
     class Meta:
         managed = False
@@ -70,6 +74,32 @@ class Avancement(models.Model):
         db_table = 'avancement'
 
 
+class BulletinInfo(models.Model):
+    """Informations complémentaires pour le bulletin de notes"""
+    agent = models.OneToOneField(
+        Agent, 
+        on_delete=models.CASCADE,
+        related_name='bulletin_info'
+    )
+    
+    # Champs manquants
+    diplomes = models.TextField(blank=True, null=True, verbose_name="Diplômes")
+    profession_avant_service = models.CharField(max_length=255, blank=True, null=True, verbose_name="Profession avant service")
+    situation_militaire = models.CharField(max_length=255, blank=True, null=True, verbose_name="Situation militaire", default="Néant")
+    distinctions_honorifiques = models.TextField(blank=True, null=True, verbose_name="Distinctions honorifiques", default="Néant")
+    interruption_duree = models.CharField(max_length=50, blank=True, null=True, verbose_name="Durée interruption")
+    interruption_cause = models.CharField(max_length=255, blank=True, null=True, verbose_name="Cause interruption", default="Néant")
+    proposable_avancement = models.CharField(max_length=10, blank=True, null=True, default="Oui")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'bulletin_info'
+        verbose_name = "Information bulletin"
+        verbose_name_plural = "Informations bulletins"
+        
 class Candidature(models.Model):
     agent = models.ForeignKey(Agent, models.DO_NOTHING)
     poste_vacant = models.ForeignKey('PosteVacant', models.DO_NOTHING)
@@ -150,6 +180,21 @@ class DossierAgent(models.Model):
     class Meta:
         managed = False
         db_table = 'dossier_agent'
+
+class EnfantAgent(models.Model):
+    agent = models.ForeignKey(
+        Agent, 
+        on_delete=models.CASCADE,
+        db_column='matricule_agent',  # ← Le nom correct de ta colonne
+        to_field='matricule'
+    )
+    nom = models.CharField(max_length=100)
+    prenom = models.CharField(max_length=100)
+    date_naissance = models.DateField()
+
+    class Meta:
+        managed = False
+        db_table = 'enfant'
 
 class NoteService(models.Model):
     titre = models.CharField(max_length=255)
