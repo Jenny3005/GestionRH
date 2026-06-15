@@ -5745,7 +5745,6 @@ def check_anniversaires(request):
     
     # Récupérer les agents dont c'est l'anniversaire aujourd'hui
     agents = Agent.objects.filter(
-        actif=1,
         date_naissance__isnull=False,
         date_naissance__month=today.month,
         date_naissance__day=today.day
