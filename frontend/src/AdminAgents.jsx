@@ -761,7 +761,7 @@ const getRoleLabel = (role) => {
           <div className="footer-centered-logo-zone"><img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" /><p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p></div>
           <div className="footer-columns-grid">
             <div className="footer-col"><h4>Navigation Portail</h4><ul><li><a href="#carriere">Mon Profil & Carrière</a></li><li><a href="#demarches">Démarches en Ligne</a></li><li><a href="#documents">Documents & Notes</a></li></ul></div>
-            <div className="footer-col"><h4>Liens Utiles</h4><ul><li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li><li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li><li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li></ul></div>
+            <div className="footer-col"><h4>Liens Utiles</h4><ul><li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li><li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li><li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li></ul></div>
             <div className="footer-col"><h4>Contact & Situation</h4><p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p><p>📞 +229 21 30 70 13</p><p>✉️ numerique@gouv.bj</p></div>
           </div>
         </div>

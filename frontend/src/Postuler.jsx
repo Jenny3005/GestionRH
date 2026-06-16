@@ -229,24 +229,15 @@ export default function Postuler() {
         return;
       }
 
-      // 3. LANCER L'ANALYSE IA APRÈS L'UPLOAD
-      console.log('🤖 Lancement de l\'analyse IA...');
-      const analyseRes = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/analyser/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      const analyseData = await analyseRes.json();
-      console.log('📊 Résultat analyse:', analyseData);
-
-      const scoreFinal = analyseData.score || candidatureData.score || 0;
+      // ⭐ PLUS BESOIN D'ATTENDRE L'ANALYSE ! ⭐
+      // L'analyse se fait automatiquement en arrière-plan
       
       setMessage({ 
         type: 'success', 
-        text: `✅ Candidature envoyée avec succès ! Score IA: ${scoreFinal}/100` 
+        text: '✅ Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan. Vous recevrez une notification une fois terminée.' 
       });
       
-      // Nettoyer et rediriger
+      // Nettoyer et rediriger après 3 secondes
       setTimeout(() => {
         localStorage.removeItem('selectedPosteId');
         localStorage.removeItem('selectedPosteIntitule');
