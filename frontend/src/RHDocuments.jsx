@@ -17,13 +17,15 @@ export default function RHDocuments() {
   const [pendingUpload, setPendingUpload] = useState(null);
   const [expiryDate, setExpiryDate] = useState('');
 
-  // ✅ States pour les documents expirés
+  // States pour les documents expirés
   const [expiredDocs, setExpiredDocs] = useState([]);
   const [expiringSoonDocs, setExpiringSoonDocs] = useState([]);
 
+  // États pour l'analyse IA
   const [anomalies, setAnomalies] = useState([]);
   const [scoreDossier, setScoreDossier] = useState(100);
   const [aiAnalysis, setAiAnalysis] = useState('');
+  const [analyseLoading, setAnalyseLoading] = useState(false);
 
   const rhMatricule = localStorage.getItem('userMatricule');
 
@@ -42,7 +44,7 @@ export default function RHDocuments() {
           'X-User-Matricule': rhMatricule
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setAgentInfo(data.agent);
@@ -50,7 +52,7 @@ export default function RHDocuments() {
         setMissingDocs(data.missing_documents || []);
         setDossierData(data.dossier);
 
-        // 2. Détecter les documents expirés et ceux qui expirent bientôt
+        // Détecter les documents expirés / bientôt expirés
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const expired = [];
@@ -61,7 +63,7 @@ export default function RHDocuments() {
             const expDate = new Date(doc.date_expiration);
             expDate.setHours(0, 0, 0, 0);
             const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-            
+
             if (diffDays <= 0) {
               expired.push({ ...doc, daysExpired: Math.abs(diffDays) });
             } else if (diffDays <= 30) {
@@ -74,20 +76,29 @@ export default function RHDocuments() {
         setExpiringSoonDocs(expiring);
       }
 
-      // 3. ✅ Charger les anomalies
-      const anomaliesRes = await fetch(`/api/anomalies/${matricule}/`, {
+      // ✅ Afficher la page immédiatement (les documents sont prêts)
+      setLoading(false);
+
+      // 2. Lancer l'analyse IA en arrière-plan
+      setAnalyseLoading(true);
+      fetch(`/api/anomalies/${matricule}/`, {
         headers: { 'X-User-Matricule': rhMatricule }
-      });
-      if (anomaliesRes.ok) {
-        const anomalyData = await anomaliesRes.json();
-        setAnomalies(anomalyData.anomalies || []);
-        setScoreDossier(anomalyData.score || 100);
-        setAiAnalysis(anomalyData.ai_analysis || '');
-      }
+      })
+        .then(res => res.json())
+        .then(anomalyData => {
+          setAnomalies(anomalyData.anomalies || []);
+          setScoreDossier(anomalyData.score || 100);
+          setAiAnalysis(anomalyData.ai_analysis || '');
+          setAnalyseLoading(false);
+        })
+        .catch(err => {
+          console.error('Erreur analyse IA:', err);
+          setAiAnalysis('Analyse IA indisponible');
+          setAnalyseLoading(false);
+        });
 
     } catch (error) {
-      console.error('Erreur:', error);
-    } finally {
+      console.error('Erreur chargement documents:', error);
       setLoading(false);
     }
   };
@@ -95,18 +106,18 @@ export default function RHDocuments() {
   // Gérer l'upload - ouvre le modal pour la date
   const handleUpload = async (typePieceId, file) => {
     if (!file) return;
-    
+
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       showNotification('Format non supporté (PDF, JPG, PNG uniquement)', 'error');
       return;
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       showNotification('Fichier trop volumineux (max 5MB)', 'error');
       return;
     }
-    
+
     // Ouvrir le modal pour la date d'expiration
     setPendingUpload({ typePieceId, file });
     setExpiryDate('');
@@ -119,11 +130,11 @@ export default function RHDocuments() {
       alert('La date d\'expiration est obligatoire.');
       return;
     }
-    
+
     const { typePieceId, file } = pendingUpload;
     setShowExpiryModal(false);
     showNotification('Upload en cours...', 'info');
-    
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const formData = new FormData();
@@ -132,14 +143,14 @@ export default function RHDocuments() {
       formData.append('file_base64', e.target.result);
       formData.append('file_name', file.name);
       formData.append('date_expiration', expiryDate);
-      
+
       try {
         const response = await fetch('/api/documents/upload/', {
           method: 'POST',
           headers: { 'X-User-Matricule': rhMatricule },
           body: formData
         });
-        
+
         if (response.ok) {
           showNotification('✅ Document importé avec succès', 'success');
           loadDocuments();
@@ -184,13 +195,13 @@ export default function RHDocuments() {
 
   const handleDelete = async (pieceId) => {
     if (!window.confirm('Voulez-vous vraiment supprimer ce document ?')) return;
-    
+
     try {
       const response = await fetch(`/api/documents/delete/${pieceId}/`, {
         method: 'DELETE',
         headers: { 'X-User-Matricule': rhMatricule }
       });
-      
+
       if (response.ok) {
         showNotification('✅ Document supprimé', 'success');
         loadDocuments();
@@ -215,7 +226,7 @@ export default function RHDocuments() {
       {notification && (
         <div className={`notification-toast ${notification.type}`}>{notification.message}</div>
       )}
-      
+
       <header className="intranet-navbar">
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
@@ -237,7 +248,7 @@ export default function RHDocuments() {
           </div>
         </section>
 
-        {/* ✅ ALERTES D'EXPIRATION */}
+        {/* ALERTES D'EXPIRATION */}
         {(expiredDocs.length > 0 || expiringSoonDocs.length > 0) && (
           <section className="alertes-section" style={{ margin: '0 20px' }}>
             <div className="alertes-header">
@@ -251,9 +262,9 @@ export default function RHDocuments() {
                   <div className="alerte-content">
                     <div className="alerte-title">
                       {doc.type_piece_libelle}
-                      {doc.daysExpired === 0 
+                      {doc.daysExpired === 0
                         ? " expire aujourd'hui"
-                        : doc.daysExpired === 1 
+                        : doc.daysExpired === 1
                           ? " a expiré hier"
                           : ` est expiré depuis ${doc.daysExpired} jours`
                       }
@@ -270,7 +281,7 @@ export default function RHDocuments() {
                   </div>
                 </div>
               ))}
-              
+
               {expiringSoonDocs.map((doc) => (
                 <div key={doc.id} className="alerte-card warning">
                   <div className="alerte-icon">⏰</div>
@@ -294,15 +305,15 @@ export default function RHDocuments() {
           </section>
         )}
 
-        {/* ✅ ANOMALIES DÉTECTÉES */}
+        {/* ANOMALIES DÉTECTÉES */}
         {anomalies.length > 0 && (
           <section className="alertes-section" style={{ margin: '0 20px' }}>
             <div className="alertes-header">
               <span className="alertes-icon">🔍</span>
               <h3>
-                Anomalies détectées ({anomalies.length}) 
-                <span style={{ 
-                  marginLeft: '10px', 
+                Anomalies détectées ({anomalies.length})
+                <span style={{
+                  marginLeft: '10px',
                   fontSize: '14px',
                   color: scoreDossier >= 80 ? '#10B981' : scoreDossier >= 50 ? '#F59E0B' : '#EF4444'
                 }}>
@@ -312,8 +323,8 @@ export default function RHDocuments() {
             </div>
             <div className="alertes-list">
               {anomalies.map((a, i) => (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   className={`alerte-card ${a.severite === 'haute' ? 'urgent' : a.severite === 'moyenne' ? 'warning' : ''}`}
                   style={a.severite === 'basse' ? { background: '#f8f9fa', borderLeft: '4px solid #6c757d' } : {}}
                 >
@@ -329,17 +340,24 @@ export default function RHDocuments() {
           </section>
         )}
 
-        {/* ✅ ANALYSE IA */}
-        {aiAnalysis && (
-          <div className="rh-card full-width" style={{ margin: '20px' }}>
-            <div className="rh-card-header">
-              <h3>🤖 Analyse IA du dossier</h3>
-            </div>
-            <div style={{ padding: '20px', whiteSpace: 'pre-line', fontSize: '14px', lineHeight: '1.6', background: '#f8f9fa', borderRadius: '8px' }}>
-              {aiAnalysis}
-            </div>
+        {/* ANALYSE IA */}
+        <div className="rh-card full-width" style={{ margin: '20px' }}>
+          <div className="rh-card-header">
+            <h3>🤖 Analyse IA du dossier</h3>
           </div>
-        )}
+          <div style={{ padding: '20px', fontSize: '14px', lineHeight: '1.6', background: '#f8f9fa', borderRadius: '8px' }}>
+            {analyseLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px' }}>
+                <div className="spinner" style={{ margin: '0 auto', width: '40px', height: '40px', border: '4px solid #e0e0e0', borderTopColor: '#0B192C', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <p style={{ marginTop: '10px', color: '#666' }}>Analyse IA en cours...</p>
+              </div>
+            ) : aiAnalysis ? (
+              <div style={{ whiteSpace: 'pre-line' }}>{aiAnalysis}</div>
+            ) : (
+              <p>Aucune analyse IA disponible pour le moment.</p>
+            )}
+          </div>
+        </div>
 
         {/* Documents manquants avec bouton d'ajout */}
         {missingDocs.length > 0 && (
@@ -493,6 +511,12 @@ export default function RHDocuments() {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
