@@ -45,6 +45,11 @@ try:
 except ImportError:
     docx2pdf_convert = None
 
+
+def est_chef(agent):
+    """Vérifie si l'agent possède le rôle 'chef'"""
+    return AgentRole.objects.filter(agent=agent, role__libelle__iexact='chef').exists()
+
 # ==================== UTILITAIRES DOCX & PDF ====================
 
 def _copy_run_format(source_run, target_run):
@@ -857,6 +862,12 @@ def demande_conge(request):
             return JsonResponse({'error': 'Veuillez renseigner les dates'}, status=400)
         
         agent = Agent.objects.get(matricule=matricule)
+
+        # ⛔ Refuser si l'agent est chef
+        if est_chef(agent):
+            return JsonResponse({
+                'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la hiérarchie (Ministre ou supérieur).'
+            }, status=403)
         
         date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
         date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
@@ -961,7 +972,6 @@ def demande_conge(request):
         print(f"ERREUR demande_conge: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def demande_absence(request):
@@ -976,6 +986,12 @@ def demande_absence(request):
             return JsonResponse({'error': 'Veuillez renseigner les dates'}, status=400)
         
         agent = Agent.objects.get(matricule=matricule)
+
+        # ⛔ Refuser si l'agent est chef
+        if est_chef(agent):
+            return JsonResponse({
+                'error': 'Vous êtes un chef de service. Les absences doivent être autorisées par votre supérieur hiérarchique.'
+            }, status=403)
         
         date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
         date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
@@ -1040,7 +1056,6 @@ def demande_absence(request):
     except Exception as e:
         print(f"ERREUR demande_absence: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
