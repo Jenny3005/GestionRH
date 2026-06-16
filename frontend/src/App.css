@@ -2614,6 +2614,9 @@ body {
 /* Tableau des demandes */
 .agent-table-container {
   overflow-x: auto;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  background: #FFFFFF;
 }
 
 .agent-table {
@@ -2623,16 +2626,30 @@ body {
 
 .agent-table th {
   text-align: left;
-  padding: 0.5rem;
+  padding: 0.75rem;
   font-size: 0.7rem;
   color: #64748B;
   font-weight: 600;
+  background: #F8FAFC;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #E2E8F0;
 }
 
 .agent-table td {
-  padding: 0.5rem;
+  padding: 0.75rem;
   font-size: 0.8rem;
   border-bottom: 1px solid #F1F5F9;
+  color: #0B192C;
+  vertical-align: middle;
+}
+
+.agent-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.agent-table tbody tr:hover {
+  background: #F8FAFC;
 }
 
 /* Badges de statut */
@@ -2649,6 +2666,55 @@ body {
 .status-badge.waiting {
   background: #EFF6FF;
   color: #2563EB;
+}
+
+.status-badge.progress,
+.status-badge.status-progress {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+.status-badge.rejected,
+.status-badge.status-rejected,
+.status-badge.inactive {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.status-badge.active,
+.status-badge.status-active {
+  background: #D1FAE5;
+  color: #059669;
+}
+
+.btn-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.45rem 0.8rem;
+  background: #0B192C;
+  color: #FFFFFF;
+  border: 1px solid #0B192C;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-view:hover {
+  background: #D4AF37;
+  border-color: #D4AF37;
+  color: #0B192C;
+  transform: translateY(-1px);
+}
+
+.btn-view:focus-visible {
+  outline: 3px solid rgba(212, 175, 55, 0.3);
+  outline-offset: 2px;
 }
 
 /* Liste des congés */
@@ -7409,4 +7475,558 @@ body {
 .carriere-card .btn-demande {
   margin-top: auto; /* Pousse le bouton vers le bas */
   width: 100%;
+}
+
+/* ==========================================================================
+   CORRECTIFS RESPONSIVE GLOBAUX
+   ========================================================================== */
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body,
+#root {
+  min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+  font: inherit;
+}
+
+.intranet-main,
+.left-column,
+.right-column,
+.admin-section,
+.admin-actions,
+.agent-card,
+.rh-card,
+.info-card-section,
+.sidebar-links-card,
+.modal-content,
+.note-modal-content {
+  min-width: 0;
+}
+
+.admin-table,
+.agent-table,
+.rh-table {
+  min-width: 720px;
+}
+
+.admin-table-container,
+.agent-table-container,
+.rh-table-container,
+.acte-preview,
+.note-modal-body {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table-container,
+.agent-table-container,
+.rh-table-container {
+  max-width: 100%;
+}
+
+.admin-table th,
+.admin-table td,
+.agent-table th,
+.agent-table td,
+.rh-table th,
+.rh-table td {
+  white-space: nowrap;
+}
+
+.admin-actions-bar,
+.rh-actions-bar,
+.action-buttons,
+.rh-actions-buttons,
+.edit-actions-top,
+.modal-footer,
+.modal-buttons,
+.acte-card-footer,
+.preview-modal-footer,
+.news-actions,
+.rh-actions-cell,
+.action-buttons-cell {
+  flex-wrap: wrap;
+}
+
+.admin-stat-card,
+.agent-stat-card,
+.rh-stat-card,
+.alerte-card,
+.notification-item,
+.missing-reminder-card,
+.agent-conge-item,
+.rh-list-item,
+.alerte-piece,
+.suivi-agent-card,
+.demande-detail-item-elegant,
+.info-message-elegant {
+  min-width: 0;
+}
+
+.admin-stat-info,
+.agent-stat-info,
+.rh-stat-info,
+.alerte-content,
+.notification-content,
+.rh-list-info,
+.agent-conge-info,
+.m-text,
+.poste-main-info,
+.detail-content,
+.agent-info-elegant {
+  min-width: 0;
+}
+
+.admin-stat-info *,
+.agent-stat-info *,
+.rh-stat-info *,
+.alerte-content *,
+.notification-content *,
+.rh-list-info *,
+.agent-conge-info *,
+.m-text *,
+.poste-main-info *,
+.note-modal-body *,
+.agent-info-elegant *,
+.detail-value,
+.readonly-value {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1200px) {
+  .agent-dashboard-grid,
+  .rh-dashboard-grid,
+  .agent-info-grid,
+  .actes-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  }
+
+  .admin-section,
+  .admin-actions,
+  .admin-stats-grid,
+  .agent-stats-grid,
+  .agent-dashboard-grid,
+  .agent-profile-section,
+  .rh-stats-grid,
+  .rh-dashboard-grid,
+  .rh-filters,
+  .profil-actions-top,
+  .agent-info-grid,
+  .docs-section,
+  .alertes-section {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .intranet-navbar {
+    min-height: 90px;
+    height: auto;
+    padding: 0.65rem 1rem;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .intranet-home {
+    padding-top: 132px;
+  }
+
+  .nav-left-zone {
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .mnd-official-logo {
+    height: 72px !important;
+  }
+
+  .nav-right {
+    margin-left: auto;
+    gap: 0.75rem;
+  }
+
+  .nav-central-links {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.15rem 0 0.35rem;
+    scrollbar-width: thin;
+  }
+
+  .nav-tab-item {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.65rem;
+    border-radius: 999px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .nav-tab-item.active {
+    background: #0B192C;
+    color: #FFFFFF;
+    border-color: #0B192C;
+  }
+
+  .nav-tab-item::after,
+  .nav-tab-item.active::after {
+    display: none;
+  }
+
+  .hero-banner-intranet,
+  .demarches-hero,
+  .documents-hero {
+    padding: 3rem 1.25rem;
+    min-height: auto;
+  }
+
+  .hero-banner-intranet h2,
+  .demarches-hero h1,
+  .documents-hero h1 {
+    font-size: clamp(1.45rem, 6vw, 2rem);
+    line-height: 1.15;
+  }
+
+  .hero-banner-intranet p,
+  .demarches-hero p,
+  .documents-hero p {
+    font-size: 0.95rem;
+  }
+
+  .intranet-grid-layout,
+  .footer-main-content,
+  .attestations-section,
+  .conges-section,
+  .carriere-section,
+  .dossier-section,
+  .dossier-complet-section,
+  .docs-section,
+  .alertes-section {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .info-card-section,
+  .sidebar-links-card,
+  .admin-section,
+  .admin-actions,
+  .agent-card,
+  .rh-card,
+  .permissions-list,
+  .roles-permissions,
+  .signature-cachet-card {
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  .admin-section,
+  .admin-actions,
+  .rh-card.full-width {
+    margin-left: 1rem !important;
+    margin-right: 1rem !important;
+  }
+
+  .rh-card.full-width {
+    padding: 0;
+  }
+
+  .admin-stats-grid,
+  .agent-stats-grid,
+  .rh-stats-grid,
+  .agent-dashboard-grid,
+  .rh-dashboard-grid,
+  .agent-profile-section,
+  .rh-filters,
+  .profil-actions-top,
+  .agent-info-grid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .attestations-grid,
+  .conges-grid,
+  .carriere-grid,
+  .docs-grid,
+  .roles-cards-grid,
+  .roles-permissions-grid,
+  .rh-export-options,
+  .actes-grid,
+  .signature-cachet-grid,
+  .demande-details-grid-elegant {
+    grid-template-columns: 1fr;
+  }
+
+  .dossier-content {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .documents-stats,
+  .hero-stats-demarches {
+    gap: 0.75rem;
+  }
+
+  .stat-card,
+  .hero-stats-demarches .stat-item {
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 640px) {
+  .intranet-home {
+    padding-top: 150px;
+  }
+
+  .intranet-navbar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .mnd-official-logo {
+    height: 58px !important;
+  }
+
+  .btn-login-main,
+  .btn-rh-primary,
+  .btn-rh-secondary,
+  .btn-auth-submit,
+  .btn-add,
+  .btn-export,
+  .btn-import,
+  .btn-edit-profil-top,
+  .btn-save-top,
+  .btn-cancel-top,
+  .btn-apply-small,
+  .btn-demande {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .nav-right {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  .user-badge {
+    max-width: 100%;
+    padding: 0.35rem 0.55rem;
+    gap: 0.45rem;
+  }
+
+  .user-meta {
+    min-width: 0;
+  }
+
+  .user-name,
+  .user-role {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dropdown-menu,
+  .admin-dropdown-menu {
+    position: fixed;
+    top: 112px;
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .section-header-premium,
+  .section-header-with-icon,
+  .rh-card-header,
+  .agent-card-header,
+  .acte-card-header,
+  .modal-header,
+  .modal-header-content-elegant {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .modal-header .modal-close,
+  .modal-close,
+  .note-modal-close {
+    align-self: flex-end;
+  }
+
+  .poste-item-card,
+  .alerte-card,
+  .agent-conge-item,
+  .rh-list-item,
+  .alerte-piece,
+  .notification-item,
+  .suivi-agent-card,
+  .missing-doc-row,
+  .agent-card-content-elegant {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .poste-action-zone,
+  .rh-actions-buttons,
+  .action-buttons,
+  .edit-actions-top,
+  .modal-footer,
+  .modal-buttons,
+  .acte-card-footer,
+  .preview-modal-footer,
+  .export-buttons,
+  .doc-card-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row,
+  .modal-body .form-row,
+  .modal-conge-form .form-row,
+  .modal-absence-form .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-container {
+    padding: 1rem;
+    align-items: flex-start;
+  }
+
+  .auth-card {
+    border-radius: 18px;
+    padding: 1.25rem;
+  }
+
+  .auth-logo-img {
+    height: 150px !important;
+  }
+
+  .auth-tabs {
+    border-radius: 16px;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .auth-tab {
+    border-radius: 12px;
+  }
+
+  .modal-overlay,
+  .note-modal-overlay {
+    align-items: flex-start;
+    padding: 0.75rem;
+    overflow-y: auto;
+  }
+
+  .modal-content,
+  .assigner-modal-elegant,
+  .suivi-modal,
+  .preview-modal,
+  .note-modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+    margin: 0;
+    border-radius: 14px;
+  }
+
+  .modal-body,
+  .suivi-modal-body,
+  .note-modal-body {
+    padding: 1rem;
+  }
+
+  .note-modal-header,
+  .note-modal-footer,
+  .modal-header,
+  .modal-footer {
+    padding: 1rem;
+  }
+
+  .note-modal-body table {
+    min-width: 620px;
+  }
+
+  .admin-table,
+  .agent-table,
+  .rh-table {
+    min-width: 640px;
+  }
+
+  .footer-bottom-bar {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .intranet-home {
+    padding-top: 166px;
+  }
+
+  .mnd-official-logo {
+    height: 48px !important;
+  }
+
+  .nav-tab-item {
+    font-size: 0.78rem;
+    padding: 0.4rem 0.55rem;
+  }
+
+  .hero-banner-intranet,
+  .demarches-hero,
+  .documents-hero {
+    padding: 2.25rem 0.9rem;
+  }
+
+  .info-card-section,
+  .sidebar-links-card,
+  .admin-section,
+  .admin-actions,
+  .agent-card,
+  .rh-card,
+  .attestation-card,
+  .conges-card,
+  .carriere-card,
+  .doc-card,
+  .role-card,
+  .role-permission-card,
+  .acte-card {
+    padding: 0.85rem;
+  }
+
+  .user-name,
+  .user-role {
+    max-width: 112px;
+  }
+
+  .admin-stat-card,
+  .agent-stat-card,
+  .rh-stat-card,
+  .completude-dossier {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
