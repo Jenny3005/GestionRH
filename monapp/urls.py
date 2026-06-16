@@ -129,6 +129,7 @@ urlpatterns = [
     path('candidatures/exporter/<int:poste_id>/', views.exporter_candidatures, name='exporter_candidatures'),
     path('candidatures/<int:candidature_id>/pieces/', views.get_candidature_pieces, name='get_candidature_pieces'),
     path('candidatures/', views.get_candidatures_agent, name='get_candidatures_agent'),
+    path('candidatures/<int:candidature_id>/status/', views.check_candidature_status, name='check_candidature_status'),
 
     path('notes-service/', views.notes_service, name='notes_service'),
     path('notes-service/<int:note_id>/', views.note_service_detail, name='note_service_detail'),

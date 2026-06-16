@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import threading
 from django.contrib.auth.hashers import make_password, check_password
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx import Document
@@ -4655,7 +4656,7 @@ def cloturer_poste_vacant(request, poste_id):
 @csrf_exempt
 @require_http_methods(["POST"])
 def postuler(request):
-    """Agent dépose une candidature (sans analyse IA - l'analyse se fait après upload)"""
+    """Agent dépose une candidature - analyse en arrière-plan"""
     print("=" * 60)
     print("🔍 [DEBUG] postuler() a été appelée")
     print("=" * 60)
@@ -4735,7 +4736,7 @@ def postuler(request):
         
         return JsonResponse({
             'success': True, 
-            'message': 'Candidature créée, veuillez uploader vos documents', 
+            'message': 'Candidature créée, veuillez uploader vos documents. L\'analyse IA se fera automatiquement en arrière-plan.', 
             'candidature_id': candidature_id
         })
         
@@ -4746,6 +4747,63 @@ def postuler(request):
         print(f"❌ ERREUR dans postuler: {str(e)}")
         import traceback
         traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def lancer_analyse_async(candidature_id):
+    """Lance l'analyse IA en arrière-plan"""
+    print("=" * 60)
+    print(f"🚀 [ASYNC] LANCEMENT de l'analyse pour candidature {candidature_id}")
+    print("=" * 60)
+    
+    try:
+        # Attendre un peu que tous les fichiers soient bien enregistrés
+        import time
+        time.sleep(2)
+        
+        from .views import analyser_candidature
+        from django.test import RequestFactory
+        
+        factory = RequestFactory()
+        request = factory.post(f'/api/candidatures/{candidature_id}/analyser/')
+        
+        print(f"📡 Appel de analyser_candidature...")
+        result = analyser_candidature(request, candidature_id)
+        print(f"✅ [ASYNC] Analyse terminée pour candidature {candidature_id}")
+        
+    except Exception as e:
+        print(f"❌ [ASYNC] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        
+@csrf_exempt
+@require_http_methods(["GET"])
+def check_candidature_status(request, candidature_id):
+    """Vérifier le statut d'une candidature"""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT c.id, c.statut, c.score_eligibilite, 
+                       c.analyse_ia, COUNT(p.id) as nb_pieces
+                FROM candidature c
+                LEFT JOIN piece p ON p.candidature_id = c.id
+                WHERE c.id = %s
+                GROUP BY c.id
+            """, [candidature_id])
+            result = cursor.fetchone()
+            
+            if not result:
+                return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
+            
+            return JsonResponse({
+                'candidature_id': result[0],
+                'statut': result[1],
+                'score': result[2] or 0,
+                'analyse': result[3] or '',
+                'nb_pieces': result[4] or 0,
+                'analyse_terminee': result[2] is not None and result[2] > 0
+            })
+    except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
 def extraire_texte_piece(piece_id):
@@ -5270,17 +5328,11 @@ def upload_piece_candidature(request, candidature_id):
             return JsonResponse({'error': 'type_document, file_base64 et file_name requis'}, status=400)
         
         # ========== NETTOYAGE ET CORRECTION DU BASE64 ==========
-        # 1. Supprimer l'en-tête si présent (ex: "data:application/pdf;base64,")
         if ',' in file_base64:
             file_base64 = file_base64.split(',', 1)[1]
-        
-        # 2. Supprimer les espaces et sauts de ligne
         file_base64 = file_base64.strip()
-        
-        # 3. Corriger le padding Base64 (ajouter les = manquants)
         file_base64 = fix_base64_padding(file_base64)
         
-        # 4. Décoder le Base64
         try:
             file_data = base64.b64decode(file_base64)
         except Exception as e:
@@ -5289,7 +5341,7 @@ def upload_piece_candidature(request, candidature_id):
         # ========== VÉRIFICATION DE LA CANDIDATURE ==========
         with connection.cursor() as cursor:
             cursor.execute("""
-                SELECT c.agent_id, p.intitule 
+                SELECT c.agent_id, p.intitule, p.pieces_requises
                 FROM candidature c 
                 JOIN poste_vacant p ON c.poste_vacant_id = p.id 
                 WHERE c.id = %s
@@ -5299,17 +5351,17 @@ def upload_piece_candidature(request, candidature_id):
             if not result:
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
             
+            pieces_requises = json.loads(result[2]) if result[2] else ['CV', 'LM', 'DIPLOME']
+            print(f"📋 Pièces requises: {pieces_requises}")
+            
             # ========== SAUVEGARDE SUR DISQUE ==========
-            # Créer le dossier pour les pièces si nécessaire
             upload_dir = f'uploads/pieces/candidature_{candidature_id}'
             os.makedirs(upload_dir, exist_ok=True)
             
-            # Générer un nom de fichier unique et sécurisé
             safe_filename = f"{type_document}_{candidature_id}_{date.today()}_{file_name}"
             safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in '._-')
             file_path = os.path.join(upload_dir, safe_filename)
             
-            # Sauvegarder le fichier physiquement
             with open(file_path, 'wb') as f:
                 f.write(file_data)
             
@@ -5326,25 +5378,53 @@ def upload_piece_candidature(request, candidature_id):
             else:
                 type_piece_id = type_piece[0]
             
-            # Supprimer l'ancienne pièce du même type si elle existe
+            # Supprimer l'ancienne pièce du même type
             cursor.execute("""
                 DELETE FROM piece 
                 WHERE candidature_id = %s AND type_piece_id = %s
             """, [candidature_id, type_piece_id])
             
-            # Insérer la nouvelle pièce dans la base de données
+            # Insérer la nouvelle pièce
             cursor.execute("""
                 INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier) 
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, [candidature_id, type_piece_id, file_name, date.today(), 1, file_path])
+            
+            # ========== COMPTER LES PIÈCES UPLOADÉES ==========
+            cursor.execute("""
+                SELECT COUNT(DISTINCT tp.libelle)
+                FROM piece p
+                JOIN type_piece tp ON p.type_piece_id = tp.id
+                WHERE p.candidature_id = %s
+            """, [candidature_id])
+            uploaded_count = cursor.fetchone()[0]
+            
+            required_count = len(pieces_requises)
+            
+            print(f"📊 Progression: {uploaded_count}/{required_count} pièces uploadées")
+            
+            # ========== LANCER L'ANALYSE SI TOUTES LES PIÈCES SONT UPLOADÉES ==========
+            if uploaded_count >= required_count:
+                print(f"🎯 TOUTES LES PIÈCES SONT UPLOADÉES ({uploaded_count}/{required_count})")
+                print(f"🚀 Lancement de l'analyse asynchrone pour candidature {candidature_id}")
+                
+                # Lancer l'analyse en arrière-plan
+                thread = threading.Thread(target=lancer_analyse_async, args=(candidature_id,))
+                thread.daemon = True
+                thread.start()
+                
+                print(f"✅ Analyse asynchrone lancée pour candidature {candidature_id}")
+            else:
+                print(f"⏳ En attente des autres pièces... ({uploaded_count}/{required_count})")
         
         return JsonResponse({'success': True, 'message': f'{type_document} ajouté avec succès'})
         
     except Exception as e:
         import traceback
-        print(f"ERREUR upload_piece_candidature: {traceback.format_exc()}")
+        print(f"❌ ERREUR upload_piece_candidature: {traceback.format_exc()}")
         return JsonResponse({'error': str(e)}, status=500)
-    
+
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def update_poste_vacant(request, poste_id):
