@@ -232,7 +232,8 @@ class Permission(models.Model):
 
 
 class Piece(models.Model):
-    dossier_agent = models.ForeignKey(DossierAgent, models.DO_NOTHING)
+    dossier_agent = models.ForeignKey(DossierAgent, models.DO_NOTHING, blank=True, null=True)
+    candidature = models.ForeignKey('Candidature', models.DO_NOTHING, blank=True, null=True)
     type_piece = models.ForeignKey('TypePiece', models.DO_NOTHING)
     nom_fichier = models.CharField(max_length=255)
     date_expiration = models.DateField(blank=True, null=True)

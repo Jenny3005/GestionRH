@@ -4951,30 +4951,90 @@ def extraire_texte_piece(piece_id):
         print(f"Erreur extraction: {e}")
         return ""
 
-def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, diplome_requis, profil_recherche):
-    """Analyse une candidature avec Ollama et retourne un score et une analyse"""
-    print("\n" + "=" * 70)
-    print("🔍 [DEBUG] analyser_candidature_avec_ia() a été appelée")
-    print(f"📌 Candidature ID: {candidature_id}")
-    print("=" * 70)
-    
-    # Vérifier quels documents sont disponibles
-    cv_disponible = cv_text and len(cv_text.strip()) > 50
-    lettre_disponible = lettre_text and len(lettre_text.strip()) > 50
-    diplome_disponible = diplome_text and len(diplome_text.strip()) > 50
-    
-    print(f"📊 Documents disponibles:")
-    print(f"   - CV: {'✅' if cv_disponible else '❌'} ({len(cv_text) if cv_text else 0} caractères)")
-    print(f"   - Lettre de motivation: {'✅' if lettre_disponible else '❌'} ({len(lettre_text) if lettre_text else 0} caractères)")
-    print(f"   - Diplôme: {'✅' if diplome_disponible else '❌'} ({len(diplome_text) if diplome_text else 0} caractères)")
-    
-    # Cas éliminatoires
+def _normaliser_type_piece(libelle):
+    """Retourne un code stable pour comparer les pieces d'une annonce."""
+    if not libelle:
+        return ''
+    value = str(libelle).strip().upper()
+    try:
+        value = value.encode('ascii', 'ignore').decode('ascii')
+    except Exception:
+        pass
+    value = re.sub(r'[^A-Z0-9]+', '', value)
+    aliases = {
+        'LETTREDEMOTIVATION': 'LM',
+        'LETTREMOTIVATION': 'LM',
+        'LM': 'LM',
+        'CV': 'CV',
+        'CURRICULUMVITAE': 'CV',
+        'DIPLOME': 'DIPLOME',
+        'DIPLOMES': 'DIPLOME',
+        'DIPLME': 'DIPLOME',
+        'ATTESTATION': 'ATTESTATION',
+        'ATTESTATIONDETRAVAIL': 'ATTESTATION',
+        'CNI': 'CNI',
+        'CARTEIDENTITE': 'CNI',
+        'CARTEDIDENTITE': 'CNI',
+    }
+    return aliases.get(value, value)
+
+
+def _charger_pieces_requises(value):
+    """Parse pieces_requises depuis JSONField/texte SQL et normalise les codes."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            value = [value]
+    if not isinstance(value, list):
+        return []
+    pieces = []
+    for item in value:
+        code = _normaliser_type_piece(item)
+        if code and code not in pieces:
+            pieces.append(code)
+    return pieces
+
+
+def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, diplome_requis, profil_recherche, pieces_requises=None, pieces_fournies=None, textes_par_piece=None):
+    pieces_requises = pieces_requises or []
+    pieces_fournies = pieces_fournies or []
+    textes_par_piece = textes_par_piece or {}
+    pieces_fournies_set = {_normaliser_type_piece(p) for p in pieces_fournies}
+    pieces_manquantes = [p for p in pieces_requises if p not in pieces_fournies_set]
+
+    if pieces_manquantes:
+        return 0, "Dossier incomplet: pieces obligatoires manquantes pour ce poste: " + ", ".join(pieces_manquantes)
+
+    cv_disponible = bool(cv_text and cv_text.strip())
+    lettre_disponible = bool(lettre_text and lettre_text.strip())
+    diplome_disponible = bool(diplome_text and diplome_text.strip())
+    cv_requis = 'CV' in pieces_requises
+    lettre_requise = 'LM' in pieces_requises
+    diplome_requis_piece = 'DIPLOME' in pieces_requises
+
+    if not cv_requis:
+        cv_disponible = True
+    if not diplome_requis_piece:
+        diplome_disponible = True
+    if lettre_requise and not (lettre_text and lettre_text.strip()):
+        return 0, "Dossier incomplet: lettre de motivation obligatoire fournie mais contenu illisible ou vide."
+
+    autres_pieces_resume = ""
+    for code, texte in textes_par_piece.items():
+        code = _normaliser_type_piece(code)
+        if code in {'CV', 'LM', 'DIPLOME', 'CNI'}:
+            continue
+        if texte:
+            autres_pieces_resume += f"\n**CONTENU {code} :**\n{texte[:800]}\n"
+
     if not cv_disponible:
         return 0, "❌ CV manquant - dossier incomplet"
     if not diplome_disponible:
         return 0, "❌ Diplôme manquant - dossier incomplet"
     
-    # Construire le prompt pour analyse réelle du contenu
     prompt = f"""
     Tu es un expert RH. Analyse le CONTENU de ces documents et évalue la candidature.
     
@@ -4983,12 +5043,12 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     - Profil recherché : {profil_recherche if profil_recherche else 'Non spécifié'}
     
     **CONTENU DU CV :**
-    {cv_text[:2500]}
+    {cv_text[:2500] if cv_text else 'Non fourni / non requis'}
     
     **CONTENU DU DIPLÔME :**
-    {diplome_text[:800]}
+    {diplome_text[:800] if diplome_text else 'Non fourni / non requis'}
+    {autres_pieces_resume}
     """
-    
     if lettre_disponible:
         prompt += f"""
     **CONTENU DE LA LETTRE DE MOTIVATION :**
