@@ -2613,7 +2613,7 @@ body {
 
 /* Tableau des demandes */
 .agent-table-container {
-  overflow-x: auto;
+  overflow-x: visible;
   border: 1px solid #E2E8F0;
   border-radius: 12px;
   background: #FFFFFF;
@@ -2621,7 +2621,9 @@ body {
 
 .agent-table {
   width: 100%;
+  min-width: 0;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .agent-table th {
@@ -2642,6 +2644,7 @@ body {
   border-bottom: 1px solid #F1F5F9;
   color: #0B192C;
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .agent-table tbody tr:last-child td {
@@ -7521,13 +7524,11 @@ textarea {
 }
 
 .admin-table,
-.agent-table,
 .rh-table {
   min-width: 720px;
 }
 
 .admin-table-container,
-.agent-table-container,
 .rh-table-container,
 .acte-preview,
 .note-modal-body {
@@ -7536,15 +7537,12 @@ textarea {
 }
 
 .admin-table-container,
-.agent-table-container,
 .rh-table-container {
   max-width: 100%;
 }
 
 .admin-table th,
 .admin-table td,
-.agent-table th,
-.agent-table td,
 .rh-table th,
 .rh-table td {
   white-space: nowrap;
@@ -7971,13 +7969,41 @@ textarea {
   }
 
   .admin-table,
-  .agent-table,
   .rh-table {
     min-width: 640px;
   }
 
   .footer-bottom-bar {
     padding: 1rem;
+  }
+
+  .agent-table-container {
+    overflow-x: visible;
+  }
+
+  .agent-table {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .agent-table th,
+  .agent-table td {
+    padding: 0.5rem 0.35rem;
+    font-size: 0.68rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .agent-table .status-badge {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.62rem;
+  }
+
+  .agent-table .btn-view {
+    min-height: 30px;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.65rem;
+    white-space: normal;
   }
 }
 
