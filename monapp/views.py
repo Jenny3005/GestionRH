@@ -5543,6 +5543,55 @@ def get_candidatures_agent(request):
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
+# ==================== ANNIVERSAIRES ====================
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def check_anniversaires(request):
+    """
+    Vérifie les anniversaires du jour et envoie les emails.
+    À appeler une fois par jour (via un cron ou au chargement du dashboard RH).
+    """
+    from .emails import envoyer_email_anniversaire
+    
+    today = date.today()
+    count = 0
+    
+    # Récupérer les agents dont c'est l'anniversaire aujourd'hui
+    agents = Agent.objects.filter(
+        date_naissance__isnull=False,
+        date_naissance__month=today.month,
+        date_naissance__day=today.day
+    )
+    
+    for agent in agents:
+        # Vérifier qu'on n'a pas déjà envoyé l'email aujourd'hui
+        deja_envoye = Notification.objects.filter(
+            agent=agent,
+            type_notification='anniversaire',
+            date_envoi=today
+        ).exists()
+        
+        if not deja_envoye:
+            succes, _ = envoyer_email_anniversaire(agent)
+            if succes:
+                # Créer une notification pour tracer l'envoi
+                Notification.objects.create(
+                    agent=agent,
+                    message=f"🎂 Joyeux anniversaire {agent.prenom} ! Toute l'équipe RH vous souhaite une excellente journée.",
+                    type_notification='anniversaire',
+                    date_envoi=today,
+                    lue=0
+                )
+                count += 1
+    
+    return JsonResponse({
+        'success': True,
+        'date': str(today),
+        'anniversaires_du_jour': agents.count(),
+        'emails_envoyes': count
+    })
+
 
 # ── Critères par catégorie ──────────────────────────────────────
 CRITERES = {

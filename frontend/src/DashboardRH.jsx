@@ -212,6 +212,13 @@ export default function DashboardRH() {
         const data = await expiredRes.json();
         setStats(prev => ({ ...prev, documentsExpires: data.total_expired || 0 }));
       }
+
+      const anniversairesRes = await fetch('http://localhost:8000/api/anniversaires/check/');
+      if (anniversairesRes.ok) {
+        const data = await anniversairesRes.json();
+        setStats(prev => ({ ...prev, anniversairesDuJour: data.anniversaires_du_jour || 0 }));
+      }
+      
     } catch (error) {
       console.error('❌ Erreur chargement:', error);
     } finally {

@@ -3,6 +3,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
+from datetime import date
 
 
 def _envoyer_email(sujet, template, context, destinataire):
@@ -136,5 +137,30 @@ def envoyer_email_avancement_agent(agent, echelon_ancien, echelon_nouveau, date_
         print(f"✅ Email avancement envoyé à l'agent {agent.email}")
     else:
         print(f"⚠️ Erreur email avancement agent {agent.email} : {erreur}")
+
+    return succes, erreur
+
+def envoyer_email_anniversaire(agent):
+    """
+    Envoie un email de joyeux anniversaire à un agent.
+    """
+    context = {
+        'prenom': agent.prenom,
+        'nom': agent.nom,
+        'matricule': agent.matricule,
+        'age': (date.today().year - agent.date_naissance.year) if agent.date_naissance else '?',
+    }
+
+    succes, erreur = _envoyer_email(
+        sujet='🎂 Joyeux anniversaire !',
+        template='emails/anniversaire.html',
+        context=context,
+        destinataire=agent.email,
+    )
+
+    if succes:
+        print(f"✅ Email anniversaire envoyé à {agent.email}")
+    else:
+        print(f"❌ Erreur email anniversaire pour {agent.email} : {erreur}")
 
     return succes, erreur
