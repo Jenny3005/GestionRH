@@ -10,6 +10,10 @@ export default function Demarches() {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   
+  // États pour la modale d'erreur
+  const [errorModal, setErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
   // États pour les formulaires
   const [showCongeForm, setShowCongeForm] = useState(false);
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
@@ -151,7 +155,12 @@ export default function Demarches() {
         fetchSoldeConge(matricule);
         fetchMesDemandes(matricule);
       } else {
-        alert(data.error || 'Erreur lors de la demande');
+        if (response.status === 403) {
+          setErrorMessage(data.error || 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la hiérarchie (Ministre).');
+          setErrorModal(true);
+        } else {
+          alert(data.error || 'Erreur lors de la demande');
+        }
       }
     } catch (error) {
       alert('Erreur de connexion');
@@ -206,7 +215,12 @@ export default function Demarches() {
         fetchTotalAbsences(matricule);
         fetchMesDemandes(matricule);
       } else {
-        alert(data.error || 'Erreur lors de la demande');
+        if (response.status === 403) {
+          setErrorMessage(data.error || 'Vous êtes un chef de service. Les absences doivent être autorisées par votre supérieur hiérarchique.');
+          setErrorModal(true);
+        } else {
+          alert(data.error || 'Erreur lors de la demande');
+        }
       }
     } catch (error) {
       alert('Erreur de connexion');
@@ -342,7 +356,6 @@ export default function Demarches() {
   };
 
   // Vérifier si l'agent peut obtenir le certificat (avec anti-cache)
-  // ✅ Prend l'année en paramètre pour éviter le problème de closure
   const verifierNonJouissance = async (annee) => {
     if (!matricule) return;
     
@@ -435,7 +448,6 @@ export default function Demarches() {
   const ouvrirModalCertificat = () => {
     setShowCertificatModal(true);
     setCertificatVerification(null);
-    // ✅ Passe l'année actuelle
     verifierNonJouissance(certificatAnnee);
   };
 
@@ -844,201 +856,208 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* MODAL FORMULAIRE CONGÉ */}
+      {/* ==================== MODAL DEMANDE DE CONGÉ (ÉLÉGANT) ==================== */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3> Demande de congé</h3>
+          <div className="modal-content modal-conge" onClick={(e) => e.stopPropagation()}>
             
-            {soldeConge && (
-              <div className="solde-info">
-                <p>Solde disponible : <strong>{soldeConge.jours_restants} jours</strong></p>
+            {/* En-tête */}
+            <div className="modal-conge-header">
+              <div className="modal-conge-header-content">
+                <div className="modal-conge-icon-wrapper">
+                  <span className="icon">📅</span>
+                </div>
+                <div className="modal-conge-title-section">
+                  <h3 className="modal-conge-title">Demande de congé</h3>
+                  <p className="modal-conge-subtitle">Soumettez votre demande de congé annuel</p>
+                </div>
+                <button className="modal-conge-close" onClick={() => setShowCongeForm(false)}>✕</button>
               </div>
-            )}
-            
-            <div className="form-group">
-              <label>Date de début *</label>
-              <input 
-                type="date" 
-                name="date_debut" 
-                value={congeForm.date_debut} 
-                onChange={handleCongeChange} 
-                required
-              />
             </div>
-            
-            <div className="form-group">
-              <label>Date de fin *</label>
-              <input 
-                type="date" 
-                name="date_fin" 
-                value={congeForm.date_fin} 
-                onChange={handleCongeChange} 
-                required
-              />
+
+            {/* Corps */}
+            <div className="modal-body" style={{ padding: '24px 30px' }}>
+              
+              {/* Solde */}
+              {soldeConge && (
+                <div className="modal-conge-solde">
+                  <span className="modal-conge-solde-icon">🌴</span>
+                  <div className="modal-conge-solde-text">
+                    Solde disponible : <strong>{soldeConge.jours_restants}</strong> jours
+                    <small>Congés restants pour l'année en cours</small>
+                  </div>
+                </div>
+              )}
+
+              {/* Formulaire */}
+              <div className="modal-conge-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date de début <span className="required">*</span></label>
+                    <input 
+                      type="date" 
+                      name="date_debut" 
+                      value={congeForm.date_debut} 
+                      onChange={handleCongeChange} 
+                      required
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Date de fin <span className="required">*</span></label>
+                    <input 
+                      type="date" 
+                      name="date_fin" 
+                      value={congeForm.date_fin} 
+                      onChange={handleCongeChange} 
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            
-            <div className="modal-buttons">
-              <button onClick={() => setShowCongeForm(false)}>Annuler</button>
-              <button onClick={soumettreDemandeConge} disabled={loading}>
-                {loading ? 'Envoi...' : 'Envoyer la demande'}
+
+            {/* Footer */}
+            <div className="modal-conge-footer">
+              <button className="btn-conge-cancel" onClick={() => setShowCongeForm(false)}>
+                Annuler
+              </button>
+              <button className="btn-conge-submit" onClick={soumettreDemandeConge} disabled={loading}>
+                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
               </button>
             </div>
+
           </div>
         </div>
       )}
-      
-      {/* MODAL FORMULAIRE ABSENCE EXCEPTIONNELLE */}
+
+      {/* ==================== MODAL ABSENCE EXCEPTIONNELLE (ÉLÉGANT) ==================== */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="modal-content modal-absence" onClick={(e) => e.stopPropagation()}>
             
-            <div className="modal-header-absence" style={{ flexShrink: 0 }}>
-              <h3>
-                <span>⏰</span> Demande d'absence exceptionnelle
-              </h3>
+            {/* En-tête */}
+            <div className="modal-absence-header">
+              <div className="modal-absence-header-content">
+                <div className="modal-absence-icon-wrapper">
+                  <span className="icon">⏰</span>
+                </div>
+                <div className="modal-absence-title-section">
+                  <h3 className="modal-absence-title">Demande d'absence exceptionnelle</h3>
+                  <p className="modal-absence-subtitle">Motif exceptionnel nécessitant une autorisation</p>
+                </div>
+                <button className="modal-absence-close" onClick={() => setShowAbsenceForm(false)}>✕</button>
+              </div>
             </div>
-            
-            <div style={{ 
-              padding: '1rem 1.5rem', 
-              overflowY: 'auto', 
-              flex: 1,
-              maxHeight: 'calc(90vh - 120px)'
-            }}>
+
+            {/* Corps */}
+            <div className="modal-absence-body">
               
-              <div className="limite-card">
-                <div className="limite-title"> RÈGLEMENTATION</div>
-                <div className="limite-value">10 jours par an</div>
-                <div className="limite-subtitle">Maximum autorisé par agent et par année civile</div>
+              {/* Réglementation */}
+              <div className="modal-absence-reglement">
+                <span className="modal-absence-reglement-icon">📋</span>
+                <div className="modal-absence-reglement-text">
+                  <strong>RÈGLEMENTATION</strong>
+                  <span>Maximum 10 jours par an par agent</span>
+                </div>
               </div>
 
-              <div className="progress-absence">
-                <div 
-                  className="progress-absence-fill" 
-                  style={{ width: `${(totalAbsences / 10) * 100}%` }}
-                ></div>
+              {/* Progression */}
+              <div className="modal-absence-progress">
+                <div className="modal-absence-progress-labels">
+                  <span>Consommé : {totalAbsences} jours</span>
+                  <span>Restant : {10 - totalAbsences} jours</span>
+                </div>
+                <div className="modal-absence-progress-track">
+                  <div 
+                    className="modal-absence-progress-fill" 
+                    style={{ width: `${(totalAbsences / 10) * 100}%` }}
+                  ></div>
+                </div>
               </div>
 
-              <div className="jours-stats">
-                <div className="jours-stat-item">
+              {/* Stats */}
+              <div className="modal-absence-stats">
+                <div className="modal-absence-stat">
+                  <span className="stat-number consumed">{totalAbsences}</span>
                   <span className="stat-label">Consommés</span>
-                  <span className="stat-value consumed">{totalAbsences}</span>
                   <span className="stat-unit">jours</span>
                 </div>
-                <div className="jours-stat-item">
+                <div className="modal-absence-stat">
+                  <span className="stat-number remaining">{10 - totalAbsences}</span>
                   <span className="stat-label">Restants</span>
-                  <span className="stat-value remaining">{10 - totalAbsences}</span>
                   <span className="stat-unit">jours</span>
                 </div>
-                <div className="jours-stat-item">
+                <div className="modal-absence-stat">
+                  <span className="stat-number">10</span>
                   <span className="stat-label">Maximum</span>
-                  <span className="stat-value">10</span>
                   <span className="stat-unit">jours/an</span>
                 </div>
               </div>
 
+              {/* Alerte si proche de la limite */}
               {totalAbsences >= 8 && (
-                <div className="alert-warning">
-                  <span className="alert-icon">⚠️</span>
+                <div className="modal-absence-alert">
+                  <span className="icon">⚠️</span>
                   <span>Vous avez consommé {totalAbsences} jours sur 10. Il vous reste {10 - totalAbsences} jour(s).</span>
                 </div>
               )}
 
-              <div className="form-group">
-                <label>📅 Date de début <span className="required">*</span></label>
-                <input 
-                  type="date" 
-                  name="date_debut" 
-                  value={absenceForm.date_debut} 
-                  onChange={handleAbsenceChange} 
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>📅 Date de fin <span className="required">*</span></label>
-                <input 
-                  type="date" 
-                  name="date_fin" 
-                  value={absenceForm.date_fin} 
-                  onChange={handleAbsenceChange} 
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label>✏️ Motif de l'absence <span className="required">*</span></label>
-                <textarea 
-                  name="motif" 
-                  rows="3" 
-                  value={absenceForm.motif} 
-                  onChange={handleAbsenceChange} 
-                  placeholder="Ex: Rendez-vous médical, obligation familiale, formation, etc."
-                  required
-                ></textarea>
-              </div>
+              {/* Formulaire */}
+              <div className="modal-absence-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Date de début <span className="required">*</span></label>
+                    <input 
+                      type="date" 
+                      name="date_debut" 
+                      value={absenceForm.date_debut} 
+                      onChange={handleAbsenceChange} 
+                      required
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Date de fin <span className="required">*</span></label>
+                    <input 
+                      type="date" 
+                      name="date_fin" 
+                      value={absenceForm.date_fin} 
+                      onChange={handleAbsenceChange} 
+                      required
+                    />
+                  </div>
+                </div>
 
-              <div style={{ 
-                background: '#f8fafc', 
-                padding: '0.75rem', 
-                borderRadius: '8px', 
-                margin: '1rem 0',
-                fontSize: '0.75rem',
-                color: '#64748b',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}>
-                <span>ℹ️</span>
-                <span>Cette demande sera soumise à la validation de votre supérieur hiérarchique. Vous serez notifié de la décision.</span>
+                <div className="form-group">
+                  <label>Motif de l'absence <span className="required">*</span></label>
+                  <textarea 
+                    name="motif" 
+                    rows="3" 
+                    value={absenceForm.motif} 
+                    onChange={handleAbsenceChange} 
+                    placeholder="Ex: Rendez-vous médical, obligation familiale, formation, etc."
+                    required
+                  ></textarea>
+                </div>
+
+                <div className="modal-absence-info">
+                  <span className="icon">ℹ️</span>
+                  <span>Cette demande sera soumise à la validation de votre supérieur hiérarchique. Vous serez notifié de la décision.</span>
+                </div>
               </div>
             </div>
-            
-            <div className="modal-footer" style={{ 
-              flexShrink: 0, 
-              display: 'flex', 
-              justifyContent: 'flex-end', 
-              gap: '1rem',
-              padding: '1rem 1.5rem',
-              borderTop: '1px solid #e2e8f0',
-              background: 'white',
-              borderRadius: '0 0 16px 16px'
-            }}>
-              <button 
-                type="button"
-                className="btn-cancel" 
-                onClick={() => setShowAbsenceForm(false)}
-                style={{
-                  background: '#e2e8f0',
-                  color: '#334155',
-                  border: 'none',
-                  padding: '0.6rem 1.2rem',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
+
+            {/* Footer */}
+            <div className="modal-absence-footer">
+              <button className="btn-absence-cancel" onClick={() => setShowAbsenceForm(false)}>
                 Annuler
               </button>
-              <button 
-                type="button"
-                className="btn-submit" 
-                onClick={soumettreDemandeAbsence} 
-                disabled={loading}
-                style={{
-                  background: '#f59e0b',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.6rem 1.2rem',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Envoi en cours...' : '📤 Envoyer la demande'}
+              <button className="btn-absence-submit" onClick={soumettreDemandeAbsence} disabled={loading}>
+                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
               </button>
             </div>
+
           </div>
         </div>
       )}
@@ -1062,7 +1081,6 @@ export default function Demarches() {
                     console.log(`🔄 Changement d'année: ${certificatAnnee} → ${nouvelleAnnee}`);
                     setCertificatAnnee(nouvelleAnnee);
                     setCertificatVerification(null);
-                    // ✅ Appel direct avec la nouvelle année
                     verifierNonJouissance(nouvelleAnnee);
                   }}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
@@ -1142,6 +1160,35 @@ export default function Demarches() {
                 }}
               >
                 {certificatLoading ? 'Génération...' : 'Générer le certificat →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ERREUR CHEF */}
+      {errorModal && (
+        <div className="modal-overlay" onClick={() => setErrorModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottom: 'none' }}>
+              <h3 style={{ color: '#DC2626', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>⛔</span> Accès refusé
+              </h3>
+              <button className="modal-close" onClick={() => setErrorModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ textAlign: 'center', padding: '20px 20px 10px' }}>
+              <div style={{ fontSize: '56px', marginBottom: '16px' }}>🚫</div>
+              <p style={{ fontSize: '16px', color: '#374151', lineHeight: '1.7' }}>
+                {errorMessage}
+              </p>
+            </div>
+            <div className="modal-footer" style={{ justifyContent: 'center' }}>
+              <button 
+                className="btn-close-modal" 
+                onClick={() => setErrorModal(false)}
+                style={{ background: '#DC2626', color: 'white', border: 'none', padding: '10px 30px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                J'ai compris
               </button>
             </div>
           </div>
