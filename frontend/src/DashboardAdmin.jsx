@@ -177,11 +177,11 @@ export default function DashboardAdmin() {
                 </div>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
-                   Tableau de bord
+                  Tableau de bord
                 </button>
                 <Can permission="VOIR_AGENTS">
                   <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
-                    👥 Agents
+                    Agents
                   </button>
                 </Can>
                 <Can permission="GERER_ROLES">
@@ -191,22 +191,22 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>
-                    🔐 Permissions
+                    Permissions
                   </button>
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
-                     Types de demande
+                    Types de demande
                   </button>
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
-                     Types de pièce
+                    Types de pièce
                   </button>
                 </Can>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
-                   Se déconnecter
+                  Se déconnecter
                 </button>
               </div>
             )}

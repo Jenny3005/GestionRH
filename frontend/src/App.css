@@ -8207,3 +8207,31 @@ textarea {
     justify-content: center;
   }
 }
+
+.dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 20px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-top: 1px solid #E2E8F0;
+  border-left: 1px solid #E2E8F0;
+  transform: rotate(45deg);
+}
+
+.dropdown-menu {
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
