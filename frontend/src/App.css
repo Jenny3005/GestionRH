@@ -184,10 +184,10 @@ body {
     url('/unsplash.jpg') no-repeat center/cover;
   
   color: white;
-  padding: 9.5rem 2.5rem; 
+  padding: 130px 25px; 
   width: 100%;
   border-bottom: 4px solid #D4AF37;
-  min-height: 340px; 
+  min-height: auto; 
   
   /* L'astuce magique pour tout centrer horizontalement et verticalement */
   display: flex;
@@ -218,7 +218,7 @@ body {
 }
 
 .hero-banner-intranet h2 {
-  font-size: 2.6rem; /* Un poil plus grand pour imposer le style centré */
+  font-size: 1.75rem; /* Un poil plus grand pour imposer le style centré */
   font-weight: 800;
   margin-bottom: 1rem;
   width: 100%;

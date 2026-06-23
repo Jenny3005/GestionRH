@@ -105,14 +105,11 @@ export default function DashboardRH() {
   // Filtres du calendrier
   const [calendrierAnnee, setCalendrierAnnee] = useState(new Date().getFullYear().toString());
   const [calendrierMois, setCalendrierMois] = useState('');
+  const [calendrierDirection, setCalendrierDirection] = useState('');
 
   // Pagination du calendrier
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  // Filtres pour le bordereau
-  const [bordereauAnnee, setBordereauAnnee] = useState(new Date().getFullYear().toString());
-  const [bordereauMois, setBordereauMois] = useState('');
 
   const [newAgent, setNewAgent] = useState({
     matricule: '',
@@ -1034,8 +1031,8 @@ export default function DashboardRH() {
 
   const handleExportBordereau = async () => {
     try {
-      const annee = bordereauAnnee;
-      const mois = bordereauMois;
+      const annee = calendrierAnnee;
+      const mois = calendrierMois;
 
       const agentsRes = await fetch('http://localhost:8000/api/agents/');
       if (!agentsRes.ok) throw new Error('Erreur chargement agents');
@@ -1060,6 +1057,7 @@ export default function DashboardRH() {
       const rows = [];
 
       agents.forEach(agent => {
+        if (calendrierDirection && agent.direction !== calendrierDirection) return;
         if (!agent.date_prise_service || isNaN(new Date(agent.date_prise_service))) return;
 
         const agentAvancements = avancementsByAgent[agent.matricule] || [];
@@ -1139,12 +1137,19 @@ export default function DashboardRH() {
     }
   };
 
+  // Filtrer selon la direction (client‑side)
+  const agendaFiltre = calendrierDirection
+    ? avancementsAgenda.filter(a => a.agent_direction === calendrierDirection)
+    : avancementsAgenda;
+
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = avancementsAgenda.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(avancementsAgenda.length / itemsPerPage);
+  const currentItems = agendaFiltre.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(agendaFiltre.length / itemsPerPage);
 
   const alertesSemaine = alertesAvancement.filter(a => a.jours_restants <= 7).length;
+  // Liste unique des directions présentes dans l'agenda (triée)
+  const directionsDisponibles = [...new Set(avancementsAgenda.map(a => a.agent_direction).filter(Boolean))].sort();
 
   if (permissionsLoading || loading) {
     return <div className="loading-screen">Chargement...</div>;
@@ -1545,41 +1550,127 @@ export default function DashboardRH() {
             <div className="rh-stat-card">
               <div className="rh-stat-icon">📈</div>
               <div className="rh-stat-info">
-                <span className="rh-stat-value">{avancementsStats.total}</span>
+                <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.total}</span>
                 <span className="rh-stat-label">Avancements cette année</span>
               </div>
             </div>
             <div className="rh-stat-card">
               <div className="rh-stat-icon">📅</div>
               <div className="rh-stat-info">
-                <span className="rh-stat-value">{avancementsStats.prochain ? avancementsStats.prochain.date_prevue : '-'}</span>
+                <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.prochain ? avancementsStats.prochain.date_prevue : '-'}</span>
                 <span className="rh-stat-label">Prochain avancement</span>
               </div>
             </div>
             <div className="rh-stat-card">
               <div className="rh-stat-icon">⚠️</div>
               <div className="rh-stat-info">
-                <span className="rh-stat-value">{alertesAvancement.length}</span>
+                <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{alertesAvancement.length}</span>
                 <span className="rh-stat-label">Alertes en cours</span>
               </div>
             </div>
           </div>
 
           <div className="rh-card full-width">
-            <div className="rh-card-header">
-              <h3> Calendrier des avancements</h3>
-              <div>
-                <input type="number" placeholder="Année" value={calendrierAnnee} onChange={(e) => { setCalendrierAnnee(e.target.value); fetchAvancementsAgenda(e.target.value, calendrierMois); }} />
-                <select value={calendrierMois} onChange={(e) => { setCalendrierMois(e.target.value); fetchAvancementsAgenda(calendrierAnnee, e.target.value); }}>
+            <div className="rh-card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
+              <h3>📅 Calendrier des avancements</h3>
+              <div style={{ 
+                display: 'flex', 
+                gap: '8px', 
+                alignItems: 'center', 
+                flexWrap: 'wrap' 
+              }}>
+                <input 
+                  type="number" 
+                  placeholder="Année" 
+                  value={calendrierAnnee}
+                  onChange={(e) => {
+                    setCalendrierAnnee(e.target.value);
+                    fetchAvancementsAgenda(e.target.value, calendrierMois);
+                    setCurrentPage(1);
+                  }}
+                  style={{ 
+                    width: '70px', 
+                    padding: '6px 8px', 
+                    border: '1px solid #CBD5E1', 
+                    borderRadius: '6px',
+                    fontSize: '13px' 
+                  }}
+                />
+                <select 
+                  value={calendrierMois}
+                  onChange={(e) => {
+                    setCalendrierMois(e.target.value);
+                    fetchAvancementsAgenda(calendrierAnnee, e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  style={{ 
+                    padding: '6px 8px', 
+                    border: '1px solid #CBD5E1', 
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    background: 'white'
+                  }}
+                >
                   <option value="">Tous les mois</option>
-                  {[...Array(12)].map((_, i) => (<option key={i+1} value={i+1}>{new Date(2026, i).toLocaleString('fr', { month: 'long' })}</option>))}
+                  {[...Array(12)].map((_, i) => (
+                    <option key={i+1} value={i+1}>
+                      {new Date(2026, i).toLocaleString('fr', { month: 'long' })}
+                    </option>
+                  ))}
                 </select>
-                <button className="btn-rh-secondary" onClick={() => { setCalendrierAnnee(new Date().getFullYear().toString()); setCalendrierMois(''); fetchAvancementsAgenda(new Date().getFullYear().toString(), ''); }}>Réinitialiser</button>
+                <select 
+                  value={calendrierDirection}
+                  onChange={(e) => {
+                    setCalendrierDirection(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  style={{ 
+                    padding: '6px 8px', 
+                    border: '1px solid #CBD5E1', 
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    background: 'white',
+                    maxWidth: '150px'
+                  }}
+                >
+                  <option value="">Toutes les directions</option>
+                  {directionsDisponibles.map(dir => (
+                    <option key={dir} value={dir}>{dir}</option>
+                  ))}
+                </select>
+                <button 
+                  className="btn-rh-secondary" 
+                  onClick={() => {
+                    setCalendrierAnnee(new Date().getFullYear().toString());
+                    setCalendrierMois('');
+                    setCalendrierDirection('');
+                    fetchAvancementsAgenda(new Date().getFullYear().toString(), '');
+                    setCurrentPage(1);
+                  }}
+                  style={{ fontSize: '13px' }}
+                >
+                  🔄 Réinitialiser
+                </button>
+                <button 
+                  className="btn-rh-primary" 
+                  onClick={handleExportBordereau}
+                  style={{ fontSize: '13px' }}
+                >
+                  📊 Bordereau PDF
+                </button>
               </div>
             </div>
             <div className="rh-table-container">
               <table className="rh-table">
-                <thead><tr><th>Agent</th><th>Direction</th><th>Date prévue</th><th>Échelon actuel → Nouveau</th><th>Type</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th style={{ width: '25%' }}>Agent</th>
+                    <th style={{ width: '25%' }}>Direction</th>
+                    <th style={{ width: '20%' }}>Date prévue</th>
+                    <th style={{ width: '15%' }}>Échelon actuel</th>
+                    <th style={{ width: '15%' }}>Nouvel échelon</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {currentItems.length === 0 ? (
                     <tr><td colSpan="5">Aucun avancement trouvé</td></tr>
@@ -1589,8 +1680,8 @@ export default function DashboardRH() {
                         <td>{a.agent_nom}</td>
                         <td>{a.agent_direction}</td>
                         <td>{new Date(a.date_prevue).toLocaleDateString('fr-FR')}</td>
-                        <td>{a.echelon_ancien} → {a.echelon_nouveau}</td>
-                        <td>{a.type === 'normal' ? 'Normal' : 'Exceptionnel'}</td>
+                        <td>{a.echelon_ancien}</td>
+                        <td>{a.echelon_nouveau}</td>
                       </tr>
                     ))
                   )}
@@ -1605,23 +1696,8 @@ export default function DashboardRH() {
               </div>
             )}
           </div>
-
-          <div className="rh-card full-width">
-            <div className="rh-card-header"><h3> Bordereau des avancements</h3></div>
-            <div style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px' }}>
-                <input type="number" placeholder="Année (ex: 2027)" value={bordereauAnnee} onChange={(e) => setBordereauAnnee(e.target.value)} />
-                <select value={bordereauMois} onChange={(e) => setBordereauMois(e.target.value)}>
-                  <option value="">Tous les mois</option>
-                  {[...Array(12)].map((_, i) => (<option key={i+1} value={i+1}>{new Date(2026, i).toLocaleString('fr', { month: 'long' })}</option>))}
-                </select>
-                <button className="btn-rh-primary" onClick={handleExportBordereau}>📊 Générer le bordereau (PDF)</button>
-              </div>
-              <p style={{ color: '#666', fontSize: '13px' }}>Sélectionnez une année et éventuellement un mois, puis cliquez pour télécharger le bordereau au format PDF.</p>
-            </div>
-          </div>
         </div>
-      )}
+        )}
 
       {/* Modal Ajouter Annonce */}
       {showAddAnnonceModal && (

@@ -4127,7 +4127,7 @@ def detect_anomalies(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         dossier = DossierAgent.objects.filter(agent=agent).first()
         if not dossier:
-            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': 'Aucun dossier trouvé.'})
+            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': '{}'})
         
         pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
         anomalies = []
@@ -4161,39 +4161,42 @@ def detect_anomalies(request, matricule):
         
         score = max(0, min(100, score))
         
-        resume = f"""Agent: {agent.prenom} {agent.nom}
-Matricule: {agent.matricule}
-Poste: {agent.poste or 'Non renseigné'}
-Direction: {agent.direction or 'Non renseignée'}
-Ancienneté: {(today - agent.date_prise_service).days // 365} ans
-Taux de complétude: {dossier.taux_completude or 0}%
-
-Documents importés ({pieces.count()}):
-"""
+        # ✅ Résumé concis (limité pour accélérer l'IA)
+        docs_list = []
         for p in pieces:
-            statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "Valide"
-            expiration = f" - Expire le {p.date_expiration}" if p.date_expiration else ""
-            resume += f"- {p.type_piece.libelle}: {statut}{expiration}\n"
+            statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "OK"
+            docs_list.append(f"{p.type_piece.libelle}: {statut}")
         
+        manquants_list = []
         types_obligatoires = TypePiece.objects.filter(obligatoire=1)
         manquants = types_obligatoires.exclude(id__in=pieces.values('type_piece_id'))
-        if manquants.exists():
-            resume += "\nDocuments obligatoires manquants:\n"
-            for tp in manquants:
-                resume += f"- {tp.libelle}\n"
+        for tp in manquants:
+            manquants_list.append(tp.libelle)
         
+        resume = f"""Agent: {agent.prenom} {agent.nom} | Poste: {agent.poste or 'N/A'} | Ancienneté: {(today - agent.date_prise_service).days // 365 if agent.date_prise_service else 0} ans | Complétude: {dossier.taux_completude or 0}%
+Docs: {', '.join(docs_list[:8])}{'...' if len(docs_list) > 8 else ''}
+Manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}"""
+        
+        # ✅ Prompt optimisé pour réponse rapide + JSON
         try:
             ai_response = ollama.chat(
                 model='llama3.2:3b',
                 messages=[{
                     'role': 'system',
-                    'content': "Tu es un expert RH. Analyse ce dossier et donne : un résumé global, les points critiques, des recommandations, une note de conformité sur 10."
-                }, {'role': 'user', 'content': f"Analyse ce dossier :\n\n{resume}"}]
+                    'content': """Tu es un expert RH. Analyse ce dossier et réponds UNIQUEMENT avec ce JSON (sans texte avant/après, sans ```) :
+{"score":85,"points_forts":["Point fort 1"],"points_faibles":["Point faible 1"],"resume":"Résumé en 2 phrases."}"""
+                }, {
+                    'role': 'user',
+                    'content': f"Dossier : {resume}"
+                }],
+                options={'temperature': 0.3, 'num_predict': 300}  # ✅ Limite la longueur de réponse
             )
-            ai_analysis = ai_response['message']['content']
+            ai_analysis = ai_response['message']['content'].strip()
+            # Nettoyer les éventuels ```json ... ```
+            ai_analysis = ai_analysis.replace('```json', '').replace('```', '').strip()
         except Exception as e:
             print(f"Erreur Ollama: {e}")
-            ai_analysis = "Analyse IA indisponible."
+            ai_analysis = f'{{"score":{score},"points_forts":[],"points_faibles":[],"resume":"Analyse IA indisponible."}}'
         
         return JsonResponse({
             'success': True,
