@@ -84,12 +84,15 @@ export default function PortalNav() {
       links.push({ href: dashboardPath, label: ' Tableau de bord' });
     }
     
-    
     links.push({ href: '/demarches', label: ' Démarches RH' });
     links.push({ href: '/documents', label: ' Documents' });
 
-    // ✅ Candidatures - UNIQUEMENT pour les agents (même avec plusieurs rôles)
-    if (userRole === 'agent' || userRoles.includes('agent')) {
+    // ✅ Candidatures - Exclure les rôles qui ne sont pas des agents "purs"
+    const rolesExclus = ['dpaf', 'dapaf', 'admin', 'rh', 'chef', 'secretaire', 'rh/secretaire'];
+    const hasExcluRole = rolesExclus.some(r => userRole === r || userRoles.includes(r));
+    
+    // Afficher uniquement si l'utilisateur a le rôle agent ET n'a pas de rôle exclu
+    if (!hasExcluRole && (userRole === 'agent' || userRoles.includes('agent'))) {
       links.push({ href: '/postes', label: ' Candidatures' });
     }
     
