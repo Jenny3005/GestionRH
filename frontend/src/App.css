@@ -3500,7 +3500,7 @@ body {
 /* Grille des statistiques */
 .rh-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(4, 1fr); /* 4 colonnes fixes */
   gap: 1.5rem;
   max-width: 1400px;
   margin: 2rem auto;
@@ -3933,12 +3933,23 @@ body {
   font-size: 0.7rem;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .rh-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Responsive : passe en 1 colonne sur mobile */
+@media (max-width: 600px) {
   .rh-stats-grid {
     grid-template-columns: 1fr;
-    padding: 0 1rem;
   }
+}
+
+
+/* Responsive */
+@media (max-width: 768px) {
+  
   
   .rh-dashboard-grid {
     grid-template-columns: 1fr;
@@ -8054,5 +8065,145 @@ textarea {
   .completude-dossier {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* ==========================================================================
+   DASHBOARD CHEF - STATISTIQUES
+   ========================================================================== */
+
+/* Conteneur des stats - exactement comme les autres dashboards */
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 colonnes fixes pour 3 stats */
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+}
+
+/* Chaque carte de statistique */
+.stats-container .stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.stats-container .stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+  border-color: #D4AF37;
+}
+
+.stats-container .stat-number {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #D4AF37;
+  line-height: 1.2;
+}
+
+.stats-container .stat-label {
+  font-size: 0.85rem;
+  color: #64748B;
+  font-weight: 500;
+  margin-top: 0.3rem;
+}
+
+/* Responsive pour le dashboard Chef */
+@media (max-width: 768px) {
+  .stats-container {
+    grid-template-columns: repeat(3, 1fr); /* Sur tablette, reste 3 colonnes */
+    gap: 1rem;
+    padding: 0 1rem;
+  }
+  
+  .stats-container .stat-number {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-container {
+    grid-template-columns: 1fr; /* Sur mobile, 1 colonne */
+    gap: 0.8rem;
+  }
+  
+  .stats-container .stat-card {
+    padding: 1rem;
+  }
+  
+  .stats-container .stat-number {
+    font-size: 1.8rem;
+  }
+}
+
+/* ==========================================================================
+   BOUTON RAFRAÎCHIR - DASHBOARD CHEF
+   ========================================================================== */
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 1.5rem auto 0;
+  padding: 0 2rem;
+}
+
+.admin-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0B192C;
+  margin: 0;
+}
+
+.btn-refresh {
+  background: #0B192C;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #D4AF37;
+  color: #0B192C;
+  transform: translateY(-2px);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 0 1rem;
+  }
+  
+  .btn-refresh {
+    width: 100%;
+    justify-content: center;
   }
 }
