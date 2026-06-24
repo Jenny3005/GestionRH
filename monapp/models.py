@@ -10,7 +10,11 @@ from django.db import models
 
 class ActeAdministratif(models.Model):
     demande = models.OneToOneField('Demande', models.DO_NOTHING, blank=True, null=True)
-    reference = models.CharField(primary_key=True, max_length=100)
+    # ✅ CHANGEMENT : id devient la clé primaire
+    id = models.AutoField(primary_key=True)
+    
+    # ✅ CHANGEMENT : reference devient unique mais pas clé primaire
+    reference = models.CharField(max_length=50, unique=True)
     type_acte = models.CharField(max_length=100)
     statut = models.CharField(max_length=50)
     date_generation = models.DateField()

@@ -19,7 +19,7 @@ export default function DashboardSecretaire() {
   const [actesATransmettreDAPAF, setActesATransmettreDAPAF] = useState([]);
   const [actesARemettre, setActesARemettre] = useState([]);
   
-  // ✅ NOUVEAU - États pour les attestations
+  // États pour les attestations
   const [attestationsSoumises, setAttestationsSoumises] = useState([]);
   const [attestationsTransmises, setAttestationsTransmises] = useState([]);
   
@@ -46,7 +46,7 @@ export default function DashboardSecretaire() {
     actes_a_transmettre_dpaf: 0,
     actes_a_transmettre_dapaf: 0,
     actes_a_remettre: 0,
-    attestations_a_transmettre: 0  // ✅ NOUVEAU
+    attestations_a_transmettre: 0
   });
 
   // Types d'actes selon destinataire
@@ -55,7 +55,11 @@ export default function DashboardSecretaire() {
   
   // ✅ Types d'attestations selon destinataire
   const typesAttestationDPAF = ['Attestation de travail'];
-  const typesAttestationDAPAF = ['Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
+  const typesAttestationDAPAF = [
+    'Attestation de présence au poste',
+    'Attestation de validité de services',
+    'Certificat de non-jouissance de congé'
+  ];
 
   const matricule = localStorage.getItem('userMatricule');
   const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
@@ -68,6 +72,23 @@ export default function DashboardSecretaire() {
     }
     fetchData();
   }, []);
+
+  // ✅ Fonction pour déterminer le destinataire d'une attestation (avec gestion de l'année)
+  const getDestinataireAttestation = (typeAttestation) => {
+    if (!typeAttestation) return null;
+    
+    // Vérifier DPAF (exact)
+    if (typesAttestationDPAF.includes(typeAttestation)) return 'DPAF';
+    
+    // Vérifier DAPAF (exact ou avec année)
+    for (const type of typesAttestationDAPAF) {
+      if (typeAttestation === type) return 'DAPAF';
+      // ✅ Pour "Certificat de non-jouissance de congé - 2025"
+      if (typeAttestation.startsWith(type + ' - ')) return 'DAPAF';
+    }
+    
+    return null;
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -156,7 +177,7 @@ export default function DashboardSecretaire() {
         actes_a_transmettre_dpaf: actesDPAFData.length,
         actes_a_transmettre_dapaf: actesDAPAFData.length,
         actes_a_remettre: actesARemettreData.length,
-        attestations_a_transmettre: attestationsData.length  // ✅ NOUVEAU
+        attestations_a_transmettre: attestationsData.length
       });
 
     } catch (error) {
@@ -164,13 +185,6 @@ export default function DashboardSecretaire() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // ✅ Fonction pour déterminer le destinataire d'une attestation
-  const getDestinataireAttestation = (typeAttestation) => {
-    if (typesAttestationDPAF.includes(typeAttestation)) return 'DPAF';
-    if (typesAttestationDAPAF.includes(typeAttestation)) return 'DAPAF';
-    return null;
   };
 
   const handleTransmettreDemande = async (demandeId, destinataire) => {
@@ -231,7 +245,7 @@ export default function DashboardSecretaire() {
     }
   };
 
-  // ✅ Fonction pour transmettre une attestation
+  // Fonction pour transmettre une attestation
   const handleTransmettreAttestation = async (demandeId, destinataire) => {
     try {
       const response = await fetch(`/api/secretaire/attestations/transmettre/${demandeId}/`, {
@@ -313,7 +327,7 @@ export default function DashboardSecretaire() {
       'acte_genere': <span className="badge-info">📄 Acte généré</span>,
       'envoye_secretaire': <span className="badge-warning">📤 Reçu du RH</span>,
       'signe': <span className="badge-success">✅ Signé</span>,
-      'soumise': <span className="badge-info">📋 Soumise par l'agent</span>  // ✅ NOUVEAU
+      'soumise': <span className="badge-info">📋 Soumise par l'agent</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -340,7 +354,7 @@ export default function DashboardSecretaire() {
     setShowTransmettreActeModal(true);
   };
 
-  // ✅ Ouvrir modal pour transmettre une attestation
+  // Ouvrir modal pour transmettre une attestation
   const openTransmettreAttestationModal = (attestation) => {
     const destinataire = getDestinataireAttestation(attestation.type_attestation);
     if (destinataire) {
@@ -496,9 +510,10 @@ export default function DashboardSecretaire() {
             </table>
           </div>
         </div>
+
         {/* SECTION 2: Actes à transmettre au DPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DPAF (Absences)</h3>
+          <h3>📄 Actes reçus des RH - À transmettre au DPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -546,7 +561,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 3: Actes à transmettre au DAPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DAPAF </h3>
+          <h3>📄 Actes reçus des RH - À transmettre au DAPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -592,7 +607,7 @@ export default function DashboardSecretaire() {
           </div>
         </div>
 
-        {/* ✅ SECTION 4: Attestations à transmettre (NOUVEAU) */}
+        {/* SECTION 4: Attestations à transmettre */}
         <div className="admin-section">
           <h3>📄 Attestations demandées par les agents - À transmettre</h3>
           
@@ -776,11 +791,10 @@ export default function DashboardSecretaire() {
         )}
       </main>
 
-      {/* MODAL TRANSMETTRE DEMANDE - VERSION ÉLÉGANTE */}
+      {/* MODAL TRANSMETTRE DEMANDE */}
       {showTransmettreModal && selectedDemande && (
         <div className="transmettre-modal-overlay" onClick={() => setShowTransmettreModal(false)}>
           <div className="transmettre-modal-content" onClick={(e) => e.stopPropagation()}>
-            {/* HEADER */}
             <div className="transmettre-modal-header">
               <div className="transmettre-modal-header-left">
                 <div className="transmettre-modal-icon-wrapper">
@@ -794,9 +808,7 @@ export default function DashboardSecretaire() {
               <button className="transmettre-modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
             </div>
 
-            {/* BODY */}
             <div className="transmettre-modal-body">
-              {/* Carte d'information */}
               <div className="transmettre-info-card">
                 <div className="card-title">📋 Détails de la demande</div>
                 <div className="transmettre-info-grid">
@@ -825,7 +837,6 @@ export default function DashboardSecretaire() {
                 </div>
               </div>
 
-              {/* Commentaire */}
               <div className="transmettre-commentaire-section">
                 <div className="label-with-optional">
                   <span className="label">💬 Instructions pour le {destinataireType}</span>
@@ -840,7 +851,6 @@ export default function DashboardSecretaire() {
               </div>
             </div>
 
-            {/* FOOTER */}
             <div className="transmettre-modal-footer">
               <button className="btn-transmettre-cancel" onClick={() => setShowTransmettreModal(false)}>
                 Annuler
@@ -858,73 +868,162 @@ export default function DashboardSecretaire() {
       )}
 
       {/* MODAL TRANSMETTRE ACTE */}
-      {showTransmettreActeModal && selectedActe && (
-        <div className="modal-overlay" onClick={() => setShowTransmettreActeModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>📤 Transmettre l'acte au {destinataireType}</h3>
-              <button className="modal-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>Agent :</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
-                <p><strong>Type d'acte :</strong> {selectedActe.type_acte}</p>
-                <p><strong>Référence :</strong> {selectedActe.reference}</p>
-                <p><strong>Destinataire :</strong> {destinataireType}</p>
+      {(showTransmettreActeModal && selectedActe) && (
+        <div className="modal-transmettre-overlay" onClick={() => setShowTransmettreActeModal(false)}>
+          <div className="modal-transmettre-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-transmettre-header">
+              <div className="modal-transmettre-header-left">
+                <div className="modal-transmettre-icon-wrapper">
+                  <span className="icon">📤</span>
+                </div>
+                <div className="modal-transmettre-title">
+                  <h3>Transmettre l'acte</h3>
+                  <span className="subtitle">Envoyer au {destinataireType} pour signature</span>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+              <button className="modal-transmettre-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
+            </div>
+
+            <div className="modal-transmettre-body">
+              <div className="modal-transmettre-info">
+                <div className="card-label">📋 Détails de l'acte</div>
+                <div className="modal-transmettre-info-grid">
+                  <div className="modal-transmettre-info-item">
+                    <span className="label">Agent</span>
+                    <span className="value">{selectedActe.agent_nom} {selectedActe.agent_prenom}</span>
+                  </div>
+                  <div className="modal-transmettre-info-item">
+                    <span className="label">Type d'acte</span>
+                    <span className="value">{selectedActe.type_acte}</span>
+                  </div>
+                  <div className="modal-transmettre-info-item">
+                    <span className="label">Référence</span>
+                    <span className="value"><code>{selectedActe.reference}</code></span>
+                  </div>
+                  <div className="modal-transmettre-info-item">
+                    <span className="label">Destinataire</span>
+                    <span className={`dest-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
+                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-transmettre-commentaire">
+                <div className="label-row">
+                  <span className="label">💬 Instructions</span>
+                  <span className="optional">Optionnel</span>
+                </div>
                 <textarea
                   rows="3"
-                  placeholder="Ajoutez un commentaire..."
+                  placeholder={`Ajoutez des instructions pour le ${destinataireType}...`}
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                 />
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowTransmettreActeModal(false)}>Annuler</button>
-              <button className="btn-transmettre" onClick={() => handleTransmettreActe(selectedActe.reference, destinataireType)}>
-                📤 Transmettre au {destinataireType}
+
+            <div className="modal-transmettre-footer">
+              <button className="btn-modal-cancel" onClick={() => setShowTransmettreActeModal(false)}>
+                Annuler
+              </button>
+              <button 
+                className={`btn-modal-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
+                onClick={() => handleTransmettreActe(selectedActe.reference, destinataireType)}
+              >
+                <span className="icon">📤</span>
+                Transmettre au {destinataireType}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ✅ MODAL TRANSMETTRE ATTESTATION (NOUVEAU) */}
+      {/* MODAL TRANSMETTRE ATTESTATION */}
       {showTransmettreAttestationModal && selectedAttestation && (
-        <div className="modal-overlay" onClick={() => setShowTransmettreAttestationModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>📤 Transmettre l'attestation au {destinataireType}</h3>
-              <button className="modal-close" onClick={() => setShowTransmettreAttestationModal(false)}>✕</button>
+        <div className="modal-transmettre-attestation-overlay" onClick={() => setShowTransmettreAttestationModal(false)}>
+          <div className="modal-transmettre-attestation-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-transmettre-attestation-header">
+              <div className="modal-transmettre-attestation-header-left">
+                <div className="modal-transmettre-attestation-icon-wrapper">
+                  <span className="icon">📄</span>
+                </div>
+                <div className="modal-transmettre-attestation-title">
+                  <h3>Transmettre l'attestation</h3>
+                  <span className="subtitle">Envoyer au {destinataireType} pour traitement</span>
+                </div>
+              </div>
+              <button className="modal-transmettre-attestation-close" onClick={() => setShowTransmettreAttestationModal(false)}>✕</button>
             </div>
-            <div className="modal-body">
-              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>Agent :</strong> {selectedAttestation.agent_nom} {selectedAttestation.agent_prenom}</p>
-                <p><strong>Matricule :</strong> {selectedAttestation.agent_matricule}</p>
-                <p><strong>Type d'attestation :</strong> {selectedAttestation.type_attestation}</p>
-                <p><strong>Date demande :</strong> {selectedAttestation.date_soumission ? new Date(selectedAttestation.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
-                <p><strong>Destinataire :</strong> {destinataireType}</p>
+
+            <div className="modal-transmettre-attestation-body">
+              <div className="modal-transmettre-attestation-info">
+                <div className="card-label">📋 Détails de l'attestation</div>
+                <div className="modal-transmettre-attestation-info-grid">
+                  <div className="modal-transmettre-attestation-info-item">
+                    <span className="label">Agent</span>
+                    <span className="value">{selectedAttestation.agent_nom} {selectedAttestation.agent_prenom}</span>
+                  </div>
+                  <div className="modal-transmettre-attestation-info-item">
+                    <span className="label">Matricule</span>
+                    <span className="value"><code>{selectedAttestation.agent_matricule}</code></span>
+                  </div>
+                  <div className="modal-transmettre-attestation-info-item full">
+                    <span className="label">Type d'attestation</span>
+                    <span className="value">
+                      <span className="attestation-type-badge">
+                        📄 {selectedAttestation.type_attestation}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="modal-transmettre-attestation-info-item">
+                    <span className="label">Date demande</span>
+                    <span className="value">
+                      {selectedAttestation.date_soumission 
+                        ? new Date(selectedAttestation.date_soumission).toLocaleDateString('fr-FR') 
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className="modal-transmettre-attestation-info-item">
+                    <span className="label">Destinataire</span>
+                    <span className={`dest-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
+                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                    </span>
+                  </div>
+                </div>
+                
                 {selectedAttestation.commentaire && (
-                  <p><strong>Commentaire agent :</strong> {selectedAttestation.commentaire}</p>
+                  <div className="agent-commentaire">
+                    <div className="label">📝 Commentaire de l'agent</div>
+                    <div className="value">{selectedAttestation.commentaire}</div>
+                  </div>
                 )}
               </div>
-              <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+
+              <div className="modal-transmettre-attestation-commentaire">
+                <div className="label-row">
+                  <span className="label">💬 Instructions pour le {destinataireType}</span>
+                  <span className="optional">Optionnel</span>
+                </div>
                 <textarea
                   rows="3"
-                  placeholder="Ajoutez un commentaire pour le {destinataireType}..."
+                  placeholder={`Ajoutez des instructions pour le ${destinataireType}...`}
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                 />
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowTransmettreAttestationModal(false)}>Annuler</button>
-              <button className="btn-transmettre" onClick={() => handleTransmettreAttestation(selectedAttestation.id, destinataireType)}>
-                📤 Transmettre au {destinataireType}
+
+            <div className="modal-transmettre-attestation-footer">
+              <button className="btn-modal-cancel" onClick={() => setShowTransmettreAttestationModal(false)}>
+                Annuler
+              </button>
+              <button 
+                className={`btn-modal-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
+                onClick={() => handleTransmettreAttestation(selectedAttestation.id, destinataireType)}
+              >
+                <span className="icon">📤</span>
+                Transmettre au {destinataireType}
               </button>
             </div>
           </div>
