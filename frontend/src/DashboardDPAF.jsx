@@ -204,35 +204,43 @@ export default function DashboardDPAF() {
         fetch(`/api/dashboard/actes-a-signer/${matricule}/`)
       ]);
       
-      // Demandes à assigner
+      // ✅ Demandes à assigner
       let transmisesData = [];
       if (transmisesRes.ok) {
         transmisesData = await transmisesRes.json();
+        // Filtrer les attestations (elles sont déjà dans attestationsSoumises)
+        const typesAttestation = [
+          'Attestation de travail',
+          'Attestation de présence au poste',
+          'Attestation de validité de services',
+          'Certificat de non-jouissance de congé'
+        ];
+        transmisesData = transmisesData.filter(d => !typesAttestation.includes(d.type_demande));
         setDemandesTransmises(transmisesData);
       }
 
-      // Attestations à assigner
+      // ✅ Attestations à assigner
       let attestationsData = [];
       if (attestationsRes.ok) {
         attestationsData = await attestationsRes.json();
         setAttestationsSoumises(attestationsData);
       }
 
-      // Demandes assignées
+      // ✅ Demandes assignées
       let assigneesData = [];
       if (assigneesRes.ok) {
         assigneesData = await assigneesRes.json();
         setDemandesAssignees(assigneesData);
       }
 
-      // Attestations assignées
+      // ✅ Attestations assignées
       let attestationsAssigneesData = [];
       if (attestationsAssigneesRes.ok) {
         attestationsAssigneesData = await attestationsAssigneesRes.json();
         setAttestationsAssignees(attestationsAssigneesData);
       }
 
-      // Actes à signer
+      // ✅ Actes à signer
       let actesData = [];
       if (actesRes.ok) {
         actesData = await actesRes.json();
@@ -243,7 +251,7 @@ export default function DashboardDPAF() {
         setActesASigner(actesFiltres);
       }
 
-      // Stats
+      // ✅ Stats - CORRECTION
       const totalAAssigner = transmisesData.length + attestationsData.length;
       const totalAssignees = assigneesData.length + attestationsAssigneesData.length;
 
@@ -253,9 +261,9 @@ export default function DashboardDPAF() {
         en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length + 
                   attestationsAssigneesData.filter(a => a.statut === 'assignee_rh' || a.statut === 'en_cours_traitement').length,
         terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length +
-                   attestationsAssigneesData.filter(a => a.statut === 'termine' || a.statut === 'acte_genere').length,
+                  attestationsAssigneesData.filter(a => a.statut === 'termine' || a.statut === 'acte_genere').length,
         actes_a_signer: actesData.filter(a => getTypesASigner().includes(a.type_acte)).length,
-        attestations_a_assigner: attestationsData.length
+        attestations_a_assigner: attestationsData.length  // ← Utilise attestationsData
       });
 
     } catch (error) {
@@ -363,7 +371,7 @@ export default function DashboardDPAF() {
     setShowSuiviModal(true);
   };
 
-  const handleVoirActe = async (reference) => {
+  const handleVoirActe = async (reference, acte) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
@@ -372,7 +380,7 @@ export default function DashboardDPAF() {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setPreviewUrl(url);
-        setPreviewTitle(`Acte ${reference}`);
+        setPreviewTitle(`${acte.type_acte} - ${reference}`);
         setShowPreviewModal(true);
       } else {
         alert('Erreur lors du chargement de l\'acte');
@@ -472,10 +480,6 @@ export default function DashboardDPAF() {
           <div className="stat-card" style={{ borderLeftColor: '#EF4444' }}>
             <div className="stat-number">{stats.actes_a_signer}</div>
             <div className="stat-label">✍️ Actes à signer</div>
-          </div>
-          <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
-            <div className="stat-number">{stats.attestations_a_assigner}</div>
-            <div className="stat-label">📄 Attestations à assigner</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#6B7280' }}>
             <div className="stat-number">{stats.historique_count}</div>
@@ -821,21 +825,16 @@ export default function DashboardDPAF() {
                         <span className="badge-info">{acte.type_acte}</span>
                       </td>
                       <td><code>{acte.reference}</code></td>
-                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
-                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
+                          <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
                             👁️ Voir l'acte
                           </button>
                           <button 
                             className="btn-signer" 
                             onClick={() => handleSigner(acte)}
                             disabled={!hasSignature || !hasCachet}
-                            title={!hasSignature ? 'Vous devez d\'abord uploader votre signature' : !hasCachet ? 'Vous devez d\'abord uploader votre cachet' : 'Signer l\'acte'}
-                            style={{ 
-                              opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
-                              cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
-                            }}
                           >
                             ✍️ Signer l'acte
                           </button>
@@ -1222,58 +1221,111 @@ export default function DashboardDPAF() {
         </div>
       )}
 
-      {/* MODAL SIGNER ACTE */}
+      {/* MODAL SIGNATURE ACTE - VERSION ÉLÉGANTE */}
       {showSignerModal && selectedActe && (
-        <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>✍️ Signature de l'acte</h3>
-              <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
-            </div>
+        <div className="modal-signature-overlay" onClick={() => setShowSignerModal(false)}>
+          <div className="modal-signature-content" onClick={(e) => e.stopPropagation()}>
             
-            <div className="modal-body">
-              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>📄 Acte N°:</strong> {selectedActe.reference}</p>
-                <p><strong>👤 Agent:</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
-                <p><strong>📋 Type:</strong> {selectedActe.type_acte}</p>
+            {/* HEADER */}
+            <div className="modal-signature-header">
+              <div className="modal-signature-header-left">
+                <div className="modal-signature-icon-wrapper">
+                  <span className="icon">✍️</span>
+                </div>
+                <div className="modal-signature-title">
+                  <h3>Signature de l'acte</h3>
+                  <span className="subtitle">Apposez votre signature officielle</span>
+                </div>
               </div>
+              <button className="modal-signature-close" onClick={() => setShowSignerModal(false)}>✕</button>
+            </div>
+
+            {/* BODY */}
+            <div className="modal-signature-body">
               
-              <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>Signataire :</strong> {userName}</p>
-                <p><strong>Fonction :</strong> {userRole === 'dapaf' ? 'Directeur des Affaires Politiques, Administratives et Financières' : 'Directeur de la Planification, de l\'Administration et des Finances'}</p>
-                <p><strong>Date :</strong> {new Date().toLocaleDateString('fr-FR')}</p>
-                <p><strong>Heure :</strong> {new Date().toLocaleTimeString('fr-FR')}</p>
+              {/* Carte Acte */}
+              <div className="modal-signature-info">
+                <div className="card-label">📋 Détails de l'acte</div>
+                <div className="modal-signature-info-grid">
+                  <div className="modal-signature-info-item">
+                    <span className="label">Référence</span>
+                    <span className="value"><code>{selectedActe.reference}</code></span>
+                  </div>
+                  <div className="modal-signature-info-item">
+                    <span className="label">Type d'acte</span>
+                    <span className="value">{selectedActe.type_acte}</span>
+                  </div>
+                  <div className="modal-signature-info-item full">
+                    <span className="label">Agent concerné</span>
+                    <span className="value">{selectedActe.agent_nom} {selectedActe.agent_prenom}</span>
+                  </div>
+                </div>
               </div>
-              
-              <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+
+              {/* Carte Signataire */}
+              <div className="modal-signature-signataire">
+                <div className="card-label">🖋️ Signataire</div>
+                <div className="modal-signature-signataire-grid">
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Nom</span>
+                    <span className="value">{userName}</span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Fonction</span>
+                    <span className="value">
+                      {userRole === 'dapaf' 
+                        ? 'Directeur des Affaires Politiques, Administratives et Financières' 
+                        : 'Directeur de la Planification, de l\'Administration et des Finances'}
+                    </span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Date</span>
+                    <span className="value">{new Date().toLocaleDateString('fr-FR')}</span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Heure</span>
+                    <span className="value">{new Date().toLocaleTimeString('fr-FR')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commentaire */}
+              <div className="modal-signature-commentaire">
+                <div className="label-row">
+                  <span className="label">💬 Commentaire</span>
+                  <span className="optional">Optionnel</span>
+                </div>
                 <textarea
                   rows="2"
-                  placeholder="Ajoutez un commentaire..."
+                  placeholder="Ajoutez un commentaire (optionnel)..."
                   value={signatureCommentaire}
                   onChange={(e) => setSignatureCommentaire(e.target.value)}
                 />
               </div>
-              
-              <div style={{ background: '#fff3cd', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #ffc107' }}>
-                <p>⚠️ En cliquant sur "Signer", votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
-                <p>Cette action est irréversible et engage votre responsabilité.</p>
+
+              {/* Alerte sécurité */}
+              <div className="modal-signature-alerte">
+                <span className="icon">⚠️</span>
+                <div className="content">
+                  <p><strong>Cette action est irréversible.</strong></p>
+                  <p>En cliquant sur <strong>"Signer"</strong>, votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
+                  <p>Cette signature engage votre responsabilité en tant que {userRole === 'dapaf' ? 'DAPAF' : 'DPAF'}.</p>
+                </div>
               </div>
             </div>
-            
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowSignerModal(false)}>Annuler</button>
+
+            {/* FOOTER */}
+            <div className="modal-signature-footer">
+              <button className="btn-signature-cancel" onClick={() => setShowSignerModal(false)}>
+                Annuler
+              </button>
               <button 
-                className="btn-signer" 
+                className={`btn-signature-submit ${userRole === 'dapaf' ? 'dapaf' : ''}`}
                 onClick={() => handleSignerActe(selectedActe.reference)}
                 disabled={!hasSignature || !hasCachet}
-                style={{ 
-                  background: '#dc3545',
-                  opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
-                  cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
-                }}
               >
-                ✍️ Signer avec mon cachet officiel
+                <span className="icon">✍️</span>
+                Signer avec mon cachet officiel
               </button>
             </div>
           </div>

@@ -2211,13 +2211,13 @@ def get_demandes_assignees_by_role(request, matricule):
         if 'dpaf' in roles:
             types_demandes = ['Absence', 'Reprise de service']
             demandes = Demande.objects.filter(
-                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'remis'],
+                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'remis','envoye_secretaire'],
                 type_demande__libelle__in=types_demandes
             ).select_related('agent', 'type_demande', 'agent_rh')
         elif 'dapaf' in roles:
             types_demandes = ['Congé', 'Autorisation de jouissance de congé administratif']
             demandes = Demande.objects.filter(
-                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'remis'],
+                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'remis','envoye_secretaire'],
                 type_demande__libelle__in=types_demandes
             ).select_related('agent', 'type_demande', 'agent_rh')
         else:
@@ -2251,19 +2251,10 @@ def get_demandes_assignees_by_role(request, matricule):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_actes_a_signer_by_role(request, matricule):
-    """Récupérer les actes à signer selon le rôle (DPAF ou DAPAF) - VERSION AVEC LOGS"""
     try:
-        print("=" * 70)
-        print("🔍 [DEBUG] get_actes_a_signer_by_role - DÉBUT")
-        print(f"📌 Matricule reçu: {matricule}")
-        print("=" * 70)
-        
         user = Agent.objects.get(matricule=matricule)
-        print(f"✅ Utilisateur trouvé: {user.nom} {user.prenom}")
-        
         agent_roles = AgentRole.objects.filter(agent=user).select_related('role')
         roles = [ar.role.libelle.lower() for ar in agent_roles]
-        print(f"📌 Rôles de l'utilisateur: {roles}")
         
         if 'dpaf' in roles:
             types_actes = [
@@ -2273,31 +2264,6 @@ def get_actes_a_signer_by_role(request, matricule):
                 "Autorisation d'absence exceptionnelle"
             ]
             statut_cible = 'attente_signature_dpaf'
-            destinataire = 'DPAF'
-            print(f"🎯 Destinataire: {destinataire}")
-            print(f"📋 Types d'actes à chercher: {types_actes}")
-            print(f"📋 Statut cible: {statut_cible}")
-            
-            tous_actes_absence = ActeAdministratif.objects.filter(type_acte="Autorisation d'absence exceptionnelle")
-            print(f"\n🔍 Vérification de tous les actes 'Autorisation d'absence exceptionnelle':")
-            print(f"   Total trouvés: {tous_actes_absence.count()}")
-            for a in tous_actes_absence:
-                print(f"   - Réf: {a.reference}, Statut: '{a.statut}', Date: {a.date_generation}")
-            
-            tous_actes_attente = ActeAdministratif.objects.filter(statut='attente_signature_dpaf')
-            print(f"\n🔍 Vérification de tous les actes avec statut 'attente_signature_dpaf':")
-            print(f"   Total trouvés: {tous_actes_attente.count()}")
-            for a in tous_actes_attente:
-                print(f"   - Réf: {a.reference}, Type: '{a.type_acte}', Date: {a.date_generation}")
-            
-            actes = ActeAdministratif.objects.filter(
-                statut=statut_cible,
-                type_acte__in=types_actes
-            ).select_related('demande__agent')
-            
-            print(f"\n🔍 Actes après filtrage complet:")
-            print(f"   Nombre trouvé: {actes.count()}")
-            
         elif 'dapaf' in roles:
             types_actes = [
                 'Autorisation de jouissance de congé administratif',
@@ -2306,58 +2272,36 @@ def get_actes_a_signer_by_role(request, matricule):
                 'Certificat de non-jouissance de congé'
             ]
             statut_cible = 'attente_signature_dapaf'
-            destinataire = 'DAPAF'
-            print(f"🎯 Destinataire: {destinataire}")
-            print(f"📋 Types d'actes à chercher: {types_actes}")
-            print(f"📋 Statut cible: {statut_cible}")
-            
-            tous_actes_conge = ActeAdministratif.objects.filter(type_acte="Autorisation de jouissance de congé administratif")
-            print(f"\n🔍 Vérification de tous les actes 'Autorisation de jouissance de congé administratif':")
-            print(f"   Total trouvés: {tous_actes_conge.count()}")
-            for a in tous_actes_conge:
-                print(f"   - Réf: {a.reference}, Statut: '{a.statut}', Date: {a.date_generation}")
-            
-            tous_actes_attente = ActeAdministratif.objects.filter(statut='attente_signature_dapaf')
-            print(f"\n🔍 Vérification de tous les actes avec statut 'attente_signature_dapaf':")
-            print(f"   Total trouvés: {tous_actes_attente.count()}")
-            for a in tous_actes_attente:
-                print(f"   - Réf: {a.reference}, Type: '{a.type_acte}', Date: {a.date_generation}")
-            
-            actes = ActeAdministratif.objects.filter(
-                statut=statut_cible,
-                type_acte__in=types_actes
-            ).select_related('demande__agent')
-            
-            print(f"\n🔍 Actes après filtrage complet:")
-            print(f"   Nombre trouvé: {actes.count()}")
-            
         else:
-            print(f"❌ Rôle non autorisé: {roles}")
             return JsonResponse({'error': 'Non autorisé'}, status=403)
+        
+        actes = ActeAdministratif.objects.filter(
+            statut=statut_cible,
+            type_acte__in=types_actes
+        ).select_related('demande__agent', 'demande__type_demande')
         
         result = []
         for acte in actes:
             if acte.demande:
+                # ✅ Récupérer la date de soumission de la demande
+                date_demande = acte.demande.date_soumission if acte.demande.date_soumission else acte.date_generation
+                
                 result.append({
                     'reference': acte.reference,
                     'agent_nom': acte.demande.agent.nom,
                     'agent_prenom': acte.demande.agent.prenom,
                     'type_acte': acte.type_acte,
                     'date_generation': str(acte.date_generation),
-                    'date_demande': str(acte.date_generation)
+                    'date_demande': str(date_demande),  # ✅ Date de soumission de la demande
+                    'demande_type': acte.demande.type_demande.libelle if acte.demande.type_demande else 'Inconnu'  # ✅ Type de la demande
                 })
-                print(f"   ✅ Acte ajouté: {acte.reference} - {acte.type_acte}")
-        
-        print(f"\n✅ FINAL - {len(result)} acte(s) à signer pour {matricule} ({destinataire})")
-        print("=" * 70)
         
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
-        print(f"❌ ERREUR: Agent {matricule} non trouvé")
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
-        print(f"❌ ERREUR get_actes_a_signer_by_role: {str(e)}")
+        print(f"ERREUR get_actes_a_signer_by_role: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -2806,59 +2750,231 @@ def signer_acte_dapaf(request, reference):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def _type_acte_canonique(type_acte):
+    type_normalise = (type_acte or '').strip().lower()
+    mappings = {
+        'attestation de présence au poste': 'Attestation de présence au poste',
+        'attestation de presence au poste': 'Attestation de présence au poste',
+        'attestation de travail': 'Attestation de travail',
+        'attestation de validité de services': 'Attestation de validité de services',
+        'attestation de validite de services': 'Attestation de validité de services',
+        'certificat de non-jouissance de congé': 'Certificat de non-jouissance de congé',
+        'certificat de non jouissance de congé': 'Certificat de non-jouissance de congé',
+        'certificat de non-jouissance de conge': 'Certificat de non-jouissance de congé',
+        'autorisation de jouissance de congé administratif': 'Autorisation de jouissance de congé administratif',
+        'autorisation de jouissance de conge administratif': 'Autorisation de jouissance de congé administratif',
+        'congé': 'Autorisation de jouissance de congé administratif',
+        'conge': 'Autorisation de jouissance de congé administratif',
+        "autorisation d'absence exceptionnelle": "Autorisation d'absence exceptionnelle",
+        'absence': "Autorisation d'absence exceptionnelle",
+        'reprise de service': 'Reprise de service',
+    }
+    
+    # ✅ Si le type commence par "certificat de non-jouissance de congé" (avec année)
+    if type_normalise.startswith('certificat de non-jouissance de congé'):
+        return 'Certificat de non-jouissance de congé'
+    
+    return mappings.get(type_normalise, type_acte)
+
+def _est_type_attestation(type_acte):
+    return _type_acte_canonique(type_acte) in {
+        'Attestation de présence au poste',
+        'Attestation de travail',
+        'Attestation de validité de services',
+        'Certificat de non-jouissance de congé',
+    }
+
+
 def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_base64=None, cachet_base64=None, commentaire=""):
     from docx import Document
     from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from io import BytesIO
+    import os
+    import re
+    import base64
+    from django.conf import settings
     
-    if demande.type_demande.libelle == 'Congé':
+    type_acte = _type_acte_canonique(acte.type_acte)
+    
+    # ✅ Déterminer le template selon le type d'acte
+    if type_acte == 'Attestation de présence au poste':
+        template_name = 'attestation_presence_template.docx'
+    elif type_acte == 'Attestation de travail':
+        template_name = 'attestation_travail_template.docx'
+    elif type_acte == 'Attestation de validité de services':
+        template_name = 'attestation_validite_services_template.docx'
+    elif type_acte == 'Certificat de non-jouissance de congé':
+        template_name = 'certificat_non_jouissance_template.docx'
+    elif type_acte in ['Congé', 'Autorisation de jouissance de congé administratif']:
         template_name = 'autorisation_conge_template.docx'
-    else:
+    elif type_acte in ["Autorisation d'absence exceptionnelle", 'Absence', 'Reprise de service']:
         template_name = 'autorisation_absence_template.docx'
+    else:
+        raise ValueError(f"Type d'acte non supporté pour génération: {acte.type_acte}")
     
     template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
     
     if not os.path.exists(template_path):
-        raise Exception(f"Template {template_name} non trouvé")
+        raise FileNotFoundError(f"Template introuvable pour {type_acte}: {template_path}")
     
     doc = Document(template_path)
     
-    if hasattr(demande, 'demandeconge') and demande.demandeconge:
-        date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
-        date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
-        nombre_jours = demande.demandeconge.nombrejours
-        motif = ''
+    # ✅ Remplacer les placeholders selon le type d'acte
+    if type_acte == 'Attestation de présence au poste':
+        nom_complet = f"{demande.agent.nom} {demande.agent.prenom}".upper()
+        poste = demande.agent.poste or 'Agent'
+        date_prise_service = demande.agent.date_prise_service.strftime('%d %B %Y') if demande.agent.date_prise_service else 'date non renseignée'
+        
+        mois_fr = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        for en, fr in mois_fr.items():
+            date_prise_service = date_prise_service.replace(en, fr)
+        
+        replacements = {
+            '{{REFERENCE}}': acte.reference,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{DATE_PRISE_SERVICE}}': date_prise_service,
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y')
+        }
+        
+    elif type_acte == 'Attestation de travail':
+        nom_complet = f"{demande.agent.nom} {demande.agent.prenom}".upper()
+        poste = demande.agent.poste or 'Administrateur'
+        date_prise_service = demande.agent.date_prise_service.strftime('%d %B %Y') if demande.agent.date_prise_service else 'date non renseignée'
+        
+        mois_fr = {
+            'January': 'janvier', 'February': 'février', 'March': 'mars',
+            'April': 'avril', 'May': 'mai', 'June': 'juin',
+            'July': 'juillet', 'August': 'août', 'September': 'septembre',
+            'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+        }
+        for en, fr in mois_fr.items():
+            date_prise_service = date_prise_service.replace(en, fr)
+        
+        replacements = {
+            '{{REFERENCE}}': acte.reference,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{DATE_PRISE_SERVICE}}': date_prise_service,
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y')
+        }
+        
+    elif type_acte == 'Attestation de validité de services':
+        nom_complet = f"{demande.agent.nom} {demande.agent.prenom}".upper()
+        poste = demande.agent.poste or 'Agent'
+        echelon_complet = demande.agent.echelon or 'A1-1'
+        categorie = echelon_complet[0].upper()
+        
+        match = re.match(r'[A-Z](\d+)-(\d+)', echelon_complet)
+        if match:
+            echelon_format = f"échelle {match.group(2)}, échelon {match.group(1)}"
+        else:
+            echelon_format = "échelle 1, échelon 1"
+        
+        date_prise_service = demande.agent.date_prise_service.strftime('%d %B %Y') if demande.agent.date_prise_service else 'date non renseignée'
+        
+        # Date de retraite
+        if demande.agent.date_naissance:
+            if categorie == 'A':
+                age_retraite = 60
+            elif categorie == 'B':
+                age_retraite = 58
+            elif categorie in ['C', 'D']:
+                age_retraite = 55
+            else:
+                age_retraite = 60
+            
+            date_retraite = demande.agent.date_naissance.replace(year=demande.agent.date_naissance.year + age_retraite)
+            date_retraite_str = date_retraite.strftime('1er %B %Y')
+            mois_fr = {
+                'January': 'janvier', 'February': 'février', 'March': 'mars',
+                'April': 'avril', 'May': 'mai', 'June': 'juin',
+                'July': 'juillet', 'August': 'août', 'September': 'septembre',
+                'October': 'octobre', 'November': 'novembre', 'December': 'décembre'
+            }
+            for en, fr in mois_fr.items():
+                date_retraite_str = date_retraite_str.replace(en, fr)
+        else:
+            date_retraite_str = 'date à déterminer'
+        
+        replacements = {
+            '{{REFERENCE}}': acte.reference,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{CATEGORIE}}': categorie,
+            '{{ECHELON}}': echelon_format,
+            '{{DATE_PRISE_SERVICE}}': date_prise_service,
+            '{{DATE_RETRAITE}}': date_retraite_str,
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y')
+        }
+        
+    elif type_acte == 'Certificat de non-jouissance de congé':
+        annee = datetime.now().year
+        civilite = "Madame" if (demande.agent.prenom.endswith('e') or demande.agent.nom.endswith('e')) else "Monsieur"
+        nom_complet = f"{demande.agent.prenom} {demande.agent.nom}"
+        poste = demande.agent.poste or 'Agent'
+        
+        replacements = {
+            '{{REFERENCE}}': acte.reference,
+            '{{CIVILITE}}': civilite,
+            '{{NOM_COMPLET}}': nom_complet,
+            '{{POSTE}}': poste,
+            '{{ANNEE}}': str(annee),
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y')
+        }
+        
     else:
-        date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
-        date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
-        nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
-        motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
+        # Cas des congés et absences
+        if hasattr(demande, 'demandeconge') and demande.demandeconge:
+            date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
+            date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+            nombre_jours = demande.demandeconge.nombrejours
+            motif = ''
+        else:
+            date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+            date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+            nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
+            motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
+        
+        replacements = {
+            '{{REFERENCE}}': acte.reference,
+            '{{AGENT_NOM}}': demande.agent.nom.upper(),
+            '{{AGENT_PRENOM}}': demande.agent.prenom,
+            '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
+            '{{DATE_DEBUT}}': date_debut,
+            '{{DATE_FIN}}': date_fin,
+            '{{NOMBRE_JOURS}}': str(nombre_jours),
+            '{{MOTIF}}': motif,
+            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
+            '{{ANNEE}}': str(datetime.now().year)
+        }
     
-    numero_seul = acte.reference.split('/')[0] if '/' in acte.reference else acte.reference
-    
-    replacements = {
-        '{{REFERENCE}}': numero_seul,
-        '{{AGENT_NOM}}': demande.agent.nom.upper(),
-        '{{AGENT_PRENOM}}': demande.agent.prenom,
-        '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
-        '{{DATE_DEBUT}}': date_debut,
-        '{{DATE_FIN}}': date_fin,
-        '{{NOMBRE_JOURS}}': str(nombre_jours),
-        '{{MOTIF}}': motif,
-        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-        '{{ANNEE}}': str(datetime.now().year)
-    }
-    
+    # Remplacer les placeholders dans le document
     for paragraph in doc.paragraphs:
         for key, value in replacements.items():
             if key in paragraph.text:
                 paragraph.text = paragraph.text.replace(key, value)
     
+    # Remplacer dans les tableaux
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for key, value in replacements.items():
+                        if key in paragraph.text:
+                            paragraph.text = paragraph.text.replace(key, value)
+    
+    # ✅ Ajouter la signature et le cachet
+    nom_a_chercher = None
     agent_roles = AgentRole.objects.filter(agent=signataire).select_related('role')
     roles = [ar.role.libelle.lower() for ar in agent_roles]
     
-    nom_a_chercher = None
     if 'dapaf' in roles:
         nom_a_chercher = 'Augustine KPOGLO'
     elif 'dpaf' in roles:
@@ -2867,6 +2983,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
         nom_a_chercher = f"{signataire.prenom} {signataire.nom}".upper()
     
     signature_ajoutee = False
+    
     for i, paragraph in enumerate(doc.paragraphs):
         if nom_a_chercher and nom_a_chercher.upper() in paragraph.text.upper():
             new_paragraph = doc.paragraphs[i].insert_paragraph_before()
@@ -2943,7 +3060,6 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
     output.seek(0)
     
     return _docx_bytes_to_pdf_bytes(output.getvalue())
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -3031,11 +3147,9 @@ def generer_acte_rh(request, demande_id):
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
-
         demande_type_label = demande.type_demande.libelle if demande.type_demande else ''
-        demande_type_lower = demande_type_label.lower()
         
-        # ✅ Vérifier si c'est une attestation (types exacts)
+        # ✅ Vérification flexible avec startswith
         types_attestation = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -3043,12 +3157,20 @@ def generer_acte_rh(request, demande_id):
             'Certificat de non-jouissance de congé'
         ]
         
-        # ✅ Si c'est une attestation, rediriger vers generer_attestation_rh
-        if demande_type_label in types_attestation:
+        est_attestation = False
+        for type_autorise in types_attestation:
+            if demande_type_label.startswith(type_autorise):
+                est_attestation = True
+                print(f"✅ Attestation détectée: {demande_type_label} (commence par {type_autorise})")
+                break
+        
+        # ✅ Si c'est une attestation, utiliser la fonction dédiée
+        if est_attestation:
             return generer_attestation_rh(request, demande_id)
         
-        is_conge = demande_type_lower == 'congé' or demande_type_lower == 'conge'
-        is_absence = 'absence' in demande_type_lower
+        # ✅ Sinon, vérifier les autres types
+        is_conge = demande_type_label.lower() in ['congé', 'conge']
+        is_absence = 'absence' in demande_type_label.lower()
 
         annee_conge = None
         if is_conge and hasattr(demande, 'demandeconge') and demande.demandeconge:
@@ -3079,7 +3201,10 @@ def generer_acte_rh(request, demande_id):
                 date_debut = date_fin = nombre_jours = motif = ''
             filename_prefix = 'Autorisation_Absence'
         else:
-            return JsonResponse({'error': 'Type de demande non supporté'}, status=400)
+            return JsonResponse({
+                'error': f'Type de demande non supporté: {demande_type_label}',
+                'types_supportes': ['Congé', 'Absence', 'Attestation de travail', 'Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé']
+            }, status=400)
 
         template_path = os.path.join(settings.BASE_DIR, 'backend', 'templates', 'word', template_name)
         
@@ -3190,6 +3315,7 @@ def download_acte(request, reference):
     try:
         acte = ActeAdministratif.objects.get(reference=reference)
         
+        # 1. Si signé → utiliser fichier_pdf_signe
         if acte.fichier_pdf_signe:
             fichier_bytes = base64.b64decode(acte.fichier_pdf_signe)
             if fichier_bytes.startswith(b'PK'):
@@ -3198,6 +3324,7 @@ def download_acte(request, reference):
                 pdf_bytes = fichier_bytes
             return _create_pdf_response(pdf_bytes, f'acte_{reference}')
         
+        # 2. Si fichier_pdf existe → l'utiliser directement (RAPIDE)
         if acte.fichier_pdf:
             fichier_bytes = base64.b64decode(acte.fichier_pdf)
             if fichier_bytes.startswith(b'PK'):
@@ -3205,22 +3332,26 @@ def download_acte(request, reference):
             else:
                 pdf_bytes = fichier_bytes
             return _create_pdf_response(pdf_bytes, f'acte_{reference}')
-        else:
-            doc = Document()
-            doc.add_paragraph(acte.contenu if acte.contenu else f"Acte {reference}")
-            output = io.BytesIO()
-            doc.save(output)
-            output.seek(0)
-            docx_bytes = output.getvalue()
-            pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
+        
+        # 3. Fallback : générer seulement si vraiment nécessaire
+        if acte.demande:
+            signataire, _ = get_signataire_par_type_acte(acte.type_acte)
+            pdf_bytes = generer_acte_avec_signature_et_cachet(
+                acte=acte,
+                demande=acte.demande,
+                signataire=signataire or acte.demande.agent,
+                signature_base64=None,
+                cachet_base64=None,
+            )
             return _create_pdf_response(pdf_bytes, f'acte_{reference}')
+        
+        return JsonResponse({'error': 'Acte non trouvé'}, status=404)
         
     except ActeAdministratif.DoesNotExist:
         return JsonResponse({'error': 'Acte non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR download_acte: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -4229,7 +4360,19 @@ def get_all_expired_documents(request):
 def get_actes_a_envoyer_rh(request, matricule_rh):
     try:
         print(f"=== get_actes_a_envoyer_rh for RH: {matricule_rh}")
-        actes = ActeAdministratif.objects.filter(statut='genere', demande__agent_rh__matricule=matricule_rh).select_related('demande__agent')
+        
+        # ✅ CORRECTION : Filtrer par l'agent RH assigné à la demande
+        actes = ActeAdministratif.objects.filter(
+            statut='genere',
+            demande__agent_rh__matricule=matricule_rh  # Filtrer via la demande
+        ).select_related('demande__agent')
+        
+        # ✅ OU BIEN : Si l'agent RH est stocké sur l'acte lui-même
+        # actes = ActeAdministratif.objects.filter(
+        #     statut='genere',
+        #     rh_matricule=matricule_rh  # Si vous avez un champ rh_matricule sur ActeAdministratif
+        # ).select_related('demande__agent')
+        
         result = []
         for acte in actes:
             if acte.demande:
@@ -4241,10 +4384,15 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
                     'reference': acte.reference,
                     'date_generation': str(acte.date_generation)
                 })
+        
+        print(f"✅ {len(result)} actes à envoyer pour {matricule_rh}")
         return JsonResponse(result, safe=False)
+        
     except Exception as e:
+        print(f"❌ ERREUR get_actes_a_envoyer_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # ==================== AVANCEMENTS ====================
 
@@ -6208,23 +6356,21 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
         
         secretaire = Agent.objects.get(matricule=matricule_secretaire)
         
-        # ✅ ICI - Il faut utiliser les types exacts !
-        # Récupérer TOUTES les attestations soumises (sans filtre direction)
+        # ✅ Utiliser icontains pour capturer toutes les variantes
         attestations = Demande.objects.filter(
-            statut='soumise',
-            type_demande__libelle__in=[
-                'Attestation de travail',
-                'Attestation de présence au poste',
-                'Attestation de validité de services',
-                'Certificat de non-jouissance de congé'
-            ]  # ← Utiliser les types exacts
+            statut='soumise'
+        ).filter(
+            models.Q(type_demande__libelle='Attestation de travail') |
+            models.Q(type_demande__libelle='Attestation de présence au poste') |
+            models.Q(type_demande__libelle='Attestation de validité de services') |
+            models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
         print(f"📋 Total attestations soumises trouvées: {attestations.count()}")
         
         result = []
         for att in attestations:
-            # ✅ Maintenant on peut utiliser directement le libellé
             type_attestation = att.type_demande.libelle
             
             validation = Validation.objects.filter(demande=att).first()
@@ -6240,7 +6386,7 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
                 'agent_nom': att.agent.nom,
                 'agent_prenom': att.agent.prenom,
                 'agent_matricule': att.agent.matricule,
-                'type_attestation': type_attestation,  # ✅ Directement le libellé
+                'type_attestation': type_attestation,
                 'date_soumission': str(att.date_soumission),
                 'numerosuivi': att.numerosuivi,
                 'commentaire': commentaire,
@@ -6257,7 +6403,6 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
         print(f"ERREUR get_demandes_attestations_secretaire: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["PUT"])
 def transmettre_attestation_destinataire(request, demande_id):
@@ -6265,25 +6410,27 @@ def transmettre_attestation_destinataire(request, demande_id):
     try:
         data = json.loads(request.body)
         secretaire_matricule = data.get('secretaire_matricule')
-        destinataire = data.get('destinataire')  # 'DPAF' ou 'DAPAF'
+        destinataire = data.get('destinataire')
         commentaire = data.get('commentaire', '')
         
         print(f"=== transmettre_attestation_destinataire - Demande ID: {demande_id}, Destinataire: {destinataire}")
         
         demande = Demande.objects.get(id=demande_id)
+        type_libelle = demande.type_demande.libelle if demande.type_demande else ''
         
-        # ✅ Liste des types d'attestation autorisés (correspond à tes types en base)
+        # ✅ Vérifier si c'est une attestation (avec ou sans année)
         types_attestation_autorises = [
             'Attestation de travail',
             'Attestation de présence au poste',
             'Attestation de validité de services',
-            'Certificat de non-jouissance de congé'
         ]
         
-        # ✅ Vérifier que c'est bien une attestation avec les types exacts
-        if not demande.type_demande or demande.type_demande.libelle not in types_attestation_autorises:
+        est_certificat = type_libelle.startswith('Certificat de non-jouissance')
+        est_attestation_valide = type_libelle in types_attestation_autorises or est_certificat
+        
+        if not est_attestation_valide:
             return JsonResponse({
-                'error': f'Cette demande n\'est pas une attestation valide. Type: {demande.type_demande.libelle if demande.type_demande else "Inconnu"}'
+                'error': f'Cette demande n\'est pas une attestation valide. Type: {type_libelle}'
             }, status=400)
         
         if demande.statut != 'soumise':
@@ -6319,10 +6466,9 @@ def transmettre_attestation_destinataire(request, demande_id):
             ).first()
         
         if responsable:
-            type_attestation = demande.type_demande.libelle
             Notification.objects.create(
                 agent_id=responsable.matricule,
-                message=f"📄 Attestation à assigner pour {demande.agent.prenom} {demande.agent.nom} - {type_attestation}",
+                message=f"📄 Attestation à assigner pour {demande.agent.prenom} {demande.agent.nom} - {type_libelle}",
                 type_notification='attestation_a_assigner',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -6340,6 +6486,7 @@ def transmettre_attestation_destinataire(request, demande_id):
         print(f"ERREUR transmettre_attestation_destinataire: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_attestations_transmises_secretaire(request, matricule_secretaire):
@@ -6349,27 +6496,24 @@ def get_attestations_transmises_secretaire(request, matricule_secretaire):
         
         secretaire = Agent.objects.get(matricule=matricule_secretaire)
         
-        # ✅ Utiliser les types exacts
         attestations = Demande.objects.filter(
-            statut__in=['transmise_dpaf', 'transmise_dapaf'],
-            type_demande__libelle__in=[
-                'Attestation de travail',
-                'Attestation de présence au poste',
-                'Attestation de validité de services',
-                'Certificat de non-jouissance de congé'
-            ]
+            statut__in=['transmise_dpaf', 'transmise_dapaf']
+        ).filter(
+            models.Q(type_demande__libelle='Attestation de travail') |
+            models.Q(type_demande__libelle='Attestation de présence au poste') |
+            models.Q(type_demande__libelle='Attestation de validité de services') |
+            models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
         result = []
         for att in attestations:
-            type_attestation = att.type_demande.libelle  # ✅ Directement le libellé
-            
             result.append({
                 'id': att.id,
                 'agent_nom': att.agent.nom,
                 'agent_prenom': att.agent.prenom,
                 'agent_matricule': att.agent.matricule,
-                'type_attestation': type_attestation,
+                'type_attestation': att.type_demande.libelle,
                 'date_soumission': str(att.date_soumission),
                 'numerosuivi': att.numerosuivi,
                 'statut': att.statut
@@ -6384,7 +6528,6 @@ def get_attestations_transmises_secretaire(request, matricule_secretaire):
         print(f"ERREUR get_attestations_transmises_secretaire: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
-
 @csrf_exempt
 @require_http_methods(["POST"])
 def generer_attestation_rh(request, demande_id):
@@ -6393,8 +6536,9 @@ def generer_attestation_rh(request, demande_id):
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
+        type_libelle = demande.type_demande.libelle if demande.type_demande else ''
         
-        # ✅ Liste des types d'attestation autorisés
+        # ✅ Vérification avec startswith pour les certificats
         types_attestation_autorises = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -6402,16 +6546,35 @@ def generer_attestation_rh(request, demande_id):
             'Certificat de non-jouissance de congé'
         ]
         
-        # ✅ Vérifier que c'est bien une attestation
-        if not demande.type_demande or demande.type_demande.libelle not in types_attestation_autorises:
+        # ✅ Vérification flexible
+        est_attestation = False
+        
+        # 1. Vérifier si le type est exactement dans la liste
+        if type_libelle in types_attestation_autorises:
+            est_attestation = True
+        
+        # 2. Vérifier si le type commence par un des types (pour "Certificat de non-jouissance de congé- 2026")
+        if not est_attestation:
+            for type_autorise in types_attestation_autorises:
+                if type_libelle.startswith(type_autorise):
+                    est_attestation = True
+                    print(f"✅ Type reconnu: {type_libelle} (commence par {type_autorise})")
+                    break
+        
+        if not est_attestation:
             return JsonResponse({
-                'error': f'Cette demande n\'est pas une attestation. Type: {demande.type_demande.libelle if demande.type_demande else "Inconnu"}'
+                'error': f'Cette demande n\'est pas une attestation. Type: {type_libelle}',
+                'types_acceptes': types_attestation_autorises
             }, status=400)
         
-        # ✅ Récupérer le type exact depuis le libellé
-        type_attestation = demande.type_demande.libelle
+        # ✅ Déterminer le type d'attestation pour la génération
+        # Si c'est un certificat avec année, on prend le type de base
+        if type_libelle.startswith('Certificat de non-jouissance de congé'):
+            type_attestation = 'Certificat de non-jouissance de congé'
+        else:
+            type_attestation = type_libelle
         
-        # ✅ Accepter les statuts après le bouton "Traiter"
+        # ✅ Accepter les statuts
         statuts_acceptes = ['en_cours_traitement', 'assignee_rh']
         if demande.statut not in statuts_acceptes:
             return JsonResponse({
@@ -6427,15 +6590,13 @@ def generer_attestation_rh(request, demande_id):
             demande.save()
             print(f"✅ Agent RH {rh_matricule} assigné à la demande {demande_id}")
         
-        # ✅ Construire un nouveau request avec le matricule de l'agent concerné
         from django.test import RequestFactory
         factory = RequestFactory()
         
-        # ✅ Passer demande_id dans la requête
         new_data = {
             'matricule': demande.agent.matricule,
             'rh_matricule': rh_matricule,
-            'demande_id': demande.id  # ← AJOUTÉ
+            'demande_id': demande.id
         }
         new_request = factory.post(
             request.path,
@@ -6445,7 +6606,6 @@ def generer_attestation_rh(request, demande_id):
         new_request.user = request.user
         new_request.META = request.META
         
-        # ✅ Rediriger vers la fonction de génération appropriée
         response = None
         if type_attestation == "Attestation de présence au poste":
             response = generer_attestation_presence(new_request)
@@ -6458,12 +6618,10 @@ def generer_attestation_rh(request, demande_id):
         else:
             return JsonResponse({'error': f'Type d\'attestation "{type_attestation}" non pris en charge'}, status=400)
         
-        # ✅ Mettre à jour le statut de la demande
         demande.statut = 'acte_genere'
         demande.date_generation_acte = datetime.now().date()
         demande.save()
         
-        # ✅ Notifier la secrétaire
         secretaire = Agent.objects.filter(
             agentrole__role__libelle='secretaire',
             actif=1
@@ -6487,7 +6645,7 @@ def generer_attestation_rh(request, demande_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-        
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def envoyer_acte_signature_rh(request, reference):
@@ -6589,14 +6747,11 @@ def envoyer_acte_secretaire_apres_signature(request, reference):
 
 def generer_reference_acte(type_acte):
     """
-    Génère une référence séquentielle à 3 chiffres pour un type d'acte
-    Format: 001, 002, 003, ..., 010, 011, ..., 100, 101, ...
+    Génère une référence séquentielle GLOBALE à 3 chiffres
+    Format: 001, 002, 003, ..., 999
     """
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT COUNT(*) FROM acte_administratif 
-            WHERE type_acte = %s
-        """, [type_acte])
+        cursor.execute("SELECT COUNT(*) FROM acte_administratif")
         count = cursor.fetchone()[0]
     
     numero = str(count + 1).zfill(3)
@@ -6622,20 +6777,19 @@ def get_attestations_recues(request, matricule):
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # ✅ Récupérer les attestations avec les types exacts
+        # ✅ Utiliser icontains pour capturer toutes les variantes (avec ou sans année)
         attestations = Demande.objects.filter(
-            statut=statut,
-            type_demande__libelle__in=[
-                'Attestation de travail',
-                'Attestation de présence au poste',
-                'Attestation de validité de services',
-                'Certificat de non-jouissance de congé'
-            ]
+            statut=statut
+        ).filter(
+            models.Q(type_demande__libelle='Attestation de travail') |
+            models.Q(type_demande__libelle='Attestation de présence au poste') |
+            models.Q(type_demande__libelle='Attestation de validité de services') |
+            models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
         result = []
         for att in attestations:
-            # ✅ Le libellé est directement le type d'attestation
             type_attestation = att.type_demande.libelle
             
             validation = Validation.objects.filter(demande=att).first()
@@ -6677,25 +6831,16 @@ def get_attestations_transmises(request, matricule):
         agent_roles = AgentRole.objects.filter(agent=user).select_related('role')
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
-        if 'dpaf' in roles:
+        if 'dpaf' in roles or 'dapaf' in roles:
+            # ✅ Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
-                statut='assignee_rh',
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
-            ).select_related('agent', 'type_demande').order_by('-date_soumission')
-        elif 'dapaf' in roles:
-            attestations = Demande.objects.filter(
-                statut='assignee_rh',
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
+                statut='assignee_rh'
+            ).filter(
+                models.Q(type_demande__libelle='Attestation de travail') |
+                models.Q(type_demande__libelle='Attestation de présence au poste') |
+                models.Q(type_demande__libelle='Attestation de validité de services') |
+                models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
             ).select_related('agent', 'type_demande').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -6795,25 +6940,16 @@ def get_attestations_historique(request, matricule):
         agent_roles = AgentRole.objects.filter(agent=user).select_related('role')
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
-        if 'dpaf' in roles:
+        if 'dpaf' in roles or 'dapaf' in roles:
+            # ✅ Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
-                statut__in=['termine', 'remis', 'signe'],
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
-            ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
-        elif 'dapaf' in roles:
-            attestations = Demande.objects.filter(
-                statut__in=['termine', 'remis', 'signe'],
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
+                statut__in=['termine', 'remis', 'signe']
+            ).filter(
+                models.Q(type_demande__libelle='Attestation de travail') |
+                models.Q(type_demande__libelle='Attestation de présence au poste') |
+                models.Q(type_demande__libelle='Attestation de validité de services') |
+                models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
             ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -6852,25 +6988,16 @@ def get_attestations_assignees(request, matricule):
         agent_roles = AgentRole.objects.filter(agent=user).select_related('role')
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
-        if 'dpaf' in roles:
+        if 'dpaf' in roles or 'dapaf' in roles:
+            # ✅ Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
-                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine'],
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
-            ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
-        elif 'dapaf' in roles:
-            attestations = Demande.objects.filter(
-                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine'],
-                type_demande__libelle__in=[
-                    'Attestation de travail',
-                    'Attestation de présence au poste',
-                    'Attestation de validité de services',
-                    'Certificat de non-jouissance de congé'
-                ]
+                statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'envoye_secretaire']
+            ).filter(
+                models.Q(type_demande__libelle='Attestation de travail') |
+                models.Q(type_demande__libelle='Attestation de présence au poste') |
+                models.Q(type_demande__libelle='Attestation de validité de services') |
+                models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
             ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -6897,7 +7024,7 @@ def get_attestations_assignees(request, matricule):
     except Exception as e:
         print(f"ERREUR get_attestations_assignees: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
-    
+
 @csrf_exempt
 @require_http_methods(["PUT"])
 def signer_attestation(request, reference):
@@ -6931,14 +7058,13 @@ def signer_attestation(request, reference):
                 'error': 'Signature ou cachet manquant. Veuillez uploader votre signature et votre cachet dans votre profil.'
             }, status=400)
         
-        # Récupérer l'acte non signé
-        fichier_pdf_base64 = acte.fichier_pdf
-        
-        # ✅ ICI : Ajouter la signature et le cachet sur le PDF
-        pdf_bytes = ajouter_signature_cachet_attestation(
-            fichier_pdf_base64=fichier_pdf_base64,
+        pdf_bytes = generer_acte_avec_signature_et_cachet(
+            acte=acte,
+            demande=acte.demande,
             signataire=signataire,
-            type_attestation=acte.type_acte
+            signature_base64=signataire.signature,
+            cachet_base64=signataire.cachet,
+            commentaire=commentaire
         )
         
         # Mettre à jour l'acte
