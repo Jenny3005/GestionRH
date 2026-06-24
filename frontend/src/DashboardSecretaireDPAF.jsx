@@ -18,6 +18,11 @@ export default function DashboardSecretaire() {
   const [actesATransmettreDPAF, setActesATransmettreDPAF] = useState([]);
   const [actesATransmettreDAPAF, setActesATransmettreDAPAF] = useState([]);
   const [actesARemettre, setActesARemettre] = useState([]);
+  
+  // ✅ NOUVEAU - États pour les attestations
+  const [attestationsSoumises, setAttestationsSoumises] = useState([]);
+  const [attestationsTransmises, setAttestationsTransmises] = useState([]);
+  
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
@@ -25,8 +30,10 @@ export default function DashboardSecretaire() {
   // Modals
   const [showTransmettreModal, setShowTransmettreModal] = useState(false);
   const [showTransmettreActeModal, setShowTransmettreActeModal] = useState(false);
+  const [showTransmettreAttestationModal, setShowTransmettreAttestationModal] = useState(false);
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [selectedActe, setSelectedActe] = useState(null);
+  const [selectedAttestation, setSelectedAttestation] = useState(null);
   const [commentaire, setCommentaire] = useState('');
   const [destinataireType, setDestinataireType] = useState(''); // 'DPAF' ou 'DAPAF'
   
@@ -38,12 +45,17 @@ export default function DashboardSecretaire() {
     transmises_dapaf: 0,
     actes_a_transmettre_dpaf: 0,
     actes_a_transmettre_dapaf: 0,
-    actes_a_remettre: 0
+    actes_a_remettre: 0,
+    attestations_a_transmettre: 0  // ✅ NOUVEAU
   });
 
   // Types d'actes selon destinataire
   const typesPourDPAF = ['Absence', 'Reprise de service'];
   const typesPourDAPAF = ['Congé', 'Autorisation de jouissance de congé administratif'];
+  
+  // ✅ Types d'attestations selon destinataire
+  const typesAttestationDPAF = ['Attestation de travail'];
+  const typesAttestationDAPAF = ['Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
 
   const matricule = localStorage.getItem('userMatricule');
   const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
@@ -114,6 +126,24 @@ export default function DashboardSecretaire() {
         setActesARemettre(actesARemettreData);
       }
 
+      // 7. ✅ Attestations soumises par les agents (statut = 'soumise')
+      const attestationsRes = await fetch(`/api/secretaire/demandes-attestations/${matricule}/`);
+      let attestationsData = [];
+      if (attestationsRes.ok) {
+        attestationsData = await attestationsRes.json();
+        console.log('📄 Attestations soumises:', attestationsData);
+        setAttestationsSoumises(attestationsData);
+      }
+
+      // 8. ✅ Attestations déjà transmises
+      const attestationsTransmisesRes = await fetch(`/api/secretaire/attestations-transmises/${matricule}/`);
+      let attestationsTransmisesData = [];
+      if (attestationsTransmisesRes.ok) {
+        attestationsTransmisesData = await attestationsTransmisesRes.json();
+        console.log('📤 Attestations transmises:', attestationsTransmisesData);
+        setAttestationsTransmises(attestationsTransmisesData);
+      }
+
       // Calcul des stats
       const aTransmettreDPAF = valideesData.filter(d => typesPourDPAF.includes(d.type_demande)).length;
       const aTransmettreDAPAF = valideesData.filter(d => typesPourDAPAF.includes(d.type_demande)).length;
@@ -125,7 +155,8 @@ export default function DashboardSecretaire() {
         transmises_dapaf: transmisesDAPAFData.length,
         actes_a_transmettre_dpaf: actesDPAFData.length,
         actes_a_transmettre_dapaf: actesDAPAFData.length,
-        actes_a_remettre: actesARemettreData.length
+        actes_a_remettre: actesARemettreData.length,
+        attestations_a_transmettre: attestationsData.length  // ✅ NOUVEAU
       });
 
     } catch (error) {
@@ -133,6 +164,13 @@ export default function DashboardSecretaire() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✅ Fonction pour déterminer le destinataire d'une attestation
+  const getDestinataireAttestation = (typeAttestation) => {
+    if (typesAttestationDPAF.includes(typeAttestation)) return 'DPAF';
+    if (typesAttestationDAPAF.includes(typeAttestation)) return 'DAPAF';
+    return null;
   };
 
   const handleTransmettreDemande = async (demandeId, destinataire) => {
@@ -181,6 +219,35 @@ export default function DashboardSecretaire() {
         alert(`✅ Acte transmis au ${result.destinataire} pour signature`);
         setShowTransmettreActeModal(false);
         setSelectedActe(null);
+        setCommentaire('');
+        fetchData();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Erreur lors de la transmission');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur de connexion');
+    }
+  };
+
+  // ✅ Fonction pour transmettre une attestation
+  const handleTransmettreAttestation = async (demandeId, destinataire) => {
+    try {
+      const response = await fetch(`/api/secretaire/attestations/transmettre/${demandeId}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secretaire_matricule: matricule,
+          commentaire: commentaire,
+          destinataire: destinataire
+        })
+      });
+      
+      if (response.ok) {
+        alert(`✅ Attestation transmise au ${destinataire} avec succès`);
+        setShowTransmettreAttestationModal(false);
+        setSelectedAttestation(null);
         setCommentaire('');
         fetchData();
       } else {
@@ -245,7 +312,8 @@ export default function DashboardSecretaire() {
       'transmise_dapaf': <span className="badge-warning">📤 Transmise au DAPAF</span>,
       'acte_genere': <span className="badge-info">📄 Acte généré</span>,
       'envoye_secretaire': <span className="badge-warning">📤 Reçu du RH</span>,
-      'signe': <span className="badge-success">✅ Signé</span>
+      'signe': <span className="badge-success">✅ Signé</span>,
+      'soumise': <span className="badge-info">📋 Soumise par l'agent</span>  // ✅ NOUVEAU
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -272,6 +340,16 @@ export default function DashboardSecretaire() {
     setShowTransmettreActeModal(true);
   };
 
+  // ✅ Ouvrir modal pour transmettre une attestation
+  const openTransmettreAttestationModal = (attestation) => {
+    const destinataire = getDestinataireAttestation(attestation.type_attestation);
+    if (destinataire) {
+      setSelectedAttestation(attestation);
+      setDestinataireType(destinataire);
+      setShowTransmettreAttestationModal(true);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     navigate('/');
@@ -285,7 +363,13 @@ export default function DashboardSecretaire() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-          <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+          <a href="/" className="logo-nav-link">
+            <img 
+              src="/logo_MND.png" 
+              alt="Logo Ministère du Numérique et de la Digitalisation" 
+              className="mnd-official-logo" 
+            />
+          </a>
         </div>
         <PortalNav />
         <div className="nav-right">
@@ -297,7 +381,7 @@ export default function DashboardSecretaire() {
         <section className="hero-banner-intranet">
           <div className="banner-content">
             <h2>Tableau de bord - Secrétariat</h2>
-            <p>Transmission des demandes au DPAF (absences) ou DAPAF (congés), suivi des actes</p>
+            <p>Transmission des demandes au DPAF (absences) ou DAPAF (congés), suivi des actes et attestations</p>
           </div>
         </section>
 
@@ -318,6 +402,10 @@ export default function DashboardSecretaire() {
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{stats.actes_a_remettre}</div>
             <div className="stat-label">📋 Actes à remettre</div>
+          </div>
+          <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
+            <div className="stat-number">{stats.attestations_a_transmettre}</div>
+            <div className="stat-label">📄 Attestations à transmettre</div>
           </div>
         </div>
 
@@ -408,10 +496,9 @@ export default function DashboardSecretaire() {
             </table>
           </div>
         </div>
-
         {/* SECTION 2: Actes à transmettre au DPAF */}
         <div className="admin-section">
-          <h3> Actes reçus des RH - À transmettre au DPAF (Absences)</h3>
+          <h3>📄 Actes reçus des RH - À transmettre au DPAF (Absences)</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -441,10 +528,11 @@ export default function DashboardSecretaire() {
                             👁️ Voir
                           </button>
                           <button 
-                            className="btn-transmettre-dpaf"
+                            className="btn-transmettre btn-transmettre-dpaf"
                             onClick={() => openTransmettreActeModal(acte, 'DPAF')}
                           >
-                            📤 Transmettre au DPAF
+                            <span className="icon">📤</span>
+                            Transmettre au DPAF
                           </button>
                         </div>
                       </td>
@@ -458,7 +546,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 3: Actes à transmettre au DAPAF */}
         <div className="admin-section">
-          <h3> Actes reçus des RH - À transmettre au DAPAF (Congés)</h3>
+          <h3>📄 Actes reçus des RH - À transmettre au DAPAF </h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -473,7 +561,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesATransmettreDAPAF.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center"> Aucun acte à transmettre au DAPAF</td>
+                    <td colSpan="5" className="text-center">📭 Aucun acte à transmettre au DAPAF</td>
                   </tr>
                 ) : (
                   actesATransmettreDAPAF.map((acte) => (
@@ -488,11 +576,11 @@ export default function DashboardSecretaire() {
                             👁️ Voir
                           </button>
                           <button 
-                            className="btn-transmettre-dapaf"
-                            style={{ backgroundColor: '#10B981' }}
+                            className="btn-transmettre btn-transmettre-dapaf"
                             onClick={() => openTransmettreActeModal(acte, 'DAPAF')}
                           >
-                            📤 Transmettre au DAPAF
+                            <span className="icon">📤</span>
+                            Transmettre au DAPAF
                           </button>
                         </div>
                       </td>
@@ -504,7 +592,93 @@ export default function DashboardSecretaire() {
           </div>
         </div>
 
-        {/* SECTION 4: Actes signés à remettre aux agents */}
+        {/* ✅ SECTION 4: Attestations à transmettre (NOUVEAU) */}
+        <div className="admin-section">
+          <h3>📄 Attestations demandées par les agents - À transmettre</h3>
+          
+          <div style={{ 
+            display: 'flex',
+            gap: '15px',
+            marginBottom: '15px',
+            padding: '10px',
+            background: '#F8FAFC',
+            borderRadius: '8px'
+          }}>
+            <div style={{ flex: 1, borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
+              <strong>📤 Transmission au DPAF :</strong>
+              <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
+                Attestation de travail
+              </p>
+            </div>
+            <div style={{ flex: 1, borderLeft: '4px solid #10B981', paddingLeft: '10px' }}>
+              <strong>📤 Transmission au DAPAF :</strong>
+              <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
+                Attestation de présence, validité de services, certificat
+              </p>
+            </div>
+          </div>
+
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Matricule</th>
+                  <th>Type d'attestation</th>
+                  <th>Date demande</th>
+                  <th>Statut</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="text-center">⏳ Chargement...</td>
+                  </tr>
+                ) : attestationsSoumises.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="text-center">📭 Aucune attestation à transmettre</td>
+                  </tr>
+                ) : (
+                  attestationsSoumises.map((att) => {
+                    const destinataire = getDestinataireAttestation(att.type_attestation);
+                    if (!destinataire) return null;
+                    
+                    return (
+                      <tr key={att.id}>
+                        <td>{att.agent_nom} {att.agent_prenom}</td>
+                        <td>{att.agent_matricule}</td>
+                        <td>
+                          {att.type_attestation}
+                          <span style={{ 
+                            marginLeft: '8px', 
+                            fontSize: '0.7rem', 
+                            color: destinataire === 'DPAF' ? '#3B82F6' : '#10B981',
+                            fontWeight: 'bold'
+                          }}>
+                            (→{destinataire})
+                          </span>
+                        </td>
+                        <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td>{getStatusBadge(att.statut)}</td>
+                        <td>
+                          <button 
+                            className="btn-transmettre"
+                            onClick={() => openTransmettreAttestationModal(att)}
+                          >
+                            📤 Transmettre au {destinataire}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* SECTION 5: Actes signés à remettre aux agents */}
         <div className="admin-section">
           <h3>✅ Actes signés - À remettre aux agents</h3>
           <div className="admin-table-container">
@@ -521,7 +695,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesARemettre.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center"> Aucun acte à remettre</td>
+                    <td colSpan="5" className="text-center">📭 Aucun acte à remettre</td>
                   </tr>
                 ) : (
                   actesARemettre.map((acte) => (
@@ -560,7 +734,7 @@ export default function DashboardSecretaire() {
           }}>
             <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header preview-modal-header">
-                <h3> {previewTitle}</h3>
+                <h3>📄 {previewTitle}</h3>
                 <button className="modal-close" onClick={() => {
                   setShowPreviewModal(false);
                   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -576,7 +750,7 @@ export default function DashboardSecretaire() {
                     frameBorder="0"
                   />
                 ) : (
-                  <div className="loading-preview">Chargement de l'aperçu...</div>
+                  <div className="loading-preview">⏳ Chargement de l'aperçu...</div>
                 )}
               </div>
               <div className="modal-footer preview-modal-footer">
@@ -602,34 +776,80 @@ export default function DashboardSecretaire() {
         )}
       </main>
 
-      {/* MODAL TRANSMETTRE DEMANDE */}
+      {/* MODAL TRANSMETTRE DEMANDE - VERSION ÉLÉGANTE */}
       {showTransmettreModal && selectedDemande && (
-        <div className="modal-overlay" onClick={() => setShowTransmettreModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Transmettre au {destinataireType}</h3>
-              <button className="modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>Agent :</strong> {selectedDemande.agent_nom} {selectedDemande.agent_prenom}</p>
-                <p><strong>Type :</strong> {selectedDemande.type_demande}</p>
-                <p><strong>Période :</strong> {selectedDemande.date_debut} - {selectedDemande.date_fin}</p>
-                <p><strong>Destinataire :</strong> {destinataireType}</p>
+        <div className="transmettre-modal-overlay" onClick={() => setShowTransmettreModal(false)}>
+          <div className="transmettre-modal-content" onClick={(e) => e.stopPropagation()}>
+            {/* HEADER */}
+            <div className="transmettre-modal-header">
+              <div className="transmettre-modal-header-left">
+                <div className="transmettre-modal-icon-wrapper">
+                  <span className="icon">📤</span>
+                </div>
+                <div className="transmettre-modal-title-section">
+                  <h3>Transmettre au {destinataireType}</h3>
+                  <span className="subtitle">Confirmez la transmission de cette demande</span>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+              <button className="transmettre-modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
+            </div>
+
+            {/* BODY */}
+            <div className="transmettre-modal-body">
+              {/* Carte d'information */}
+              <div className="transmettre-info-card">
+                <div className="card-title">📋 Détails de la demande</div>
+                <div className="transmettre-info-grid">
+                  <div className="transmettre-info-item">
+                    <span className="label">Agent</span>
+                    <span className="value">{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</span>
+                  </div>
+                  <div className="transmettre-info-item">
+                    <span className="label">Matricule</span>
+                    <span className="value"><code>{selectedDemande.agent_matricule}</code></span>
+                  </div>
+                  <div className="transmettre-info-item full-width">
+                    <span className="label">Type de demande</span>
+                    <span className="value">{selectedDemande.type_demande}</span>
+                  </div>
+                  <div className="transmettre-info-item">
+                    <span className="label">Période</span>
+                    <span className="value">{selectedDemande.date_debut} → {selectedDemande.date_fin}</span>
+                  </div>
+                  <div className="transmettre-info-item">
+                    <span className="label">Destinataire</span>
+                    <span className={`destinataire-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
+                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commentaire */}
+              <div className="transmettre-commentaire-section">
+                <div className="label-with-optional">
+                  <span className="label">💬 Instructions pour le {destinataireType}</span>
+                  <span className="optional-badge">Optionnel</span>
+                </div>
                 <textarea
                   rows="3"
-                  placeholder="Ajoutez un commentaire..."
+                  placeholder={`Ajoutez des instructions pour le ${destinataireType}...`}
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                 />
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowTransmettreModal(false)}>Annuler</button>
-              <button className="btn-transmettre" onClick={() => handleTransmettreDemande(selectedDemande.id, destinataireType)}>
+
+            {/* FOOTER */}
+            <div className="transmettre-modal-footer">
+              <button className="btn-transmettre-cancel" onClick={() => setShowTransmettreModal(false)}>
+                Annuler
+              </button>
+              <button 
+                className={`btn-transmettre-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
+                onClick={() => handleTransmettreDemande(selectedDemande.id, destinataireType)}
+              >
+                <span className="icon">📤</span>
                 Transmettre au {destinataireType}
               </button>
             </div>
@@ -642,7 +862,7 @@ export default function DashboardSecretaire() {
         <div className="modal-overlay" onClick={() => setShowTransmettreActeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3> Transmettre l'acte au {destinataireType}</h3>
+              <h3>📤 Transmettre l'acte au {destinataireType}</h3>
               <button className="modal-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -665,7 +885,46 @@ export default function DashboardSecretaire() {
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowTransmettreActeModal(false)}>Annuler</button>
               <button className="btn-transmettre" onClick={() => handleTransmettreActe(selectedActe.reference, destinataireType)}>
-                Transmettre au {destinataireType}
+                📤 Transmettre au {destinataireType}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ MODAL TRANSMETTRE ATTESTATION (NOUVEAU) */}
+      {showTransmettreAttestationModal && selectedAttestation && (
+        <div className="modal-overlay" onClick={() => setShowTransmettreAttestationModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📤 Transmettre l'attestation au {destinataireType}</h3>
+              <button className="modal-close" onClick={() => setShowTransmettreAttestationModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <p><strong>Agent :</strong> {selectedAttestation.agent_nom} {selectedAttestation.agent_prenom}</p>
+                <p><strong>Matricule :</strong> {selectedAttestation.agent_matricule}</p>
+                <p><strong>Type d'attestation :</strong> {selectedAttestation.type_attestation}</p>
+                <p><strong>Date demande :</strong> {selectedAttestation.date_soumission ? new Date(selectedAttestation.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
+                <p><strong>Destinataire :</strong> {destinataireType}</p>
+                {selectedAttestation.commentaire && (
+                  <p><strong>Commentaire agent :</strong> {selectedAttestation.commentaire}</p>
+                )}
+              </div>
+              <div className="form-group">
+                <label>Commentaire (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez un commentaire pour le {destinataireType}..."
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowTransmettreAttestationModal(false)}>Annuler</button>
+              <button className="btn-transmettre" onClick={() => handleTransmettreAttestation(selectedAttestation.id, destinataireType)}>
+                📤 Transmettre au {destinataireType}
               </button>
             </div>
           </div>
