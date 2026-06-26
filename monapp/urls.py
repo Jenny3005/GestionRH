@@ -96,6 +96,7 @@ urlpatterns = [
     path('dpaf/demandes-historique/<str:matricule_dpaf>/', views.get_demandes_historique_dpaf, name='demandes_historique_dpaf'),
     path('anniversaires/check/', views.check_anniversaires, name='check_anniversaires'),
     
+    
     # ==================== SIGNATURE ET CACHET ====================
     path('agent/signature-cachet/<str:matricule>/', views.get_signature_cachet, name='get_signature_cachet'),
     path('agent/upload-signature/<str:matricule>/', views.upload_signature, name='upload_signature'),
@@ -171,6 +172,25 @@ urlpatterns = [
     path('agent/<str:matricule>/enfants/', views.enfants_agent, name='enfants_agent'),
     path('agent/<str:matricule>/enfants/<int:enfant_id>/', views.supprimer_enfant, name='supprimer_enfant'),
 
+    # Attestations - Workflow sans Chef
+    path('attestations/demander/', views.demande_attestation, name='demande_attestation'),
+    path('secretaire/demandes-attestations/<str:matricule_secretaire>/', views.get_demandes_attestations_secretaire, name='get_demandes_attestations_secretaire'),
+    path('secretaire/attestations-transmises/<str:matricule_secretaire>/', views.get_attestations_transmises_secretaire, name='get_attestations_transmises_secretaire'),
+    path('secretaire/attestations/transmettre/<int:demande_id>/', views.transmettre_attestation_destinataire, name='transmettre_attestation_destinataire'),
+    path('rh/attestations/generer/<int:demande_id>/', views.generer_attestation_rh, name='generer_attestation_rh'),
+    path('rh/actes/envoyer-signature/<path:reference>/', views.envoyer_acte_signature_rh, name='envoyer_acte_signature_rh'),
+    path('actes/apres-signature/envoyer-secretaire/<path:reference>/', views.envoyer_acte_secretaire_apres_signature, name='envoyer_acte_secretaire_apres_signature'),
+
+    # Attestations DPAF/DAPAF
+    path('dashboard/attestations-recues/<str:matricule>/', views.get_attestations_recues, name='get_attestations_recues'),
+    path('dashboard/attestations-transmises/<str:matricule>/', views.get_attestations_transmises, name='get_attestations_transmises'),
+    path('dpaf/assigner-attestation/<int:attestation_id>/', views.assigner_attestation_rh, name='assigner_attestation_rh'),
+
+    # Attestations assignées et historique pour DPAF
+    path('dashboard/attestations-assignees/<str:matricule>/', views.get_attestations_assignees, name='get_attestations_assignees'),
+    path('dashboard/attestations-historique/<str:matricule>/', views.get_attestations_historique, name='get_attestations_historique'),
+    # Signature des attestations
+    path('api/attestations/signer/<path:reference>/', views.signer_attestation, name='signer_attestation'),
 
     
 ]
