@@ -18,6 +18,9 @@ export default function Demarches() {
   const [showCongeForm, setShowCongeForm] = useState(false);
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
   const [showSoldeModal, setShowSoldeModal] = useState(false);
+  const [showDemandeModal, setShowDemandeModal] = useState(false);
+  const [demandeEnCours, setDemandeEnCours] = useState('');
+  const [commentaireDemande, setCommentaireDemande] = useState('');
   const [congeForm, setCongeForm] = useState({
     date_debut: '',
     date_fin: ''
@@ -229,8 +232,8 @@ export default function Demarches() {
     }
   };
 
-  // Attestation de présence au poste
-  const soumettreAttestationPresence = async () => {
+  // Demande d'attestation - Envoi au service RH
+  const soumettreDemandeAttestation = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
       return;
@@ -238,114 +241,26 @@ export default function Demarches() {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/attestations/presence/', {
+      const response = await fetch('/api/attestations/demander/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricule: matricule })
+        body: JSON.stringify({
+          matricule: matricule,
+          type_attestation: demandeEnCours,
+          commentaire: commentaireDemande
+        })
       });
       
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const nom = localStorage.getItem('userNom') || '';
-        const prenom = localStorage.getItem('userPrenom') || '';
-        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Attestation_Presence_${safeNom || matricule}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        alert('✅ Attestation de présence générée avec succès !');
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la génération');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur de connexion');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Attestation de travail
-  const soumettreAttestationTravail = async () => {
-    if (!matricule) {
-      alert('Veuillez vous connecter');
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const response = await fetch('/api/attestations/travail/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricule: matricule })
-      });
+      const data = await response.json();
       
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const nom = localStorage.getItem('userNom') || '';
-        const prenom = localStorage.getItem('userPrenom') || '';
-        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Attestation_Travail_${safeNom || matricule}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        alert('✅ Attestation de travail générée avec succès !');
+        alert(`✅ Demande d'attestation "${demandeEnCours}" envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre attestation sera prête.`);
+        setShowDemandeModal(false);
+        setDemandeEnCours('');
+        setCommentaireDemande('');
+        fetchMesDemandes(matricule);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la génération');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur de connexion');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Attestation de validité de services
-  const soumettreAttestationValiditeServices = async () => {
-    if (!matricule) {
-      alert('Veuillez vous connecter');
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const response = await fetch('/api/attestations/validite-services/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricule: matricule })
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const nom = localStorage.getItem('userNom') || '';
-        const prenom = localStorage.getItem('userPrenom') || '';
-        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Attestation_Validite_Services_${safeNom || matricule}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        alert('✅ Attestation de validité de services générée avec succès !');
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la génération');
+        alert(data.error || 'Erreur lors de la demande');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -356,12 +271,13 @@ export default function Demarches() {
   };
 
   // Vérifier si l'agent peut obtenir le certificat (avec anti-cache)
+  // Vérifier si l'agent peut obtenir le certificat
   const verifierNonJouissance = async (annee) => {
     if (!matricule) return;
     
     const anneeAVerifier = annee || certificatAnnee;
-    console.log(`🔍 Début vérification pour année ${anneeAVerifier}`);
     setCertificatLoading(true);
+    setCertificatVerification(null); // ✅ Réinitialiser avant la requête
     
     try {
       const timestamp = new Date().getTime();
@@ -376,27 +292,22 @@ export default function Demarches() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log(`📊 Données reçues pour ${anneeAVerifier}:`, data);
-        console.log(`  - a_bteneficie: ${data.a_bteneficie}`);
-        console.log(`  - jours_pris: ${data.jours_pris}`);
-        console.log(`  - peut_obtenir_certificat: ${data.peut_obtenir_certificat}`);
         setCertificatVerification(data);
-        console.log(`✅ State mis à jour pour ${anneeAVerifier}`);
       } else {
         const error = await response.json();
-        console.error('Erreur vérification:', error);
         alert(error.error || 'Erreur lors de la vérification');
+        setCertificatVerification(null);
       }
     } catch (error) {
       console.error('Erreur:', error);
       alert('Erreur de connexion');
+      setCertificatVerification(null);
     } finally {
       setCertificatLoading(false);
-      console.log(`🏁 Fin vérification pour ${anneeAVerifier}`);
     }
   };
 
-  // Générer le certificat de non-jouissance
+  // ✅ MODIFIÉ : Envoie une demande de certificat (pas de génération directe)
   const genererCertificatNonJouissance = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -405,36 +316,27 @@ export default function Demarches() {
     
     setCertificatLoading(true);
     try {
-      const response = await fetch('/api/certificats/non-jouissance/', {
+      // ✅ Envoyer une demande d'attestation (pas une génération directe)
+      const response = await fetch('/api/attestations/demander/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           matricule: matricule,
-          annee: certificatAnnee 
+          type_attestation: `Certificat de non-jouissance de congé - ${certificatAnnee}`,
+          commentaire: `Année concernée : ${certificatAnnee}`
         })
       });
       
+      const data = await response.json();
+      
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const nom = localStorage.getItem('userNom') || '';
-        const prenom = localStorage.getItem('userPrenom') || '';
-        const safeNom = (nom + '_' + prenom).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-\.]/g, '');
-        a.download = `Certificat_Non_Jouissance_${certificatAnnee}_${safeNom || matricule}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        alert(`✅ Certificat de non-jouissance pour l'année ${certificatAnnee} généré avec succès !`);
+        alert(`✅ Demande de certificat de non-jouissance pour l'année ${certificatAnnee} envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre certificat sera prêt.`);
         setShowCertificatModal(false);
         setCertificatVerification(null);
         setCertificatAnnee(new Date().getFullYear());
+        fetchMesDemandes(matricule);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la génération');
+        alert(data.error || 'Erreur lors de la demande');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -445,10 +347,25 @@ export default function Demarches() {
   };
 
   // Ouvrir la modale et vérifier
+  // Ouvrir la modale et vérifier
   const ouvrirModalCertificat = () => {
+    const anneeActuelle = new Date().getFullYear();
+    const anneeParDefaut = anneeActuelle - 1; // ✅ Année dernière par défaut
+    
     setShowCertificatModal(true);
+    setCertificatAnnee(anneeParDefaut);
     setCertificatVerification(null);
-    verifierNonJouissance(certificatAnnee);
+    setCertificatLoading(true);
+    verifierNonJouissance(anneeParDefaut);
+};
+
+  // Nouvelle fonction pour les attestations
+  const handleDemandeAttestation = (titre) => {
+    requireLogin(`faire une demande d'attestation`, () => {
+      setDemandeEnCours(titre);
+      setCommentaireDemande('');
+      setShowDemandeModal(true);
+    });
   };
 
   const handleFaireDemande = (titre) => {
@@ -457,16 +374,10 @@ export default function Demarches() {
         setShowCongeForm(true);
       } else if (titre.includes("Autorisation d'absence")) {
         setShowAbsenceForm(true);
-      } else if (titre.includes("Attestation de présence au poste")) {
-        soumettreAttestationPresence();
-      } else if (titre.includes("Attestation de travail")) {
-        soumettreAttestationTravail();
-      } else if (titre.includes("Attestation de validité de services")) {
-        soumettreAttestationValiditeServices();
       } else if (titre.includes("Certificat de non-jouissance")) {
         ouvrirModalCertificat();
       } else {
-        alert(`Demande de ${titre} en cours de développement...`);
+        handleDemandeAttestation(titre);
       }
     });
   };
@@ -486,7 +397,7 @@ export default function Demarches() {
 
   const handleVoirOffres = () => {
     requireLogin("consulter les offres de postes internes", () => {
-      alert("Voici la liste complète des offres...");
+      navigate('/postes');
     });
   };
 
@@ -504,7 +415,7 @@ export default function Demarches() {
 
   const handleVoirAlertes = () => {
     requireLogin("voir les alertes de votre dossier", () => {
-      alert("Affichage des alertes...");
+      navigate('/documents');
     });
   };
 
@@ -520,35 +431,27 @@ export default function Demarches() {
     });
   };
 
-  // Données des attestations
+  // ✅ Données des attestations
   const attestations = [
     {
       id: 1,
       titre: "Attestation de travail",
       description: "Certifie que vous êtes en activité au Ministère du Numérique.",
-      delai: "Immédiat",
-      action: "generer"
     },
     {
       id: 2,
       titre: "Attestation de présence au poste",
       description: "Confirme votre présence effective à votre poste de travail.",
-      delai: "Immédiat",
-      action: "generer"
     },
     {
       id: 3,
       titre: "Attestation de validité de services",
       description: "Valide vos années de service accomplies au sein du MND.",
-      delai: "Immédiat",
-      action: "generer"
     },
     {
       id: 4,
       titre: "Certificat de non-jouissance de congé",
       description: "Atteste que vous n'avez pas bénéficié de votre congé annuel.",
-      delai: "Immédiat",
-      action: "generer"
     }
   ];
 
@@ -558,21 +461,16 @@ export default function Demarches() {
       id: 1,
       titre: "📅 Demande de congé administratif",
       description: "Soumettez votre demande de congé annuel en ligne.",
-      info: "Validation chef →",
-      limite: "Max 30 jours/an"
     },
     {
       id: 2,
-      titre: "⏰ Autorisation d'absence",
+      titre: "⏰ Autorisation d'absence exceptionnelle",
       description: "Demandez une autorisation pour une absence exceptionnelle.",
-      info: "Validation chef →",
-      limite: "Max 10 jours/an"
     },
     {
       id: 3,
       titre: "📊 Consulter mon solde de congés",
       description: "Vérifiez vos jours acquis, pris et restants pour l'année.",
-      info: "Auto-généré →"
     }
   ];
 
@@ -582,23 +480,18 @@ export default function Demarches() {
       id: 1,
       titre: "📈 Consulter mon avancement",
       description: "Visualisez votre échelon actuel et la date de votre prochain avancement.",
-      info: "Tous les 2 ans"
     },
     {
       id: 2,
       titre: "💼 Postuler à un poste interne",
       description: "Consultez les postes vacants et soumettez votre candidature en ligne.",
-      info: "Postes ouverts"
     },
     {
       id: 3,
       titre: "📜 Historique de carrière",
       description: "Consultez l'ensemble de vos nominations, avancements et positions.",
-      info: "Depuis prise de service"
     }
   ];
-
-  const userRole = localStorage.getItem('userRole');
 
   return (
     <div className="intranet-home">
@@ -661,12 +554,11 @@ export default function Demarches() {
               <div key={item.id} className="attestation-card">
                 <h3>{item.titre}</h3>
                 <p>{item.description}</p>
-                <div className="delai">{item.delai}</div>
                 <button 
                   className="btn-demande" 
                   onClick={() => handleFaireDemande(item.titre)}
                 >
-                  {item.action === 'generer' ? 'Générer →' : 'Faire la demande →'}
+                  Faire une demande →
                 </button>
               </div>
             ))}
@@ -685,8 +577,6 @@ export default function Demarches() {
               <div key={item.id} className="conges-card">
                 <h3>{item.titre}</h3>
                 <p>{item.description}</p>
-                <div className="info">{item.info}</div>
-                {item.limite && <div className="limite">{item.limite}</div>}
                 <button 
                   className="btn-demande"
                   onClick={() => {
@@ -716,7 +606,6 @@ export default function Demarches() {
               <div key={item.id} className="carriere-card">
                 <h3>{item.titre}</h3>
                 <p>{item.description}</p>
-                <div className="frequence">{item.info}</div>
                 <button 
                   className="btn-demande"
                   onClick={() => {
@@ -856,12 +745,10 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* ==================== MODAL DEMANDE DE CONGÉ (ÉLÉGANT) ==================== */}
+      {/* MODAL DEMANDE DE CONGÉ */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
           <div className="modal-content modal-conge" onClick={(e) => e.stopPropagation()}>
-            
-            {/* En-tête */}
             <div className="modal-conge-header">
               <div className="modal-conge-header-content">
                 <div className="modal-conge-icon-wrapper">
@@ -875,10 +762,7 @@ export default function Demarches() {
               </div>
             </div>
 
-            {/* Corps */}
             <div className="modal-body" style={{ padding: '24px 30px' }}>
-              
-              {/* Solde */}
               {soldeConge && (
                 <div className="modal-conge-solde">
                   <span className="modal-conge-solde-icon">🌴</span>
@@ -889,7 +773,6 @@ export default function Demarches() {
                 </div>
               )}
 
-              {/* Formulaire */}
               <div className="modal-conge-form">
                 <div className="form-row">
                   <div className="form-group">
@@ -917,7 +800,6 @@ export default function Demarches() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="modal-conge-footer">
               <button className="btn-conge-cancel" onClick={() => setShowCongeForm(false)}>
                 Annuler
@@ -926,17 +808,14 @@ export default function Demarches() {
                 {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* ==================== MODAL ABSENCE EXCEPTIONNELLE (ÉLÉGANT) ==================== */}
+      {/* MODAL ABSENCE EXCEPTIONNELLE */}
       {showAbsenceForm && (
         <div className="modal-overlay" onClick={() => setShowAbsenceForm(false)}>
           <div className="modal-content modal-absence" onClick={(e) => e.stopPropagation()}>
-            
-            {/* En-tête */}
             <div className="modal-absence-header">
               <div className="modal-absence-header-content">
                 <div className="modal-absence-icon-wrapper">
@@ -950,10 +829,7 @@ export default function Demarches() {
               </div>
             </div>
 
-            {/* Corps */}
             <div className="modal-absence-body">
-              
-              {/* Réglementation */}
               <div className="modal-absence-reglement">
                 <span className="modal-absence-reglement-icon">📋</span>
                 <div className="modal-absence-reglement-text">
@@ -962,7 +838,6 @@ export default function Demarches() {
                 </div>
               </div>
 
-              {/* Progression */}
               <div className="modal-absence-progress">
                 <div className="modal-absence-progress-labels">
                   <span>Consommé : {totalAbsences} jours</span>
@@ -976,7 +851,6 @@ export default function Demarches() {
                 </div>
               </div>
 
-              {/* Stats */}
               <div className="modal-absence-stats">
                 <div className="modal-absence-stat">
                   <span className="stat-number consumed">{totalAbsences}</span>
@@ -995,7 +869,6 @@ export default function Demarches() {
                 </div>
               </div>
 
-              {/* Alerte si proche de la limite */}
               {totalAbsences >= 8 && (
                 <div className="modal-absence-alert">
                   <span className="icon">⚠️</span>
@@ -1003,7 +876,6 @@ export default function Demarches() {
                 </div>
               )}
 
-              {/* Formulaire */}
               <div className="modal-absence-form">
                 <div className="form-row">
                   <div className="form-group">
@@ -1048,7 +920,6 @@ export default function Demarches() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="modal-absence-footer">
               <button className="btn-absence-cancel" onClick={() => setShowAbsenceForm(false)}>
                 Annuler
@@ -1057,17 +928,90 @@ export default function Demarches() {
                 {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* MODAL CERTIFICAT NON-JOUISSANCE */}
+      {/* MODAL DEMANDE D'ATTESTATION */}
+      {showDemandeModal && (
+        <div className="modal-overlay" onClick={() => setShowDemandeModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📄 Demande d'attestation</h3>
+              <button className="modal-close" onClick={() => setShowDemandeModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div style={{ 
+                background: '#F1F5F9', 
+                padding: '12px 15px', 
+                borderRadius: '10px',
+                marginBottom: '20px'
+              }}>
+                <p style={{ margin: 0, fontWeight: '600' }}>
+                  Type : <span style={{ color: '#0B192C' }}>{demandeEnCours}</span>
+                </p>
+              </div>
+              
+              <p style={{ color: '#64748B', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                Votre demande sera transmise au service RH qui traitera votre attestation. 
+                Vous recevrez une notification lorsque votre document sera prêt.
+              </p>
+              
+              <div className="form-group" style={{ marginTop: '20px' }}>
+                <label>Commentaire (optionnel)</label>
+                <textarea
+                  rows="3"
+                  placeholder="Ajoutez des précisions si nécessaire..."
+                  value={commentaireDemande}
+                  onChange={(e) => setCommentaireDemande(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                />
+              </div>
+
+              <div style={{ 
+                background: '#FFFBEB', 
+                padding: '10px 15px', 
+                borderRadius: '8px',
+                marginTop: '15px',
+                borderLeft: '4px solid #F59E0B'
+              }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400E' }}>
+                  ℹ️ Le délai de traitement est généralement de 2 à 3 jours ouvrés.
+                </p>
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowDemandeModal(false)}>Annuler</button>
+              <button 
+                className="btn-generer" 
+                onClick={soumettreDemandeAttestation}
+                disabled={loading}
+                style={{
+                  background: '#D4AF37',
+                  color: '#0B192C',
+                  border: 'none',
+                  padding: '8px 20px',
+                  borderRadius: '8px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.6 : 1
+                }}
+              >
+                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CERTIFICAT NON-JOUISSANCE - Avec années terminées uniquement */}
+      {/* MODAL CERTIFICAT NON-JOUISSANCE - Version corrigée */}
       {showCertificatModal && (
         <div className="modal-overlay" onClick={() => setShowCertificatModal(false)}>
           <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3> Certificat de non-jouissance de congé</h3>
+              <h3>📄 Certificat de non-jouissance de congé</h3>
               <button className="modal-close" onClick={() => setShowCertificatModal(false)}>✕</button>
             </div>
             
@@ -1078,22 +1022,33 @@ export default function Demarches() {
                   value={certificatAnnee} 
                   onChange={(e) => {
                     const nouvelleAnnee = parseInt(e.target.value);
-                    console.log(`🔄 Changement d'année: ${certificatAnnee} → ${nouvelleAnnee}`);
                     setCertificatAnnee(nouvelleAnnee);
-                    setCertificatVerification(null);
+                    setCertificatVerification(null);  // ✅ Réinitialiser la vérification
+                    setCertificatLoading(true);       // ✅ Mettre en chargement immédiatement
                     verifierNonJouissance(nouvelleAnnee);
                   }}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
                 >
-                  {[...Array(6)].map((_, i) => {
-                    const annee = new Date().getFullYear() - i;
-                    return <option key={annee} value={annee}>{annee}</option>;
-                  })}
+                  {(() => {
+                    const anneeActuelle = new Date().getFullYear();
+                    const annees = [];
+                    for (let annee = anneeActuelle - 1; annee >= 2020; annee--) {
+                      annees.push(annee);
+                    }
+                    return annees.map((annee) => (
+                      <option key={annee} value={annee}>{annee}</option>
+                    ));
+                  })()}
                 </select>
+                <small style={{ display: 'block', marginTop: '5px', color: '#64748B' }}>
+                  ⚠️ Seules les années terminées sont disponibles (année en cours exclue)
+                </small>
               </div>
               
               {certificatLoading ? (
-                <div style={{ textAlign: 'center', padding: '20px' }}>⏳ Vérification en cours...</div>
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <span>⏳ Vérification en cours pour l'année {certificatAnnee}...</span>
+                </div>
               ) : certificatVerification ? (
                 <>
                   {certificatVerification.a_bteneficie ? (
@@ -1104,7 +1059,7 @@ export default function Demarches() {
                       borderLeft: '4px solid #EF4444',
                       marginTop: '15px'
                     }}>
-                      <strong style={{ color: '#DC2626' }}>❌ Impossible de générer le certificat</strong>
+                      <strong style={{ color: '#DC2626' }}>❌ Impossible de faire la demande</strong>
                       <p style={{ marginTop: '10px', color: '#991B1B' }}>
                         Vous avez bénéficié d'un congé de <strong>{certificatVerification.jours_pris} jours</strong> en {certificatAnnee}.
                       </p>
@@ -1122,7 +1077,7 @@ export default function Demarches() {
                     }}>
                       <strong style={{ color: '#059669' }}>✅ Éligible</strong>
                       <p style={{ marginTop: '10px', color: '#065F46' }}>
-                        Aucun congé pris en {certificatAnnee}. Vous pouvez générer le certificat.
+                        Aucun congé pris en {certificatAnnee}. Vous pouvez faire la demande.
                       </p>
                     </div>
                   )}
@@ -1139,8 +1094,20 @@ export default function Demarches() {
               }}>
                 <span>ℹ️</span>
                 <span style={{ marginLeft: '8px' }}>
-                  Ce certificat atteste que vous n'avez pas bénéficié de votre congé administratif pour l'année sélectionnée.
+                  Votre demande sera transmise au service RH qui vérifiera votre éligibilité et générera le certificat pour l'année <strong>{certificatAnnee}</strong>.
                 </span>
+              </div>
+              
+              <div style={{ 
+                background: '#FFFBEB', 
+                padding: '10px 15px', 
+                borderRadius: '8px',
+                marginTop: '10px',
+                borderLeft: '4px solid #F59E0B'
+              }}>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400E' }}>
+                  📌 Le délai de traitement est généralement de 2 à 3 jours ouvrés.
+                </p>
               </div>
             </div>
             
@@ -1151,15 +1118,15 @@ export default function Demarches() {
                 onClick={genererCertificatNonJouissance} 
                 disabled={certificatLoading || (certificatVerification && certificatVerification.a_bteneficie)}
                 style={{
-                  background: (certificatVerification && certificatVerification.a_bteneficie) ? '#9CA3AF' : '#10B981',
-                  color: 'white',
+                  background: (certificatVerification && certificatVerification.a_bteneficie) ? '#9CA3AF' : '#D4AF37',
+                  color: (certificatVerification && certificatVerification.a_bteneficie) ? '#FFFFFF' : '#0B192C',
                   border: 'none',
                   padding: '8px 20px',
                   borderRadius: '8px',
                   cursor: (certificatVerification && certificatVerification.a_bteneficie) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {certificatLoading ? 'Génération...' : 'Générer le certificat →'}
+                {certificatLoading ? '⏳ Vérification...' : '📤 Faire la demande →'}
               </button>
             </div>
           </div>

@@ -264,12 +264,48 @@ export default function AdminPermissions() {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>👥 Agents</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}> Rôles</button>
-                <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>🔐 Permissions</button>
+                
+                {/* Tableau de bord */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
+                  Tableau de bord
+                </button>
+                
+                {/* Agents */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
+                  Agents
+                </button>
+                
+                {/* Rôles */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
+                  Rôles
+                </button>
+                
+                {/* Permissions */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>
+                  Permissions
+                </button>
+                
+                {/* Types de demande - AJOUT */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
+                  Types de demande
+                </button>
+                
+                {/* Types de pièce - AJOUT */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
+                  Types de pièce
+                </button>
+                
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
+                
+                {/* Mon profil - AJOUT (optionnel) */}
+                <button className="dropdown-item" onClick={() => navigate('/profil')}>
+                  👤 Mon profil
+                </button>
+                
+                {/* Déconnexion */}
+                <button className="dropdown-item logout" onClick={handleLogout}>
+                  Se déconnecter
+                </button>
               </div>
             )}
           </div>
