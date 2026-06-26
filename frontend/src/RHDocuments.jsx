@@ -38,11 +38,9 @@ export default function RHDocuments() {
   const loadDocuments = async () => {
     setLoading(true);
     try {
+      // 1. Charger les documents
       const response = await fetch(`/api/rh/documents/${matricule}/`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Matricule': rhMatricule
-        }
+        headers: { 'Content-Type': 'application/json', 'X-User-Matricule': rhMatricule }
       });
 
       if (response.ok) {
@@ -62,12 +60,8 @@ export default function RHDocuments() {
             const expDate = new Date(doc.date_expiration);
             expDate.setHours(0, 0, 0, 0);
             const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-
-            if (diffDays <= 0) {
-              expired.push({ ...doc, daysExpired: Math.abs(diffDays) });
-            } else if (diffDays <= 30) {
-              expiring.push({ ...doc, daysUntilExpiry: diffDays });
-            }
+            if (diffDays <= 0) expired.push({ ...doc, daysExpired: Math.abs(diffDays) });
+            else if (diffDays <= 30) expiring.push({ ...doc, daysUntilExpiry: diffDays });
           }
         });
 
@@ -77,48 +71,74 @@ export default function RHDocuments() {
 
       setLoading(false);
 
-      // Analyse IA en arrière-plan
+      // 2. Analyse IA en arrière-plan (UN SEUL appel)
       setAnalyseLoading(true);
-      fetch(`/api/anomalies/${matricule}/`, {
+
+      const anomalyRes = await fetch(`/api/anomalies/${matricule}/`, {
         headers: { 'X-User-Matricule': rhMatricule }
-      })
-        .then(res => res.json())
-        .then(anomalyData => {
-          setScoreDossier(anomalyData.score || 100);
-          
-          try {
-            const parsed = JSON.parse(anomalyData.ai_analysis);
-            setChartData({
-              score: parsed.score || anomalyData.score,
-              pointsForts: parsed.points_forts || [],
-              pointsFaibles: parsed.points_faibles || [],
-              resume: parsed.resume || `Score de conformité : ${parsed.score || anomalyData.score}%`
-            });
-          } catch {
-            // Si l'IA ne renvoie pas de JSON, on affiche le texte brut
-            setChartData({
-              score: anomalyData.score || 100,
-              pointsForts: [],
-              pointsFaibles: [],
-              resume: anomalyData.ai_analysis
-            });
-          }
-          setAnalyseLoading(false);
-        })
-        .catch(err => {
-          console.error('Erreur analyse IA:', err);
-          setChartData({
-            score: 100,
-            pointsForts: [],
-            pointsFaibles: [],
-            resume: 'Analyse IA indisponible.'
-          });
-          setAnalyseLoading(false);
+      });
+
+      if (!anomalyRes.ok) {
+        console.warn(`[Anomalies] Erreur HTTP ${anomalyRes.status}`);
+        setChartData({
+          score: 100, pointsForts: [], pointsFaibles: [],
+          risques: [], recommandations: [],
+          statut_global: 'conforme',
+          resume: 'Analyse IA indisponible (erreur serveur).'
         });
+        setAnalyseLoading(false);
+        return;
+      }
+
+      const contentType = anomalyRes.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.warn('[Anomalies] Réponse non-JSON reçue');
+        setAnalyseLoading(false);
+        return;
+      }
+
+      const anomalyData = await anomalyRes.json();
+      const scoreBackend = anomalyData.score || 100;
+      setScoreDossier(scoreBackend);
+
+      let parsed = null;
+      if (typeof anomalyData.ai_analysis === 'string') {
+        try {
+          parsed = JSON.parse(anomalyData.ai_analysis);
+        } catch (_) {
+          const match = anomalyData.ai_analysis.match(/\{[\s\S]*\}/);
+          if (match) {
+            try { parsed = JSON.parse(match[0]); } catch (_) {}
+          }
+        }
+      } else if (typeof anomalyData.ai_analysis === 'object') {
+        parsed = anomalyData.ai_analysis;
+      }
+
+      const statut = scoreBackend >= 80 ? 'conforme' : scoreBackend >= 50 ? 'attention' : 'critique';
+
+      setChartData({
+        score: scoreBackend,
+        pointsForts:     parsed?.points_forts     ?? [],
+        pointsFaibles:   parsed?.points_faibles   ?? [],
+        risques:         parsed?.risques          ?? [],
+        recommandations: parsed?.recommandations  ?? [],
+        statut_global:   parsed?.statut_global    ?? statut,
+        resume:          parsed?.resume           ?? `Score de conformité : ${scoreBackend}%`
+      });
+
+      setAnalyseLoading(false);
 
     } catch (error) {
-      console.error('Erreur chargement documents:', error);
+      console.error('Erreur chargement:', error);
       setLoading(false);
+      setAnalyseLoading(false);
+      setChartData({
+        score: 100, pointsForts: [], pointsFaibles: [],
+        risques: [], recommandations: [],
+        statut_global: 'conforme',
+        resume: 'Analyse IA indisponible.'
+      });
     }
   }; // ✅ Ici la fonction loadDocuments se ferme correctement
 
@@ -310,6 +330,17 @@ export default function RHDocuments() {
         <div className="rh-card full-width" style={{ margin: '20px' }}>
           <div className="rh-card-header">
             <h3>🤖 Analyse IA du dossier</h3>
+            {chartData && (
+              <span className={`status-badge ${
+                chartData.score >= 80 ? 'status-approved' : 
+                chartData.score >= 50 ? 'status-pending' : 
+                'status-rejected'
+              }`}>
+                {chartData.score >= 80 ? '🟢 Conforme' : 
+                chartData.score >= 50 ? '🟡 Attention' : 
+                '🔴 Critique'}
+              </span>
+            )}
           </div>
           <div style={{ padding: '20px' }}>
             {analyseLoading ? (
@@ -318,62 +349,131 @@ export default function RHDocuments() {
                 <p style={{ marginTop: '10px', color: '#666' }}>Analyse IA en cours...</p>
               </div>
             ) : chartData ? (
-              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-                {/* Diagramme circulaire */}
-                <div style={{ width: '200px', height: '200px', position: 'relative' }}>
-                  <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%' }}>
-                    {/* Cercle de fond (rouge = non-conformité) */}
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              <div style={{ display: 'flex', gap: '40px', alignItems: 'center', flexWrap: 'wrap' }}>
+                
+                {/* DIAGRAMME CIRCULAIRE ANIMÉ */}
+                <div style={{ 
+                  width: '200px', 
+                  height: '200px', 
+                  position: 'relative', 
+                  flexShrink: 0,
+                  margin: '0 auto'
+                }}>
+                  <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                    
+                    {/* Cercle de fond */}
+                    <circle
+                      cx="50" cy="50" r="40"
                       fill="none"
-                      stroke="#EF4444"
-                      strokeWidth="3"
+                      stroke="#F1F5F9"
+                      strokeWidth="8"
                     />
-                    {/* Partie verte (conformité) par-dessus le rouge */}
-                    <path
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831"
+                    
+                    {/* Cercle de progression */}
+                    <circle
+                      cx="50" cy="50" r="40"
                       fill="none"
-                      stroke="#10B981"
-                      strokeWidth="3"
-                      strokeDasharray={`${chartData.score}, 100`}
+                      stroke={
+                        chartData.score >= 80 ? '#10B981' :
+                        chartData.score >= 50 ? '#F59E0B' :
+                        '#EF4444'
+                      }
+                      strokeWidth="8"
                       strokeLinecap="round"
+                      strokeDasharray={`${chartData.score * 2.513} ${251.3 - chartData.score * 2.513}`}
+                      strokeDashoffset="0"
+                      style={{ transition: 'stroke-dasharray 1.5s ease' }}
                     />
-                    {/* Texte au centre */}
-                    <text x="18" y="14" textAnchor="middle" fontSize="7" fill="#333" fontWeight="bold">
-                      {chartData.score}%
-                    </text>
-                    <text x="18" y="22" textAnchor="middle" fontSize="3.5" fill="#666">
-                      Conformité
-                    </text>
                   </svg>
+
+                  {/* Texte centré */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    pointerEvents: 'none'
+                  }}>
+                    <div style={{ 
+                      fontSize: '28px', 
+                      fontWeight: '800', 
+                      color: chartData.score >= 80 ? '#059669' : chartData.score >= 50 ? '#D97706' : '#DC2626',
+                      lineHeight: '1'
+                    }}>
+                      {chartData.score}%
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: '500' }}>
+                      Conformité
+                    </div>
+                  </div>
                 </div>
-                {/* Légende EN DEHORS du conteneur du cercle */}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', fontSize: '12px', fontWeight: '500' }}>
-                  <span style={{ color: '#10B981' }}>● Conforme ({chartData.score}%)</span>
-                  <span style={{ color: '#EF4444' }}>● Non conforme ({100 - chartData.score}%)</span>
+                {/* Légende dynamique */}
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', fontSize: '13px', fontWeight: '500' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ 
+                      width: '12px', height: '12px', borderRadius: '50%', display: 'inline-block',
+                      background: chartData.score >= 80 ? '#10B981' : chartData.score >= 50 ? '#F59E0B' : '#EF4444'
+                    }}></span>
+                    {chartData.score >= 80 ? 'Conforme' : chartData.score >= 50 ? 'Attention' : 'Critique'}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'inline-block' }}></span>
+                    Non conforme ({100 - chartData.score}%)
+                  </span>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: '14px', marginBottom: '15px' }}>{chartData.resume}</p>
-                  {chartData.pointsForts.length > 0 && (
-                    <div style={{ marginBottom: '10px' }}>
-                      <strong style={{ color: '#10B981' }}>✅ Points forts :</strong>
-                      <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                        {chartData.pointsForts.map((p, i) => (<li key={i} style={{ fontSize: '13px', color: '#333' }}>{p}</li>))}
+
+                <div style={{ flex: 1, minWidth: '250px' }}>
+
+                  {/* Résumé */}
+                  <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#334155', marginBottom: '20px' }}>
+                    {chartData.resume}
+                  </p>
+
+                  {/* Points forts */}
+                  {chartData.pointsForts?.length > 0 && (
+                    <div style={{ 
+                      background: '#F0FDF4', 
+                      borderRadius: '10px', 
+                      padding: '14px 16px', 
+                      marginBottom: '12px',
+                      border: '1px solid #BBF7D0'
+                    }}>
+                      <strong style={{ color: '#059669', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
+                        ✅ Points forts
+                      </strong>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {chartData.pointsForts.map((p, i) => (
+                          <li key={i} style={{ fontSize: '13px', color: '#065F46', marginBottom: '4px' }}>{p}</li>
+                        ))}
                       </ul>
                     </div>
                   )}
-                  {chartData.pointsFaibles.length > 0 && (
-                    <div>
-                      <strong style={{ color: '#EF4444' }}>⚠️ Points faibles :</strong>
-                      <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-                        {chartData.pointsFaibles.map((p, i) => (<li key={i} style={{ fontSize: '13px', color: '#333' }}>{p}</li>))}
+
+                  {/* Points faibles */}
+                  {chartData.pointsFaibles?.length > 0 && (
+                    <div style={{ 
+                      background: '#FEF2F2', 
+                      borderRadius: '10px', 
+                      padding: '14px 16px',
+                      border: '1px solid #FECACA'
+                    }}>
+                      <strong style={{ color: '#DC2626', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
+                        ⚠️ Points faibles
+                      </strong>
+                      <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        {chartData.pointsFaibles.map((p, i) => (
+                          <li key={i} style={{ fontSize: '13px', color: '#991B1B', marginBottom: '4px' }}>{p}</li>
+                        ))}
                       </ul>
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <p>Aucune analyse IA disponible pour le moment.</p>
+              <p style={{ textAlign: 'center', color: '#64748B', padding: '20px' }}>
+                Aucune analyse IA disponible pour le moment.
+              </p>
             )}
           </div>
         </div>
