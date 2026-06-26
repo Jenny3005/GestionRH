@@ -20,6 +20,8 @@ import io
 import os
 import subprocess
 import tempfile
+import concurrent.futures
+import ollama
 from datetime import datetime, date, timedelta
 
 from .emails import (
@@ -4120,6 +4122,116 @@ def get_documents_by_matricule(request, matricule):
 
 # ==================== GESTION DES ANOMALIES ====================
 
+import re
+import json
+from collections import Counter
+from datetime import date
+
+SYSTEM_PROMPT = """Tu es un expert RH. Tu réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte avant ou après, sans backticks, sans markdown.
+
+Format OBLIGATOIRE (respecte exactement ces clés) :
+{"score":85,"statut_global":"conforme","resume":"Résumé court.","points_forts":["Point 1"],"points_faibles":["Point 1"],"risques":["Risque 1"],"recommandations":["Action 1"]}
+
+Règles :
+- score : doit être proche du score calculé fourni
+- statut_global : "conforme" si score>=80, "attention" si 50-79, "critique" si <50
+- Toutes les listes peuvent être vides []
+- resume : 2 phrases maximum
+- AUCUN texte hors du JSON"""
+
+
+def safe_parse_ai(raw: str, fallback_score: int) -> dict:
+    raw = raw.strip()
+    raw = re.sub(r'```(?:json)?', '', raw).strip()
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r'\{.*\}', raw, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+
+    result = {
+        "score": fallback_score,
+        "statut_global": "conforme" if fallback_score >= 80 else "attention" if fallback_score >= 50 else "critique",
+        "resume": "Analyse partielle disponible.",
+        "points_forts": [],
+        "points_faibles": [],
+        "risques": [],
+        "recommandations": []
+    }
+
+    for key in ["points_forts", "points_faibles", "risques", "recommandations"]:
+        pattern = rf'"{key}"\s*:\s*\[([^\]]*)\]'
+        m = re.search(pattern, raw, re.DOTALL)
+        if m:
+            items = re.findall(r'"([^"]+)"', m.group(1))
+            result[key] = items
+
+    m = re.search(r'"resume"\s*:\s*"([^"]+)"', raw)
+    if m:
+        result["resume"] = m.group(1)
+
+    return result
+
+
+def fallback_analysis(score):
+    return {
+        "score": score,
+        "statut_global": "conforme" if score >= 80 else "attention" if score >= 50 else "critique",
+        "resume": "Analyse IA indisponible.",
+        "points_forts": [],
+        "points_faibles": [],
+        "risques": [],
+        "recommandations": []
+    }
+
+
+def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
+    try:
+        print(f"[Ollama] Tentative d'appel...")
+
+        statut = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
+        pf_str = json.dumps(points_faibles_forces, ensure_ascii=False)
+        pts_str = json.dumps(points_forts_forces, ensure_ascii=False)
+
+        prompt_user = f"""Dossier à analyser :
+{resume}
+
+DONNÉES OBLIGATOIRES à inclure telles quelles :
+- points_faibles : {pf_str}
+- points_forts : {pts_str}
+
+Complète uniquement risques et recommandations selon le contexte.
+
+Réponds avec ce JSON uniquement :
+{{"score":{score},"statut_global":"{statut}","resume":"2 phrases max.","points_forts":{pts_str},"points_faibles":{pf_str},"risques":[...],"recommandations":[...]}}"""
+
+        ai_response = ollama.chat(
+            model='llama3.2:3b',
+            messages=[
+                {'role': 'system', 'content': SYSTEM_PROMPT},
+                {'role': 'user', 'content': prompt_user}
+            ],
+            options={'temperature': 0.1, 'num_predict': 500, 'stop': ['```']}
+        )
+
+        raw = ai_response['message']['content']
+        print(f"[Ollama] Réponse brute : {repr(raw)}")
+        parsed = safe_parse_ai(raw, score)
+        print(f"[Ollama] Parsed : {parsed}")
+        return parsed
+
+    except Exception as e:
+        print(f"[Ollama] Erreur interne : {type(e).__name__} — {e}")
+        return None
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def detect_anomalies(request, matricule):
@@ -4127,77 +4239,140 @@ def detect_anomalies(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         dossier = DossierAgent.objects.filter(agent=agent).first()
         if not dossier:
-            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': '{}'})
-        
+            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': json.dumps(fallback_analysis(100))})
+
         pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
         anomalies = []
         score = 100
         today = date.today()
-        
+
+        # 1. Dates incohérentes
         for piece in pieces:
             if piece.date_expiration and piece.date_upload:
                 if piece.date_expiration < piece.date_upload:
-                    anomalies.append({'type': 'date_incoherente', 'severite': 'haute', 'message': f"Date d'expiration antérieure à la date d'upload pour {piece.type_piece.libelle}"})
+                    anomalies.append({
+                        'type': 'date_incoherente',
+                        'severite': 'haute',
+                        'message': f"Date d'expiration antérieure à la date d'upload pour {piece.type_piece.libelle}"
+                    })
                     score -= 15
-        
+
+        # 2. Doublons
         type_ids = [p.type_piece.id for p in pieces]
         doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
         for type_id in doublons:
             pieces_doublons = pieces.filter(type_piece_id=type_id)
             noms = [p.nom_fichier for p in pieces_doublons]
             type_libelle = pieces_doublons.first().type_piece.libelle
-            anomalies.append({'type': 'doublon', 'severite': 'moyenne', 'message': f'⚠️ Doublon : {len(noms)} versions de "{type_libelle}"'})
+            anomalies.append({
+                'type': 'doublon',
+                'severite': 'moyenne',
+                'message': f'Doublon : {len(noms)} versions de "{type_libelle}"'
+            })
             score -= 10
-        
+
+        # 3. Ancienneté vs échelon
         if agent.date_prise_service and agent.echelon:
             anciennete = (today - agent.date_prise_service).days / 365
             try:
                 echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
-            except:
+            except Exception:
                 echelon_num = 1
             if anciennete > 10 and echelon_num < 3:
-                anomalies.append({'type': 'anciennete_grade', 'severite': 'basse', 'message': f'Ancienneté élevée ({anciennete:.0f} ans) mais échelon bas ({agent.echelon})'})
+                anomalies.append({
+                    'type': 'anciennete_grade',
+                    'severite': 'basse',
+                    'message': f'Ancienneté élevée ({anciennete:.0f} ans) mais échelon bas ({agent.echelon})'
+                })
                 score -= 5
-        
+
+        # 4. Documents expirés
+        for piece in pieces:
+            if piece.date_expiration and piece.date_expiration < today:
+                anomalies.append({
+                    'type': 'document_expire',
+                    'severite': 'haute',
+                    'message': f'Document expiré : {piece.type_piece.libelle} (expiré le {piece.date_expiration})'
+                })
+                score -= 10
+
+        # 5. Documents obligatoires manquants
+        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
+        manquants = types_obligatoires.exclude(id__in=pieces.values('type_piece_id'))
+        for tp in manquants:
+            est_critique = tp.libelle in ["Carte Nationale d'Identité", 'Acte de naissance']
+            anomalies.append({
+                'type': 'document_manquant',
+                'severite': 'haute' if est_critique else 'moyenne',
+                'message': f'Document obligatoire manquant : {tp.libelle}'
+            })
+            score -= 15 if est_critique else 8
+
         score = max(0, min(100, score))
-        
-        # ✅ Résumé concis (limité pour accélérer l'IA)
+
+        # Construction des points faibles depuis les anomalies réelles
+        points_faibles_forces = []
+        for a in anomalies:
+            if a['type'] == 'document_manquant':
+                points_faibles_forces.append(
+                    a['message'].replace('Document obligatoire manquant : ', 'Document manquant : ')
+                )
+            elif a['type'] == 'document_expire':
+                points_faibles_forces.append(a['message'])
+            elif a['type'] == 'doublon':
+                points_faibles_forces.append(a['message'])
+            elif a['type'] == 'date_incoherente':
+                points_faibles_forces.append(a['message'])
+            elif a['type'] == 'anciennete_grade':
+                points_faibles_forces.append(a['message'])
+
+        # Construction des points forts depuis les documents valides
+        points_forts_forces = [
+            f"{p.type_piece.libelle} — valide"
+            for p in pieces
+            if not (p.date_expiration and p.date_expiration < today)
+        ]
+
+        # Résumé pour l'IA
         docs_list = []
         for p in pieces:
             statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "OK"
             docs_list.append(f"{p.type_piece.libelle}: {statut}")
-        
-        manquants_list = []
-        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
-        manquants = types_obligatoires.exclude(id__in=pieces.values('type_piece_id'))
-        for tp in manquants:
-            manquants_list.append(tp.libelle)
-        
-        resume = f"""Agent: {agent.prenom} {agent.nom} | Poste: {agent.poste or 'N/A'} | Ancienneté: {(today - agent.date_prise_service).days // 365 if agent.date_prise_service else 0} ans | Complétude: {dossier.taux_completude or 0}%
-Docs: {', '.join(docs_list[:8])}{'...' if len(docs_list) > 8 else ''}
-Manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}"""
-        
-        # ✅ Prompt optimisé pour réponse rapide + JSON
+
+        manquants_list = [tp.libelle for tp in manquants]
+        anciennete_val = (today - agent.date_prise_service).days // 365 if agent.date_prise_service else 0
+
+        resume = f"""Agent: {agent.prenom} {agent.nom}
+Poste: {agent.poste or 'N/A'}
+Ancienneté: {anciennete_val} ans
+Complétude: {dossier.taux_completude or 0}%
+Documents présents: {', '.join(docs_list[:8])}{'...' if len(docs_list) > 8 else ''}
+Documents manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}
+Score calculé: {score}/100
+Anomalies détectées: {len(anomalies)}"""
+
+        # Appel Ollama — 4 arguments, cohérent avec la définition
         try:
-            ai_response = ollama.chat(
-                model='llama3.2:3b',
-                messages=[{
-                    'role': 'system',
-                    'content': """Tu es un expert RH. Analyse ce dossier et réponds UNIQUEMENT avec ce JSON (sans texte avant/après, sans ```) :
-{"score":85,"points_forts":["Point fort 1"],"points_faibles":["Point faible 1"],"resume":"Résumé en 2 phrases."}"""
-                }, {
-                    'role': 'user',
-                    'content': f"Dossier : {resume}"
-                }],
-                options={'temperature': 0.3, 'num_predict': 300}  # ✅ Limite la longueur de réponse
-            )
-            ai_analysis = ai_response['message']['content'].strip()
-            # Nettoyer les éventuels ```json ... ```
-            ai_analysis = ai_analysis.replace('```json', '').replace('```', '').strip()
+            parsed = call_ollama(resume, score, points_faibles_forces, points_forts_forces)
+
+            if not parsed:
+                parsed = fallback_analysis(score)
+
+            # Toujours forcer les données backend (fiables)
+            parsed['score'] = score
+            parsed['statut_global'] = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
+            parsed['points_faibles'] = points_faibles_forces
+            parsed['points_forts'] = points_forts_forces if points_forts_forces else parsed.get('points_forts', [])
+
+            ai_analysis = json.dumps(parsed, ensure_ascii=False)
+
         except Exception as e:
-            print(f"Erreur Ollama: {e}")
-            ai_analysis = f'{{"score":{score},"points_forts":[],"points_faibles":[],"resume":"Analyse IA indisponible."}}'
-        
+            print(f"[Ollama] Erreur inattendue : {e}")
+            fb = fallback_analysis(score)
+            fb['points_faibles'] = points_faibles_forces
+            fb['points_forts'] = points_forts_forces
+            ai_analysis = json.dumps(fb, ensure_ascii=False)
+
         return JsonResponse({
             'success': True,
             'agent': f"{agent.prenom} {agent.nom}",
@@ -4207,9 +4382,12 @@ Manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}"""
             'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé',
             'ai_analysis': ai_analysis
         })
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
+    except Agent.DoesNotExist:
+        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+    except Exception as e:
+        print(f"[detect_anomalies] Erreur : {type(e).__name__} — {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 # ==================== SIGNATURE ET CACHET ====================
 
