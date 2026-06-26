@@ -123,7 +123,13 @@ export default function DashboardChef() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-          <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+          <a href="/" className="logo-nav-link">
+            <img 
+              src="/logo_MND.png" 
+              alt="Logo Ministère du Numérique et de la Digitalisation" 
+              className="mnd-official-logo" 
+            />
+          </a>
         </div>
         <PortalNav />
         <div className="nav-right">

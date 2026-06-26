@@ -609,10 +609,58 @@ const getRoleLabel = (role) => {
                   <small>{userEmail}</small>
                 </div>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}> Tableau de bord</button>
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>👤 Mon profil</button>
+                
+                {/* Tableau de bord */}
+                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
+                  Tableau de bord
+                </button>
+                
+                {/* Agents */}
+                <Can permission="VOIR_AGENTS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
+                    Agents
+                  </button>
+                </Can>
+                
+                {/* Rôles */}
+                <Can permission="GERER_ROLES">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
+                    Rôles
+                  </button>
+                </Can>
+                
+                {/* Permissions */}
+                <Can permission="GERER_PERMISSIONS">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>
+                    Permissions
+                  </button>
+                </Can>
+                
+                {/* Types de demande */}
+                <Can permission="GERE_TYPE_DEMANDE">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
+                    Types de demande
+                  </button>
+                </Can>
+                
+                {/* Types de pièce */}
+                <Can permission="GERER_TYPES_PIECE">
+                  <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
+                    Types de pièce
+                  </button>
+                </Can>
+                
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item logout" onClick={handleLogout}> Se déconnecter</button>
+                
+                {/* Mon profil */}
+                <button className="dropdown-item" onClick={() => navigate('/profil')}>
+                  👤 Mon profil
+                </button>
+                
+                {/* Déconnexion */}
+                <button className="dropdown-item logout" onClick={handleLogout}>
+                  Se déconnecter
+                </button>
               </div>
             )}
           </div>

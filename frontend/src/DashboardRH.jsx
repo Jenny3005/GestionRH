@@ -191,9 +191,11 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, demandesEnCours: data.length }));
       }
 
+      // ✅ Récupération des actes générés
       const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
+        console.log('📄 Actes générés reçus:', data);
         setActesGeneres(data);
         setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
@@ -571,7 +573,7 @@ export default function DashboardRH() {
       });
       if (response.ok) {
         alert('✅ Traitement commencé, la demande passe en "En cours"');
-        fetchData();
+        await fetchData();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors du début du traitement');
@@ -582,11 +584,92 @@ export default function DashboardRH() {
     }
   };
 
+  // ✅ Fonction pour déterminer le préfixe du nom de fichier
+  const getFilenamePrefix = (type) => {
+    const prefixMap = {
+      'Attestation de présence au poste': 'Attestation_Presence',
+      'Attestation de travail': 'Attestation_Travail',
+      'Attestation de validité de services': 'Attestation_Validite_Services',
+      'Certificat de non-jouissance de congé': 'Certificat_Non_Jouissance'
+    };
+    return prefixMap[type] || 'Attestation';
+  };
+
   const handleGenererActe = async (demande) => {
     if (!matricule) {
       alert('Veuillez vous connecter');
       return;
     }
+    
+    const typesAttestation = [
+      'Attestation de présence au poste',
+      'Attestation de travail',
+      'Attestation de validité de services',
+      'Certificat de non-jouissance de congé'
+    ];
+    
+    const isAttestation = typesAttestation.includes(demande.type_demande);
+    
+    if (isAttestation) {
+      try {
+        setLoading(true);
+        
+        let typeAttestation = demande.type_demande;
+        
+        const response = await fetch(`http://localhost:8000/api/rh/attestations/generer/${demande.id}/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rh_matricule: matricule,
+            type_attestation: typeAttestation
+          })
+        });
+        
+        if (response.ok) {
+          const contentDisposition = response.headers.get('Content-Disposition');
+          let filename = '';
+          
+          if (contentDisposition) {
+            const match = contentDisposition.match(/filename="(.+?)"/);
+            if (match && match[1]) {
+              filename = match[1];
+            }
+          }
+          
+          if (!filename) {
+            const prefix = getFilenamePrefix(demande.type_demande);
+            filename = `${prefix}_${demande.agent_nom}_${demande.agent_prenom}.pdf`;
+          }
+          
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          
+          alert('✅ Attestation générée avec succès !');
+          
+          // ✅ Rafraîchir les données après la génération
+          await fetchData();
+          
+        } else {
+          const error = await response.json();
+          alert(error.error || 'Erreur lors de la génération de l\'attestation');
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur de connexion');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // Cas des congés et absences
     setLoading(true);
     try {
       const refNumber = `${new Date().getFullYear()}${Date.now()}`;
@@ -622,7 +705,7 @@ export default function DashboardRH() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         alert('✅ Acte généré avec succès !');
-        fetchData();
+        await fetchData();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la génération');
@@ -644,7 +727,7 @@ export default function DashboardRH() {
       });
       if (response.ok) {
         alert('✅ Acte envoyé à la secrétaire !');
-        fetchData();
+        await fetchData();
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de l\'envoi');
@@ -731,7 +814,7 @@ export default function DashboardRH() {
       if (response.ok) {
         alert(`✅ Agent ${data.matricule} créé avec succès !`);
         closeAddAgentModal();
-        fetchData();
+        await fetchData();
       } else {
         alert(`❌ Erreur: ${data.error || 'Erreur lors de la création'}`);
       }
@@ -793,7 +876,7 @@ export default function DashboardRH() {
         const result = await response.json();
         if (response.ok) {
           alert(`✅ ${result.success_count} agents importés avec succès !`);
-          fetchData();
+          await fetchData();
         } else {
           alert(`❌ Erreur: ${result.error}`);
         }
@@ -1261,7 +1344,13 @@ export default function DashboardRH() {
                         <tr key={demande.id}>
                           <td>{demande.agent_nom} {demande.agent_prenom}</td>
                           <td>{demande.type_demande}</td>
-                          <td>{demande.date_assignation ? new Date(demande.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            {demande.date_assignation 
+                              ? new Date(demande.date_assignation).toLocaleDateString('fr-FR') 
+                              : demande.date_soumission 
+                                ? new Date(demande.date_soumission).toLocaleDateString('fr-FR') 
+                                : '-'}
+                          </td>
                           <td>{getStatutBadge(demande.statut)}</td>
                           <td><button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}>▶️ Traiter</button></td>
                         </tr>
@@ -1285,7 +1374,13 @@ export default function DashboardRH() {
                         <tr key={demande.id}>
                           <td>{demande.agent_nom} {demande.agent_prenom}</td>
                           <td>{demande.type_demande}</td>
-                          <td>{demande.date_debut_traitement ? new Date(demande.date_debut_traitement).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            {demande.date_debut_traitement 
+                              ? new Date(demande.date_debut_traitement).toLocaleDateString('fr-FR') 
+                              : demande.date_soumission 
+                                ? new Date(demande.date_soumission).toLocaleDateString('fr-FR') 
+                                : '-'}
+                          </td>
                           <td>{getStatutBadge(demande.statut)}</td>
                           <td><button className="btn-generer" onClick={() => handleGenererActe(demande)}> Générer l'acte</button></td>
                         </tr>
@@ -1296,17 +1391,38 @@ export default function DashboardRH() {
               </div>
             </div>
 
+            {/* ✅ SECTION ACTES GÉNÉRÉS - CORRIGÉE */}
             <div className="rh-card full-width">
-              <div className="rh-card-header"><h3>Actes générés - En attente d'envoi</h3></div>
+              <div className="rh-card-header">
+                <h3>Actes générés - En attente d'envoi</h3>
+                <button 
+                  className="rh-card-btn" 
+                  onClick={async () => {
+                    console.log('🔄 Rafraîchissement manuel des actes');
+                    await fetchData();
+                  }}
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  🔄 Rafraîchir
+                </button>
+              </div>
               <div className="rh-table-container">
                 <table className="rh-table">
-                  <thead><tr><th>Agent</th><th>Type d'acte</th><th>Référence</th><th>Date génération</th><th>Actions</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Agent</th>
+                      <th>Type d'acte</th>
+                      <th>Référence</th>
+                      <th>Date génération</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {actesGeneres.length === 0 ? (
                       <tr><td colSpan="5" className="text-center"> Aucun acte en attente</td></tr>
                     ) : (
-                      actesGeneres.map(acte => (
-                        <tr key={acte.id}>
+                      actesGeneres.map((acte) => (
+                        <tr key={acte.reference || acte.id}>
                           <td>{acte.agent_nom} {acte.agent_prenom}</td>
                           <td>{acte.type_acte}</td>
                           <td><code>{acte.reference}</code></td>

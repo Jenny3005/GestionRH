@@ -14,6 +14,8 @@ export default function App() {
   const [loadingNotes, setLoadingNotes] = useState(true);
   const [selectedNote, setSelectedNote] = useState(null);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [selectedPoste, setSelectedPoste] = useState(null);
+  const [showPosteModal, setShowPosteModal] = useState(false);
   const navigate = useNavigate();
 
   // Vérifier si l'utilisateur est connecté au chargement
@@ -39,6 +41,20 @@ export default function App() {
     fetchPostesVacants();
     fetchNotesService();
   }, []);
+
+  const handleVoirPlus = (poste) => {
+    setSelectedPoste(poste);
+    setShowPosteModal(true);
+  };
+
+  const handlePostulerDepuisModal = () => {
+    setShowPosteModal(false);
+    if (selectedPoste) {
+      localStorage.setItem('selectedPosteId', selectedPoste.id);
+      localStorage.setItem('selectedPosteIntitule', selectedPoste.intitule);
+      navigate('/postuler');
+    }
+  };
 
   const fetchPostesVacants = async () => {
     setLoadingPostes(true);
@@ -201,7 +217,7 @@ export default function App() {
               <div className="step-block">
                 <div className="step-badge-number">3</div>
                 <h3>Soumettre une demande</h3>
-                <p>Congé, acte ou candidature — tout se fait en ligne en quelques clics.</p>
+                <p>Congé, acte ou candidature  tout se fait en ligne en quelques clics.</p>
               </div>
 
               <div className="step-block">
@@ -224,7 +240,7 @@ export default function App() {
                 <span className="icon">💼</span>
                 <h3>Opportunités de Carrière</h3>
               </div>
-              <p className="section-desc">Appels à candidatures ouverts aux agents permanents du MND.</p>
+              <p className="section-desc">Appels à candidatures ouverts aux agents du MND.</p>
               
               {loadingPostes ? (
                 <div className="loading-postes" style={{ textAlign: 'center', padding: '40px' }}>
@@ -246,9 +262,27 @@ export default function App() {
                         <h4>{poste.intitule}</h4>
                         <p className="poste-direction">📍 {poste.directionDemande || 'Ministère du Numérique'}</p>
                         {poste.description && (
-                          <p className="poste-description" style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.5rem' }}>
-                            {poste.description.substring(0, 100)}...
-                          </p>
+                          <>
+                            <p className="poste-description" style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.5rem' }}>
+                              {poste.description.substring(0, 150)}...
+                            </p>
+                            <button 
+                              className="btn-lire-plus" 
+                              onClick={() => handleVoirPlus(poste)}
+                              style={{ 
+                                background: 'none', 
+                                border: 'none', 
+                                color: '#D4AF37', 
+                                fontWeight: 'bold', 
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                padding: '0',
+                                marginTop: '0.3rem'
+                              }}
+                            >
+                              Lire la description complète →
+                            </button>
+                          </>
                         )}
                       </div>
                       <div className="poste-action-zone">
@@ -439,6 +473,47 @@ export default function App() {
                 </a>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DESCRIPTION POSTE */}
+      {showPosteModal && selectedPoste && (
+        <div className="modal-overlay" onClick={() => setShowPosteModal(false)}>
+          <div className="modal-content note-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="note-modal-close" onClick={() => setShowPosteModal(false)}>✕</button>
+            
+            <div className="note-modal-header">
+              <div className="note-modal-tag">
+                💼 Appel à candidature interne
+              </div>
+              <h2>{selectedPoste.intitule}</h2>
+              <div className="note-modal-meta">
+                <span>📍 {selectedPoste.directionDemande || 'Ministère du Numérique'}</span>
+                <span>📅 Clôture : {formatDate(selectedPoste.date_cloture)}</span>
+              </div>
+            </div>
+            
+            <div className="note-modal-body">
+              <div dangerouslySetInnerHTML={{ __html: selectedPoste.description || 'Aucune description disponible' }} />
+            </div>
+            
+            <div className="note-modal-footer" style={{ display: 'flex', gap: '15px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <button 
+                className="btn-cancel" 
+                onClick={() => setShowPosteModal(false)}
+                style={{ padding: '10px 25px' }}
+              >
+                Fermer
+              </button>
+              <button 
+                className="btn-apply-small" 
+                onClick={handlePostulerDepuisModal}
+                style={{ padding: '10px 30px', fontSize: '1rem' }}
+              >
+                📝 Postuler maintenant
+              </button>
+            </div>
           </div>
         </div>
       )}

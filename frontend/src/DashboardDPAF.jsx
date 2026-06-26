@@ -1,4 +1,4 @@
-// DashboardDPAF.jsx - Version avec filtre selon le rôle (DPAF ou DAPAF) et timeline dynamique
+// DashboardDPAF.jsx - Version complète avec attestations intégrées
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import './App.css';
 
-// Fonction pour normaliser le rôle (identique à PortalNav)
+// Fonction pour normaliser le rôle
 function normalizeRole(role) {
   if (!role || typeof role !== 'string') return '';
   let r = role.trim().toLowerCase();
@@ -35,6 +35,11 @@ export default function DashboardDPAF() {
   const [hasSignature, setHasSignature] = useState(false);
   const [hasCachet, setHasCachet] = useState(false);
   
+  // États pour les attestations
+  const [attestationsSoumises, setAttestationsSoumises] = useState([]);
+  const [attestationsAssignees, setAttestationsAssignees] = useState([]);
+  const [attestationsHistorique, setAttestationsHistorique] = useState([]);
+  
   // Modals
   const [showAssignerModal, setShowAssignerModal] = useState(false);
   const [showSuiviModal, setShowSuiviModal] = useState(false);
@@ -47,6 +52,8 @@ export default function DashboardDPAF() {
   const [signatureCommentaire, setSignatureCommentaire] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isAttestation, setIsAttestation] = useState(false);
   
   // Stats
   const [stats, setStats] = useState({
@@ -55,7 +62,8 @@ export default function DashboardDPAF() {
     en_cours: 0,
     terminees: 0,
     actes_a_signer: 0,
-    historique_count: 0
+    historique_count: 0,
+    attestations_a_assigner: 0
   });
 
   const matricule = localStorage.getItem('userMatricule');
@@ -63,15 +71,14 @@ export default function DashboardDPAF() {
   const userRole = normalizeRole(rawRole);
   
   const userName = `${localStorage.getItem('userPrenom') || ''} ${localStorage.getItem('userNom') || ''}`.trim();
-  const userEmail = localStorage.getItem('userEmail');
 
   const getTypesASigner = () => {
     if (userRole === 'dpaf') {
       return [
-        'Attestation de travail',           // ← Attestation de travail
-        'Absence',                          // ← Type de demande
-        'Reprise de service',               // ← Type de demande
-        "Autorisation d'absence exceptionnelle"  // ← L'acte généré pour absence
+        'Attestation de travail',
+        'Absence',
+        'Reprise de service',
+        "Autorisation d'absence exceptionnelle"
       ];
     } else if (userRole === 'dapaf') {
       return [
@@ -84,18 +91,15 @@ export default function DashboardDPAF() {
     return [];
   };
 
-  // ✅ Types selon destinataire
   const typesDPAF = ['Absence', 'Reprise de service', 'Attestation de travail'];
   const typesDAPAF = ['Congé', 'Autorisation de jouissance de congé administratif', 'Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
 
-  // ✅ Libellé du rôle pour l'affichage
   const getRoleLabel = () => {
     if (userRole === 'dpaf') return 'DPAF - Direction Planification';
     if (userRole === 'dapaf') return 'DAPAF - Direction Affaires Politiques';
     return 'Direction';
   };
 
-  // ✅ Message d'information selon le rôle
   const getInfoMessage = () => {
     if (userRole === 'dpaf') {
       return "ℹ️ Types d'actes signés par le DPAF : Attestation de travail, Absence, Reprise de service";
@@ -105,18 +109,21 @@ export default function DashboardDPAF() {
     return "";
   };
 
-  // ✅ Déterminer le destinataire d'une demande
-  const getDestinataire = (typeDemande) => {
-    if (typesDPAF.includes(typeDemande)) return 'DPAF';
-    if (typesDAPAF.includes(typeDemande)) return 'DAPAF';
+  const getDestinataire = (type) => {
+    if (typesDPAF.includes(type)) return 'DPAF';
+    if (typesDAPAF.includes(type)) return 'DAPAF';
     return 'DPAF';
   };
 
-  // ✅ Déterminer le statut de transmission correspondant
-  const getStatutTransmis = (typeDemande) => {
-    if (typesDPAF.includes(typeDemande)) return 'transmise_dpaf';
-    if (typesDAPAF.includes(typeDemande)) return 'transmise_dapaf';
+  const getStatutTransmis = (type) => {
+    if (typesDPAF.includes(type)) return 'transmise_dpaf';
+    if (typesDAPAF.includes(type)) return 'transmise_dapaf';
     return 'transmise_dpaf';
+  };
+
+  const isAttestationType = (type) => {
+    const attestationTypes = ['Attestation de travail', 'Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
+    return attestationTypes.includes(type);
   };
 
   useEffect(() => {
@@ -162,88 +169,123 @@ export default function DashboardDPAF() {
 
   const fetchHistorique = async () => {
     try {
-        const response = await fetch(`/api/dashboard/demandes-historique/${matricule}/`);
-        if (response.ok) {
-            const data = await response.json();
-            setDemandesHistorique(data);
-            setStats(prev => ({ ...prev, historique_count: data.length }));
-        }
+      const [demandesRes, attestationsRes] = await Promise.all([
+        fetch(`/api/dashboard/demandes-historique/${matricule}/`),
+        fetch(`/api/dashboard/attestations-historique/${matricule}/`)
+      ]);
+      
+      let demandesData = [];
+      if (demandesRes.ok) {
+        demandesData = await demandesRes.json();
+        setDemandesHistorique(demandesData);
+      }
+
+      let attestationsData = [];
+      if (attestationsRes.ok) {
+        attestationsData = await attestationsRes.json();
+        setAttestationsHistorique(attestationsData);
+      }
+
+      const totalHistorique = demandesData.length + attestationsData.length;
+      setStats(prev => ({ ...prev, historique_count: totalHistorique }));
     } catch (error) {
-        console.error('Erreur chargement historique:', error);
+      console.error('Erreur chargement historique:', error);
     }
   };
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
-        const [transmisesRes, assigneesRes, actesRes] = await Promise.all([
-            fetch(`/api/dashboard/demandes-a-assigner/${matricule}/`),
-            fetch(`/api/dashboard/demandes-assignees/${matricule}/`),
-            fetch(`/api/dashboard/actes-a-signer/${matricule}/`)
-        ]);
-        
-        let transmisesData = [];
-        if (transmisesRes.ok) {
-            transmisesData = await transmisesRes.json();
-            console.log(' Demandes à assigner:', transmisesData);
-            setDemandesTransmises(transmisesData);
-        }
+      const [transmisesRes, attestationsRes, assigneesRes, attestationsAssigneesRes, actesRes] = await Promise.all([
+        fetch(`/api/dashboard/demandes-a-assigner/${matricule}/`),
+        fetch(`/api/dashboard/attestations-recues/${matricule}/`),
+        fetch(`/api/dashboard/demandes-assignees/${matricule}/`),
+        fetch(`/api/dashboard/attestations-assignees/${matricule}/`),
+        fetch(`/api/dashboard/actes-a-signer/${matricule}/`)
+      ]);
+      
+      // ✅ Demandes à assigner
+      let transmisesData = [];
+      if (transmisesRes.ok) {
+        transmisesData = await transmisesRes.json();
+        // Filtrer les attestations (elles sont déjà dans attestationsSoumises)
+        const typesAttestation = [
+          'Attestation de travail',
+          'Attestation de présence au poste',
+          'Attestation de validité de services',
+          'Certificat de non-jouissance de congé'
+        ];
+        transmisesData = transmisesData.filter(d => !typesAttestation.includes(d.type_demande));
+        setDemandesTransmises(transmisesData);
+      }
 
-        
+      // ✅ Attestations à assigner
+      let attestationsData = [];
+      if (attestationsRes.ok) {
+        attestationsData = await attestationsRes.json();
+        setAttestationsSoumises(attestationsData);
+      }
 
-        let assigneesData = [];
-        if (assigneesRes.ok) {
-            assigneesData = await assigneesRes.json();
-            console.log(' Demandes assignées:', assigneesData);
-            setDemandesAssignees(assigneesData);
-        }
+      // ✅ Demandes assignées
+      let assigneesData = [];
+      if (assigneesRes.ok) {
+        assigneesData = await assigneesRes.json();
+        setDemandesAssignees(assigneesData);
+      }
 
-        let actesData = [];
-        if (actesRes.ok) {
-            actesData = await actesRes.json();
-            console.log('📋Actes à signer (BRUT):', actesData);
-            
-            // ✅ Affiche tous les types d'actes reçus
-            actesData.forEach(acte => {
-                console.log(`   - type_acte reçu: "${acte.type_acte}"`);
-            });
-            
-            const typesASigner = getTypesASigner();
-            console.log(' Types à signer pour DPAF:', typesASigner);
-            
-            const actesFiltres = actesData.filter(acte => {
-                const inclus = typesASigner.includes(acte.type_acte);
-                console.log(`   "${acte.type_acte}" → ${inclus ? '✅ INCLUS' : '❌ EXCLU'}`);
-                return inclus;
-            });
-            
-            setActesASigner(actesFiltres);
-        }
+      // ✅ Attestations assignées
+      let attestationsAssigneesData = [];
+      if (attestationsAssigneesRes.ok) {
+        attestationsAssigneesData = await attestationsAssigneesRes.json();
+        setAttestationsAssignees(attestationsAssigneesData);
+      }
 
-        setStats(prev => ({
-            ...prev,
-            a_assigner: transmisesData.length,
-            assignees: assigneesData.length,
-            en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length,
-            terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length,
-            actes_a_signer: actesData.filter(a => getTypesASigner().includes(a.type_acte)).length,
-        }));
+      // ✅ Actes à signer
+      let actesData = [];
+      if (actesRes.ok) {
+        actesData = await actesRes.json();
+        const typesASigner = getTypesASigner();
+        const actesFiltres = actesData.filter(acte => {
+          return typesASigner.includes(acte.type_acte);
+        });
+        setActesASigner(actesFiltres);
+      }
+
+      // ✅ Stats - CORRECTION
+      const totalAAssigner = transmisesData.length + attestationsData.length;
+      const totalAssignees = assigneesData.length + attestationsAssigneesData.length;
+
+      setStats({
+        a_assigner: totalAAssigner,
+        assignees: totalAssignees,
+        en_cours: assigneesData.filter(d => d.statut === 'en_cours_traitement').length + 
+                  attestationsAssigneesData.filter(a => a.statut === 'assignee_rh' || a.statut === 'en_cours_traitement').length,
+        terminees: assigneesData.filter(d => d.statut === 'termine' || d.statut === 'acte_genere').length +
+                  attestationsAssigneesData.filter(a => a.statut === 'termine' || a.statut === 'acte_genere').length,
+        actes_a_signer: actesData.filter(a => getTypesASigner().includes(a.type_acte)).length,
+        attestations_a_assigner: attestationsData.length  // ← Utilise attestationsData
+      });
 
     } catch (error) {
-        console.error('Erreur chargement:', error);
+      console.error('Erreur chargement:', error);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleAssignerRH = async (demandeId) => {
+  const handleAssignerItem = async (item, isAttestationItem) => {
     if (!selectedAgentRH) {
       alert('Veuillez sélectionner un agent RH');
       return;
     }
     
+    const itemId = item.id;
+    const url = isAttestationItem 
+      ? `/api/dpaf/assigner-attestation/${itemId}/`
+      : `/api/dpaf/assigner-rh/${itemId}/`;
+    
     try {
-      const response = await fetch(`/api/dpaf/assigner-rh/${demandeId}/`, {
+      const response = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,9 +298,10 @@ export default function DashboardDPAF() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande assignée à l'agent RH avec succès`);
+        alert(`✅ ${isAttestationItem ? 'Attestation' : 'Demande'} assignée avec succès`);
         setShowAssignerModal(false);
-        setSelectedDemande(null);
+        setSelectedItem(null);
+        setIsAttestation(false);
         setSelectedAgentRH('');
         setCommentaire('');
         fetchAllData();
@@ -274,12 +317,10 @@ export default function DashboardDPAF() {
 
   const handleSignerActe = async (reference) => {
     try {
-      // Déterminer l'URL et le paramètre selon le rôle
       const url = userRole === 'dpaf' 
         ? `/api/dpaf/signer-acte/${reference}/`
         : `/api/dapaf/signer-acte/${reference}/`;
       
-      // ✅ Le nom du paramètre doit correspondre à ce qu'attend la fonction dans views.py
       const body = userRole === 'dpaf'
         ? { dpaf_matricule: matricule, commentaire: signatureCommentaire }
         : { dapaf_matricule: matricule, commentaire: signatureCommentaire };
@@ -319,13 +360,14 @@ export default function DashboardDPAF() {
     }
   };
 
-  const handleVoirDetails = (demande) => {
-    setSelectedDemande(demande);
+  const handleVoirDetails = (item, isAttestationItem) => {
+    setSelectedItem(item);
+    setIsAttestation(isAttestationItem);
     setShowAssignerModal(true);
   };
 
-  const handleVoirSuivi = (demande) => {
-    setSelectedDemande(demande);
+  const handleVoirSuivi = (item) => {
+    setSelectedDemande(item);
     setShowSuiviModal(true);
   };
 
@@ -338,7 +380,7 @@ export default function DashboardDPAF() {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setPreviewUrl(url);
-        setPreviewTitle(`Acte ${reference}`);
+        setPreviewTitle(`${acte.type_acte} - ${reference}`);
         setShowPreviewModal(true);
       } else {
         alert('Erreur lors du chargement de l\'acte');
@@ -380,7 +422,9 @@ export default function DashboardDPAF() {
       'attente_signature_dpaf': <span className="badge-warning">✍️ En attente signature DPAF</span>,
       'attente_signature_dapaf': <span className="badge-warning">✍️ En attente signature DAPAF</span>,
       'signe': <span className="badge-success">✅ Signé</span>,
-      'remis': <span className="badge-success"> Remis à l'agent</span>
+      'remis': <span className="badge-success">✅ Remis à l'agent</span>,
+      'soumise': <span className="badge-info">📝 Soumise</span>,
+      'valide': <span className="badge-success">✅ Validée</span>,
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -393,7 +437,13 @@ export default function DashboardDPAF() {
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
-          <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+          <a href="/" className="logo-nav-link">
+            <img 
+              src="/logo_MND.png" 
+              alt="Logo Ministère du Numérique et de la Digitalisation" 
+              className="mnd-official-logo" 
+            />
+          </a>
         </div>
         <PortalNav />
         <div className="nav-right">
@@ -404,8 +454,8 @@ export default function DashboardDPAF() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2> Tableau de bord - {getRoleLabel()}</h2>
-            <p>Gestion et assignment des demandes aux agents RH et signature des actes</p>
+            <h2>📊 Tableau de bord - {getRoleLabel()}</h2>
+            <p>Gestion et assignment des demandes et attestations aux agents RH - Signature des actes</p>
           </div>
         </section>
 
@@ -413,11 +463,11 @@ export default function DashboardDPAF() {
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{stats.a_assigner}</div>
-            <div className="stat-label"> À assigner</div>
+            <div className="stat-label">📋 À assigner</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
             <div className="stat-number">{stats.assignees}</div>
-            <div className="stat-label">👥 Demandes assignées</div>
+            <div className="stat-label">👥 Assignées</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
             <div className="stat-number">{stats.en_cours}</div>
@@ -429,17 +479,40 @@ export default function DashboardDPAF() {
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#EF4444' }}>
             <div className="stat-number">{stats.actes_a_signer}</div>
-            <div className="stat-label"> Actes à signer</div>
+            <div className="stat-label">✍️ Actes à signer</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#6B7280' }}>
             <div className="stat-number">{stats.historique_count}</div>
-            <div className="stat-label"> Historique</div>
+            <div className="stat-label">📜 Historique</div>
           </div>
         </div>
 
-        {/* SECTION 1: Demandes à assigner */}
+        {/* SECTION 1: Demandes et attestations à assigner */}
         <div className="admin-section">
-          <h3> Demandes transmises par le secrétariat</h3>
+          <h3>📋 Demandes et attestations à assigner</h3>
+          
+          <div style={{ 
+            display: 'flex',
+            gap: '15px',
+            marginBottom: '15px',
+            padding: '10px',
+            background: '#F8FAFC',
+            borderRadius: '8px'
+          }}>
+            <div style={{ flex: 1, borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
+              <strong>📤 DPAF :</strong>
+              <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
+                Absences, Reprise, Attestation de travail
+              </p>
+            </div>
+            <div style={{ flex: 1, borderLeft: '4px solid #10B981', paddingLeft: '10px' }}>
+              <strong>📤 DAPAF :</strong>
+              <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
+                Congés, Attestations présence/validité/certificats
+              </p>
+            </div>
+          </div>
+
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -454,35 +527,76 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
-                ) : demandesTransmises.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center"> Aucune demande à assigner</td></tr>
+                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                ) : (demandesTransmises.length === 0 && attestationsSoumises.length === 0) ? (
+                  <tr><td colSpan="6" className="text-center">📭 Aucune demande ou attestation à assigner</td></tr>
                 ) : (
-                  demandesTransmises.map((d) => (
-                    <tr key={d.id}>
-                      <td>{d.agent_nom} {d.agent_prenom}</td>
-                      <td>{d.agent_matricule}</td>
-                      <td>{d.type_demande}</td>
-                      <td>
-                        <span style={{ 
-                          background: getDestinataire(d.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5',
-                          color: getDestinataire(d.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46',
-                          padding: '4px 8px',
-                          borderRadius: '20px',
-                          fontSize: '0.7rem',
-                          fontWeight: 'bold'
-                        }}>
-                          {getDestinataire(d.type_demande)}
-                        </span>
-                       </td>
-                      <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
-                      <td>
-                        <button className="btn-assigner" onClick={() => handleVoirDetails(d)}>
-                          👥 Assigner à un RH
-                        </button>
-                       </td>
-                    </tr>
-                  ))
+                  <>
+                    {/* Demandes */}
+                    {demandesTransmises.map((d) => (
+                      <tr key={d.id}>
+                        <td>{d.agent_nom} {d.agent_prenom}</td>
+                        <td>{d.agent_matricule}</td>
+                        <td>{d.type_demande}</td>
+                        <td>
+                          <span style={{ 
+                            background: getDestinataire(d.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5',
+                            color: getDestinataire(d.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46',
+                            padding: '4px 8px',
+                            borderRadius: '20px',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {getDestinataire(d.type_demande)}
+                          </span>
+                        </td>
+                        <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td>
+                          <button className="btn-assigner" onClick={() => handleVoirDetails(d, false)}>
+                            👥 Assigner à un RH
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    
+                    {/* Attestations */}
+                    {attestationsSoumises.map((att) => (
+                      <tr key={att.id}>
+                        <td>{att.agent_nom} {att.agent_prenom}</td>
+                        <td>{att.agent_matricule}</td>
+                        <td>
+                          <span style={{ 
+                            background: '#E0E7FF', 
+                            padding: '2px 10px', 
+                            borderRadius: '20px',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold',
+                            color: '#4338CA'
+                          }}>
+                            📄 {att.type_attestation}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ 
+                            background: getDestinataire(att.type_attestation) === 'DPAF' ? '#DBEAFE' : '#D1FAE5',
+                            color: getDestinataire(att.type_attestation) === 'DPAF' ? '#1E40AF' : '#065F46',
+                            padding: '4px 8px',
+                            borderRadius: '20px',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {getDestinataire(att.type_attestation)}
+                          </span>
+                        </td>
+                        <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
+                        <td>
+                          <button className="btn-assigner" onClick={() => handleVoirDetails(att, true)}>
+                            👥 Assigner à un RH
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </>
                 )}
               </tbody>
             </table>
@@ -495,20 +609,20 @@ export default function DashboardDPAF() {
             className={`filter-tab ${activeTab === 'encours' ? 'active' : ''}`} 
             onClick={() => setActiveTab('encours')}
           >
-             Demandes en cours ({stats.assignees})
+            ⚙️ En cours ({stats.assignees})
           </button>
           <button 
             className={`filter-tab ${activeTab === 'historique' ? 'active' : ''}`} 
             onClick={() => setActiveTab('historique')}
           >
-             Historique des demandes ({stats.historique_count})
+            📜 Historique ({stats.historique_count})
           </button>
         </div>
 
-        {/* SECTION 2: Demandes assignées en cours */}
+        {/* SECTION 2: Demandes et attestations assignées en cours */}
         {activeTab === 'encours' && (
           <div className="admin-section">
-            <h3> Demandes assignées - Suivi</h3>
+            <h3>📋 Demandes et attestations assignées - Suivi</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -523,24 +637,54 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
-                  ) : demandesAssignees.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center"> Aucune demande en cours</td></tr>
+                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  ) : (demandesAssignees.length === 0 && attestationsAssignees.length === 0) ? (
+                    <tr><td colSpan="6" className="text-center">📭 Aucune demande en cours</td></tr>
                   ) : (
-                    demandesAssignees.map((d) => (
-                      <tr key={d.id}>
-                        <td>{d.agent_nom} {d.agent_prenom}</td>
-                        <td>{d.type_demande}</td>
-                        <td>{d.agent_rh_nom} {d.agent_rh_prenom}</td>
-                        <td>{getStatusBadge(d.statut)}</td>
-                        <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
-                        <td>
-                          <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
-                            👁️ Voir suivi
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    <>
+                      {/* Demandes */}
+                      {demandesAssignees.map((d) => (
+                        <tr key={d.id}>
+                          <td>{d.agent_nom} {d.agent_prenom}</td>
+                          <td>{d.type_demande}</td>
+                          <td>{d.agent_rh_nom} {d.agent_rh_prenom}</td>
+                          <td>{getStatusBadge(d.statut)}</td>
+                          <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
+                              👁️ Voir suivi
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      
+                      {/* Attestations */}
+                      {attestationsAssignees.map((att) => (
+                        <tr key={att.id}>
+                          <td>{att.agent_nom} {att.agent_prenom}</td>
+                          <td>
+                            <span style={{ 
+                              background: '#E0E7FF', 
+                              padding: '2px 10px', 
+                              borderRadius: '20px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              color: '#4338CA'
+                            }}>
+                              📄 {att.type_attestation}
+                            </span>
+                          </td>
+                          <td>{att.agent_rh_nom} {att.agent_rh_prenom}</td>
+                          <td>{getStatusBadge(att.statut)}</td>
+                          <td>{att.date_assignation ? new Date(att.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            <button className="btn-view" onClick={() => handleVoirSuivi(att)}>
+                              👁️ Voir suivi
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -551,7 +695,7 @@ export default function DashboardDPAF() {
         {/* SECTION 2bis: Historique des demandes traitées */}
         {activeTab === 'historique' && (
           <div className="admin-section">
-            <h3> Historique des demandes traitées</h3>
+            <h3>📜 Historique des demandes et attestations traitées</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -566,24 +710,54 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
-                  ) : demandesHistorique.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center"> Aucune demande dans l'historique</td></tr>
+                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  ) : (demandesHistorique.length === 0 && attestationsHistorique.length === 0) ? (
+                    <tr><td colSpan="6" className="text-center">📭 Aucune demande dans l'historique</td></tr>
                   ) : (
-                    demandesHistorique.map((d) => (
-                      <tr key={d.id}>
-                        <td>{d.agent_nom} {d.agent_prenom}</td>
-                        <td>{d.type_demande}</td>
-                        <td>{d.agent_rh_nom || '-'} {d.agent_rh_prenom || ''}</td>
-                        <td>{getStatusBadge(d.statut)}</td>
-                        <td>{d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
-                        <td>
-                          <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
-                            👁️ Voir suivi
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    <>
+                      {/* Demandes historiques */}
+                      {demandesHistorique.map((d) => (
+                        <tr key={d.id}>
+                          <td>{d.agent_nom} {d.agent_prenom}</td>
+                          <td>{d.type_demande}</td>
+                          <td>{d.agent_rh_nom || '-'} {d.agent_rh_prenom || ''}</td>
+                          <td>{getStatusBadge(d.statut)}</td>
+                          <td>{d.date_soumission ? new Date(d.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
+                              👁️ Voir suivi
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      
+                      {/* Attestations historiques */}
+                      {attestationsHistorique.map((att) => (
+                        <tr key={att.id}>
+                          <td>{att.agent_nom} {att.agent_prenom}</td>
+                          <td>
+                            <span style={{ 
+                              background: '#E0E7FF', 
+                              padding: '2px 10px', 
+                              borderRadius: '20px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              color: '#4338CA'
+                            }}>
+                              📄 {att.type_attestation}
+                            </span>
+                          </td>
+                          <td>{att.agent_rh_nom || '-'} {att.agent_rh_prenom || ''}</td>
+                          <td>{getStatusBadge(att.statut)}</td>
+                          <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>
+                            <button className="btn-view" onClick={() => handleVoirSuivi(att)}>
+                              👁️ Voir suivi
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -624,7 +798,7 @@ export default function DashboardDPAF() {
           </div>
         )}
 
-        {/* SECTION 3: Actes à signer (filtrés selon le rôle) */}
+        {/* SECTION 3: Actes à signer */}
         <div className="admin-section">
           <h3>✍️ Actes à signer par {getRoleLabel()}</h3>
           <div className="admin-table-container">
@@ -640,9 +814,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center"> Chargement...</td></tr>
+                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
                 ) : actesASigner.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center"> Aucun acte à signer</td></tr>
+                  <tr><td colSpan="5" className="text-center">📭 Aucun acte à signer</td></tr>
                 ) : (
                   actesASigner.map((acte) => (
                     <tr key={acte.reference}>
@@ -651,7 +825,7 @@ export default function DashboardDPAF() {
                         <span className="badge-info">{acte.type_acte}</span>
                       </td>
                       <td><code>{acte.reference}</code></td>
-                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_demande ? new Date(acte.date_demande).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
@@ -661,13 +835,8 @@ export default function DashboardDPAF() {
                             className="btn-signer" 
                             onClick={() => handleSigner(acte)}
                             disabled={!hasSignature || !hasCachet}
-                            title={!hasSignature ? 'Vous devez d\'abord uploader votre signature' : !hasCachet ? 'Vous devez d\'abord uploader votre cachet' : 'Signer l\'acte'}
-                            style={{ 
-                              opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
-                              cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
-                            }}
                           >
-                             Signer l'acte
+                            ✍️ Signer l'acte
                           </button>
                         </div>
                       </td>
@@ -680,18 +849,24 @@ export default function DashboardDPAF() {
         </div>
       </main>
 
-      {/* MODAL ASSIGNER À UN AGENT RH */}
-      {showAssignerModal && selectedDemande && (
+      {/* MODAL ASSIGNER */}
+      {showAssignerModal && selectedItem && (
         <div className="modal-overlay" onClick={() => setShowAssignerModal(false)}>
           <div className="modal-content assigner-modal-elegant" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-elegant">
               <div className="modal-header-content-elegant">
                 <div className="header-icon-circle-elegant">
-                  <span className="header-icon-large">👥</span>
+                  <span className="header-icon-large">{isAttestation ? '📄' : '👥'}</span>
                 </div>
                 <div className="header-title-section-elegant">
-                  <h3 className="modal-title-elegant">Assigner à un agent RH</h3>
-                  <p className="modal-subtitle-elegant">Choisissez l'agent responsable du traitement de cette demande</p>
+                  <h3 className="modal-title-elegant">
+                    {isAttestation ? 'Assigner une attestation' : 'Assigner à un agent RH'}
+                  </h3>
+                  <p className="modal-subtitle-elegant">
+                    {isAttestation 
+                      ? 'Choisissez l\'agent responsable de la génération de l\'attestation' 
+                      : 'Choisissez l\'agent responsable du traitement de cette demande'}
+                  </p>
                 </div>
                 <button className="modal-close-elegant" onClick={() => setShowAssignerModal(false)}>
                   ✕
@@ -700,44 +875,57 @@ export default function DashboardDPAF() {
             </div>
             
             <div className="modal-body-elegant">
-              {/* Carte de la demande */}
+              {/* Carte de l'élément */}
               <div className="demande-info-card-elegant">
                 <div className="demande-card-header-elegant">
-                  <span className="card-header-icon"></span>
-                  <span className="card-header-title">Information de la demande</span>
+                  <span className="card-header-icon">{isAttestation ? '📄' : '📋'}</span>
+                  <span className="card-header-title">
+                    {isAttestation ? 'Information de l\'attestation' : 'Information de la demande'}
+                  </span>
                 </div>
                 <div className="demande-details-grid-elegant">
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Agent concerné</span>
                     <div className="detail-value-with-icon-elegant">
                       <span className="detail-icon-elegant">👤</span>
-                      <strong>{selectedDemande.agent_nom} {selectedDemande.agent_prenom}</strong>
+                      <strong>{selectedItem.agent_nom} {selectedItem.agent_prenom}</strong>
                     </div>
                   </div>
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Matricule</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant"></span>
-                      <code className="matricule-code-elegant">{selectedDemande.agent_matricule}</code>
+                      <code className="matricule-code-elegant">{selectedItem.agent_matricule}</code>
                     </div>
                   </div>
                   <div className="demande-detail-item-elegant">
-                    <span className="detail-label-elegant">Type de demande</span>
+                    <span className="detail-label-elegant">{isAttestation ? 'Type d\'attestation' : 'Type de demande'}</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant"></span>
-                      <span className="type-badge-elegant">{selectedDemande.type_demande}</span>
+                      <span className="type-badge-elegant" style={{ 
+                        background: isAttestation ? '#E0E7FF' : '#DBEAFE',
+                        color: isAttestation ? '#4338CA' : '#1E40AF'
+                      }}>
+                        {isAttestation ? selectedItem.type_attestation : selectedItem.type_demande}
+                      </span>
                     </div>
                   </div>
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Destinataire</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant"></span>
-                      <span className="type-badge-elegant" style={{ background: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5', color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46' }}>
-                        {getDestinataire(selectedDemande.type_demande)}
+                      <span className="type-badge-elegant" style={{ 
+                        background: getDestinataire(isAttestation ? selectedItem.type_attestation : selectedItem.type_demande) === 'DPAF' ? '#DBEAFE' : '#D1FAE5',
+                        color: getDestinataire(isAttestation ? selectedItem.type_attestation : selectedItem.type_demande) === 'DPAF' ? '#1E40AF' : '#065F46'
+                      }}>
+                        {getDestinataire(isAttestation ? selectedItem.type_attestation : selectedItem.type_demande)}
                       </span>
                     </div>
                   </div>
                 </div>
+                {selectedItem.commentaire && (
+                  <div style={{ marginTop: '10px', padding: '10px', background: '#F3F4F6', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>📝 Commentaire:</span>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '0.85rem' }}>{selectedItem.commentaire}</p>
+                  </div>
+                )}
               </div>
 
               {/* Sélection agent RH */}
@@ -783,9 +971,7 @@ export default function DashboardDPAF() {
                               </div>
                             </div>
                             {selectedAgentRH === agent.matricule && (
-                              <div className="agent-selected-check-elegant">
-                                ✓
-                              </div>
+                              <div className="agent-selected-check-elegant">✓</div>
                             )}
                           </div>
                         </label>
@@ -805,7 +991,9 @@ export default function DashboardDPAF() {
                 <textarea
                   className="instructions-textarea-elegant"
                   rows="3"
-                  placeholder="Ajoutez des instructions spécifiques pour le traitement de cette demande..."
+                  placeholder={isAttestation 
+                    ? "Ajoutez des instructions spécifiques pour la génération de cette attestation..." 
+                    : "Ajoutez des instructions spécifiques pour le traitement de cette demande..."}
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
                 />
@@ -818,24 +1006,24 @@ export default function DashboardDPAF() {
               </button>
               <button 
                 className={`btn-assigner-elegant ${!selectedAgentRH ? 'disabled' : ''}`}
-                onClick={() => handleAssignerRH(selectedDemande.id)}
+                onClick={() => handleAssignerItem(selectedItem, isAttestation)}
                 disabled={!selectedAgentRH}
               >
                 <span className="btn-icon">✓</span>
-                Assigner la demande
+                {isAttestation ? 'Assigner l\'attestation' : 'Assigner la demande'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL SUIVI DE LA DEMANDE - VERSION AVEC TIMELINE DYNAMIQUE DPAF/DAPAF */}
+      {/* MODAL SUIVI */}
       {showSuiviModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => setShowSuiviModal(false)}>
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header suivi-modal-header">
               <div className="header-icon-wrapper">
-                <span className="header-icon"></span>
+                <span className="header-icon">📊</span>
                 <h3>Suivi de la demande</h3>
               </div>
               <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
@@ -853,21 +1041,26 @@ export default function DashboardDPAF() {
                 </div>
               </div>
 
-              {/* Carte Détails Demande */}
+              {/* Carte Détails */}
               <div className="suivi-details-card">
                 <div className="detail-item">
-                  <span className="detail-icon"></span>
+                  <span className="detail-icon">📋</span>
                   <div className="detail-content">
-                    <span className="detail-label">Type de demande</span>
-                    <strong className="detail-value">{selectedDemande.type_demande}</strong>
+                    <span className="detail-label">Type</span>
+                    <strong className="detail-value">
+                      {selectedDemande.type_attestation || selectedDemande.type_demande}
+                      {selectedDemande.type_attestation && <span style={{ fontSize: '0.7rem', marginLeft: '8px', background: '#E0E7FF', padding: '2px 8px', borderRadius: '12px' }}>📄 Attestation</span>}
+                    </strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon"></span>
+                  <span className="detail-icon">📤</span>
                   <div className="detail-content">
                     <span className="detail-label">Destinataire</span>
-                    <strong className="detail-value" style={{ color: getDestinataire(selectedDemande.type_demande) === 'DPAF' ? '#2563EB' : '#059669' }}>
-                      {getDestinataire(selectedDemande.type_demande)}
+                    <strong className="detail-value" style={{ 
+                      color: getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande) === 'DPAF' ? '#2563EB' : '#059669' 
+                    }}>
+                      {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}
                     </strong>
                   </div>
                 </div>
@@ -878,14 +1071,20 @@ export default function DashboardDPAF() {
                     <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
                   </div>
                 </div>
+                <div className="detail-item">
+                  <span className="detail-icon">📊</span>
+                  <div className="detail-content">
+                    <span className="detail-label">Statut</span>
+                    <strong className="detail-value">{getStatusBadge(selectedDemande.statut)}</strong>
+                  </div>
+                </div>
               </div>
 
-              {/* Timeline dynamique */}
+              {/* Timeline */}
               <div className="suivi-timeline-modern">
-                <h4 className="timeline-title"> Chronologie du traitement</h4>
+                <h4 className="timeline-title">🔄 Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
-                  {/* Étape 1 - Demande soumise */}
                   <div className="timeline-modern-step completed">
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
@@ -893,49 +1092,30 @@ export default function DashboardDPAF() {
                     </div>
                     <div className="timeline-modern-content">
                       <div className="step-header">
-                        <span className="step-icon"></span>
+                        <span className="step-icon">📝</span>
                         <span className="step-title">Demande soumise</span>
                         <span className="step-status">Par l'agent</span>
                       </div>
-                      <p className="step-description">Demande soumise le {selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
+                      <p className="step-description">Soumise le {selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}</p>
                     </div>
                   </div>
 
-                  {/* Étape 2 - Transmission (DPAF ou DAPAF selon type) */}
-                  {(() => {
-                    const destinataire = getDestinataire(selectedDemande.type_demande);
-                    const statutTransmis = getStatutTransmis(selectedDemande.type_demande);
-                    
-                    const isCompleted = selectedDemande.statut === statutTransmis || 
-                                       selectedDemande.statut === 'assignee_rh' || 
-                                       selectedDemande.statut === 'en_cours_traitement' || 
-                                       selectedDemande.statut === 'acte_genere' || 
-                                       selectedDemande.statut === 'remis' ||
-                                       selectedDemande.statut === 'signe';
-                    const isActive = selectedDemande.statut === statutTransmis;
-                    
-                    return (
-                      <div className={`timeline-modern-step ${isCompleted ? 'completed' : isActive ? 'active' : 'pending'}`}>
-                        <div className="timeline-modern-marker">
-                          <div className="marker-dot"></div>
-                          <div className="marker-line"></div>
-                        </div>
-                        <div className="timeline-modern-content">
-                          <div className="step-header">
-                            <span className="step-icon"></span>
-                            <span className="step-title">Transmission au {destinataire}</span>
-                            <span className="step-status">Par la secrétaire</span>
-                          </div>
-                          <p className="step-description">
-                            Demande transmise au {destinataire} pour assignment à un agent RH
-                          </p>
-                        </div>
+                  <div className="timeline-modern-step completed">
+                    <div className="timeline-modern-marker">
+                      <div className="marker-dot"></div>
+                      <div className="marker-line"></div>
+                    </div>
+                    <div className="timeline-modern-content">
+                      <div className="step-header">
+                        <span className="step-icon">📤</span>
+                        <span className="step-title">Transmission</span>
+                        <span className="step-status">Par la secrétaire</span>
                       </div>
-                    );
-                  })()}
+                      <p className="step-description">Transmise au {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</p>
+                    </div>
+                  </div>
 
-                  {/* Étape 3 - Assignation à un agent RH */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'transmise_dpaf' || selectedDemande.statut === 'transmise_dapaf' ? 'pending' : ''}`}>
+                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : ''}`}>
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -943,95 +1123,90 @@ export default function DashboardDPAF() {
                     <div className="timeline-modern-content">
                       <div className="step-header">
                         <span className="step-icon">👥</span>
-                        <span className="step-title">Assignation à un agent RH</span>
-                        <span className="step-status">Agent: {selectedDemande.agent_rh_nom || 'En attente'} {selectedDemande.agent_rh_prenom || ''}</span>
+                        <span className="step-title">Assignation RH</span>
+                        <span className="step-status">{selectedDemande.agent_rh_nom || 'En attente'}</span>
                       </div>
-                      <p className="step-description">Demande assignée pour traitement par les RH</p>
+                      <p className="step-description">Assignée à un agent RH</p>
                     </div>
                   </div>
 
-                  {/* Étape 4 - Traitement par l'agent RH */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">⚙️</span>
-                        <span className="step-title">Traitement par l'agent RH</span>
-                        <span className="step-status">En cours de traitement</span>
+                  {selectedDemande.statut !== 'soumise' && selectedDemande.statut !== 'transmise_dpaf' && selectedDemande.statut !== 'transmise_dapaf' && (
+                    <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
+                      <div className="timeline-modern-marker">
+                        <div className="marker-dot"></div>
+                        <div className="marker-line"></div>
                       </div>
-                      <p className="step-description">L'agent RH vérifie et traite la demande</p>
-                    </div>
-                  </div>
-
-                  {/* Étape 5 - Génération de l'acte */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : ''}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">📄</span>
-                        <span className="step-title">Génération de l'acte</span>
-                        <span className="step-status">Par l'agent RH</span>
-                      </div>
-                      <p className="step-description">Acte généré et envoyé à la secrétaire</p>
-                    </div>
-                  </div>
-
-                  {/* Étape 6 - Signature (DPAF ou DAPAF selon type) */}
-                  {(() => {
-                    const signataire = getDestinataire(selectedDemande.type_demande);
-                    const statutAttente = signataire === 'DPAF' ? 'attente_signature_dpaf' : 'attente_signature_dapaf';
-                    
-                    return (
-                      <div className={`timeline-modern-step ${selectedDemande.statut === statutAttente ? 'active' : selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
-                        <div className="timeline-modern-marker">
-                          <div className="marker-dot"></div>
-                          <div className="marker-line"></div>
+                      <div className="timeline-modern-content">
+                        <div className="step-header">
+                          <span className="step-icon">⚙️</span>
+                          <span className="step-title">Traitement RH</span>
+                          <span className="step-status">En cours</span>
                         </div>
-                        <div className="timeline-modern-content">
-                          <div className="step-header">
-                            <span className="step-icon">✍️</span>
-                            <span className="step-title">Signature par le {signataire}</span>
-                            <span className="step-status">En attente de signature</span>
-                          </div>
-                          <p className="step-description">
-                            Le {signataire} signe l'acte avec son cachet officiel
-                          </p>
-                        </div>
+                        <p className="step-description">L'agent RH traite la demande</p>
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
-                  {/* Étape 7 - Remise à l'agent */}
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'remis' ? 'completed' : ''}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">✅</span>
-                        <span className="step-title">Remise à l'agent</span>
-                        <span className="step-status">Par la secrétaire</span>
+                  {(selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe') && (
+                    <div className="timeline-modern-step completed">
+                      <div className="timeline-modern-marker">
+                        <div className="marker-dot"></div>
+                        <div className="marker-line"></div>
                       </div>
-                      <p className="step-description">Acte remis à l'agent concerné</p>
+                      <div className="timeline-modern-content">
+                        <div className="step-header">
+                          <span className="step-icon">📄</span>
+                          <span className="step-title">Acte généré</span>
+                          <span className="step-status">Par l'agent RH</span>
+                        </div>
+                        <p className="step-description">Acte généré et envoyé</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {(selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis') && (
+                    <div className="timeline-modern-step completed">
+                      <div className="timeline-modern-marker">
+                        <div className="marker-dot"></div>
+                        <div className="marker-line"></div>
+                      </div>
+                      <div className="timeline-modern-content">
+                        <div className="step-header">
+                          <span className="step-icon">✍️</span>
+                          <span className="step-title">Signature</span>
+                          <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
+                        </div>
+                        <p className="step-description">Acte signé avec cachet officiel</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedDemande.statut === 'remis' && (
+                    <div className="timeline-modern-step completed">
+                      <div className="timeline-modern-marker">
+                        <div className="marker-dot"></div>
+                      </div>
+                      <div className="timeline-modern-content">
+                        <div className="step-header">
+                          <span className="step-icon">✅</span>
+                          <span className="step-title">Remis à l'agent</span>
+                          <span className="step-status">Par la secrétaire</span>
+                        </div>
+                        <p className="step-description">Acte remis à l'agent concerné</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {selectedDemande.commentaire_dpaf && (
+              {selectedDemande.commentaire && (
                 <div className="suivi-commentaire-card">
                   <div className="commentaire-header">
                     <span className="commentaire-icon">📝</span>
-                    <h4>Instructions du service</h4>
+                    <h4>Commentaire</h4>
                   </div>
                   <div className="commentaire-content">
-                    <p>{selectedDemande.commentaire_dpaf}</p>
+                    <p>{selectedDemande.commentaire}</p>
                   </div>
                 </div>
               )}
@@ -1046,58 +1221,111 @@ export default function DashboardDPAF() {
         </div>
       )}
 
-      {/* MODAL SIGNER ACTE */}
+      {/* MODAL SIGNATURE ACTE - VERSION ÉLÉGANTE */}
       {showSignerModal && selectedActe && (
-        <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3> Signature de l'acte</h3>
-              <button className="modal-close" onClick={() => setShowSignerModal(false)}>✕</button>
-            </div>
+        <div className="modal-signature-overlay" onClick={() => setShowSignerModal(false)}>
+          <div className="modal-signature-content" onClick={(e) => e.stopPropagation()}>
             
-            <div className="modal-body">
-              <div style={{ background: '#f0f8ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong> Acte N°:</strong> {selectedActe.reference}</p>
-                <p><strong>👤 Agent:</strong> {selectedActe.agent_nom} {selectedActe.agent_prenom}</p>
-                <p><strong> Type:</strong> {selectedActe.type_acte}</p>
+            {/* HEADER */}
+            <div className="modal-signature-header">
+              <div className="modal-signature-header-left">
+                <div className="modal-signature-icon-wrapper">
+                  <span className="icon">✍️</span>
+                </div>
+                <div className="modal-signature-title">
+                  <h3>Signature de l'acte</h3>
+                  <span className="subtitle">Apposez votre signature officielle</span>
+                </div>
               </div>
+              <button className="modal-signature-close" onClick={() => setShowSignerModal(false)}>✕</button>
+            </div>
+
+            {/* BODY */}
+            <div className="modal-signature-body">
               
-              <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                <p><strong>Signataire :</strong> {userName}</p>
-                <p><strong>Fonction :</strong> {userRole === 'dapaf' ? 'Directeur des Affaires Politiques, Administratives et Financières' : 'Directeur de la Planification, de l\'Administration et des Finances'}</p>
-                <p><strong>Date :</strong> {new Date().toLocaleDateString('fr-FR')}</p>
-                <p><strong>Heure :</strong> {new Date().toLocaleTimeString('fr-FR')}</p>
+              {/* Carte Acte */}
+              <div className="modal-signature-info">
+                <div className="card-label">📋 Détails de l'acte</div>
+                <div className="modal-signature-info-grid">
+                  <div className="modal-signature-info-item">
+                    <span className="label">Référence</span>
+                    <span className="value"><code>{selectedActe.reference}</code></span>
+                  </div>
+                  <div className="modal-signature-info-item">
+                    <span className="label">Type d'acte</span>
+                    <span className="value">{selectedActe.type_acte}</span>
+                  </div>
+                  <div className="modal-signature-info-item full">
+                    <span className="label">Agent concerné</span>
+                    <span className="value">{selectedActe.agent_nom} {selectedActe.agent_prenom}</span>
+                  </div>
+                </div>
               </div>
-              
-              <div className="form-group">
-                <label>Commentaire (optionnel)</label>
+
+              {/* Carte Signataire */}
+              <div className="modal-signature-signataire">
+                <div className="card-label">🖋️ Signataire</div>
+                <div className="modal-signature-signataire-grid">
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Nom</span>
+                    <span className="value">{userName}</span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Fonction</span>
+                    <span className="value">
+                      {userRole === 'dapaf' 
+                        ? 'Directeur des Affaires Politiques, Administratives et Financières' 
+                        : 'Directeur de la Planification, de l\'Administration et des Finances'}
+                    </span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Date</span>
+                    <span className="value">{new Date().toLocaleDateString('fr-FR')}</span>
+                  </div>
+                  <div className="modal-signature-signataire-item">
+                    <span className="label">Heure</span>
+                    <span className="value">{new Date().toLocaleTimeString('fr-FR')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Commentaire */}
+              <div className="modal-signature-commentaire">
+                <div className="label-row">
+                  <span className="label">💬 Commentaire</span>
+                  <span className="optional">Optionnel</span>
+                </div>
                 <textarea
                   rows="2"
-                  placeholder="Ajoutez un commentaire..."
+                  placeholder="Ajoutez un commentaire (optionnel)..."
                   value={signatureCommentaire}
                   onChange={(e) => setSignatureCommentaire(e.target.value)}
                 />
               </div>
-              
-              <div style={{ background: '#fff3cd', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #ffc107' }}>
-                <p>⚠️ En cliquant sur "Signer", votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
-                <p>Cette action est irréversible et engage votre responsabilité.</p>
+
+              {/* Alerte sécurité */}
+              <div className="modal-signature-alerte">
+                <span className="icon">⚠️</span>
+                <div className="content">
+                  <p><strong>Cette action est irréversible.</strong></p>
+                  <p>En cliquant sur <strong>"Signer"</strong>, votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
+                  <p>Cette signature engage votre responsabilité en tant que {userRole === 'dapaf' ? 'DAPAF' : 'DPAF'}.</p>
+                </div>
               </div>
             </div>
-            
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowSignerModal(false)}>Annuler</button>
+
+            {/* FOOTER */}
+            <div className="modal-signature-footer">
+              <button className="btn-signature-cancel" onClick={() => setShowSignerModal(false)}>
+                Annuler
+              </button>
               <button 
-                className="btn-signer" 
+                className={`btn-signature-submit ${userRole === 'dapaf' ? 'dapaf' : ''}`}
                 onClick={() => handleSignerActe(selectedActe.reference)}
                 disabled={!hasSignature || !hasCachet}
-                style={{ 
-                  background: '#dc3545',
-                  opacity: (!hasSignature || !hasCachet) ? 0.5 : 1,
-                  cursor: (!hasSignature || !hasCachet) ? 'not-allowed' : 'pointer'
-                }}
               >
-                 Signer avec mon cachet officiel
+                <span className="icon">✍️</span>
+                Signer avec mon cachet officiel
               </button>
             </div>
           </div>
@@ -1113,7 +1341,7 @@ export default function DashboardDPAF() {
         }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
-              <h3> {previewTitle}</h3>
+              <h3>📄 {previewTitle}</h3>
               <button className="modal-close" onClick={() => {
                 setShowPreviewModal(false);
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -1129,7 +1357,7 @@ export default function DashboardDPAF() {
                   frameBorder="0"
                 />
               ) : (
-                <div className="loading-preview">Chargement de l'aperçu...</div>
+                <div className="loading-preview">⏳ Chargement de l'aperçu...</div>
               )}
             </div>
             <div className="modal-footer preview-modal-footer">
