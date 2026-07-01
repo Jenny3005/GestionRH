@@ -134,7 +134,7 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
               📁 Mes documents
             </button>
           )}
-          {userRole === 'rh' && (
+          {(userRole === 'rh' || userRole === 'rh/secretaire') && (
             <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/archivage'); }}>
               🗄️ Archivage
             </button>
