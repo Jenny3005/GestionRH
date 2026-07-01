@@ -25,6 +25,7 @@ import Postuler from './Postuler';
 import ArchivagePage from './ArchivagePage';
 import CandidaturesPage from './CandidaturesPage';
 import BulletinNotes from './Bulletinnotes';
+import ResetPassword from './ResetPassword';
 
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
@@ -61,6 +62,7 @@ createRoot(document.getElementById('root')).render(
       <Route path="/archivage" element={<ArchivagePage />} />
       <Route path="/postes" element={<CandidaturesPage />} />
       <Route path="/bulletin-notes" element={<BulletinNotes />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
     </Routes>
   </BrowserRouter>
 );
