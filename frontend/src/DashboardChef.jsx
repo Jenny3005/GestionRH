@@ -221,60 +221,153 @@ export default function DashboardChef() {
         </div>
       </main>
 
-      {/* Modal de validation */}
+      {/* Modal de validation - Version moderne */}
       {selectedDemande && (
         <div className="modal-overlay" onClick={() => {
           setSelectedDemande(null);
           setCommentaire('');
         }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3> Demande de {selectedDemande.agent || selectedDemande.nom_demandeur}</h3>
-            <div className="modal-details">
-              <p><strong>Matricule:</strong> {selectedDemande.matricule || selectedDemande.matricule_demandeur}</p>
-              <p><strong>Type:</strong> {selectedDemande.type_demande || selectedDemande.type_conge}</p>
-              <p><strong>Période:</strong> {formatDate(selectedDemande.date_debut)} - {formatDate(selectedDemande.date_fin)}</p>
-              <p><strong>Nombre de jours:</strong> {selectedDemande.nombre_jours ?? selectedDemande.jours_demandes} jours</p>
-              <p><strong>Statut actuel:</strong> {getStatusBadge(selectedDemande.statut)}</p>
+            
+            {/* En-tête avec icône et titre */}
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <div className="modal-icon-badge">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M12 8v4l2 2"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="modal-title">Validation de demande</h3>
+                  <p className="modal-subtitle">
+                    {selectedDemande.agent || selectedDemande.nom_demandeur}
+                  </p>
+                </div>
+              </div>
+              <button 
+                className="modal-close-btn" 
+                onClick={() => {
+                  setSelectedDemande(null);
+                  setCommentaire('');
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Corps du modal */}
+            <div className="modal-body">
+              {/* Carte d'identité du demandeur */}
+              <div className="info-grid">
+                <div className="info-item">
+                  <span className="info-label">Matricule</span>
+                  <span className="info-value">{selectedDemande.matricule || selectedDemande.matricule_demandeur}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Type de demande</span>
+                  <span className="info-value">{selectedDemande.type_demande || selectedDemande.type_conge}</span>
+                </div>
+              </div>
+
+              {/* Période */}
+              <div className="period-card">
+                <div className="period-item">
+                  <span className="period-label">📅 Date de début</span>
+                  <span className="period-value">{formatDate(selectedDemande.date_debut)}</span>
+                </div>
+                <div className="period-arrow">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                <div className="period-item">
+                  <span className="period-label">📅 Date de fin</span>
+                  <span className="period-value">{formatDate(selectedDemande.date_fin)}</span>
+                </div>
+              </div>
+
+              {/* Détails supplémentaires */}
+              <div className="details-row">
+                <div className="detail-chip">
+                  <span className="chip-label">📆 Jours</span>
+                  <span className="chip-value">{selectedDemande.nombre_jours ?? selectedDemande.jours_demandes}</span>
+                </div>
+                <div className="detail-chip status-chip">
+                  <span className="chip-label">Statut</span>
+                  <span className="chip-value">{getStatusBadge(selectedDemande.statut)}</span>
+                </div>
+              </div>
+
+              {/* Commentaire existant */}
               {selectedDemande.commentaire && (
                 <div className="existing-comment">
-                  <strong>Commentaire de l'agent:</strong>
-                  <p>{selectedDemande.commentaire}</p>
+                  <div className="comment-header">
+                    <span className="comment-icon">💬</span>
+                    <span className="comment-label">Commentaire du demandeur</span>
+                  </div>
+                  <p className="comment-text">{selectedDemande.commentaire}</p>
                 </div>
               )}
-            </div>
-            
-            {(!selectedDemande.statut || selectedDemande.statut === 'en_attente_chef') ? (
-              <>
-                <div className="form-group">
-                  <label>Votre commentaire {selectedDemande.statut === 'refuse' && <span className="required">*</span>}</label>
+
+              {/* Zone de commentaire pour validation */}
+              {(!selectedDemande.statut || selectedDemande.statut === 'en_attente_chef') && (
+                <div className="comment-area">
+                  <label className="comment-label">
+                    Votre commentaire
+                    <span className="required-star">*</span>
+                    <span className="label-hint">(obligatoire pour un rejet)</span>
+                  </label>
                   <textarea 
                     value={commentaire} 
                     onChange={(e) => setCommentaire(e.target.value)} 
                     rows="3"
-                    placeholder="Ajoutez un commentaire (obligatoire pour un rejet)"
-                  ></textarea>
+                    placeholder="Ajoutez un commentaire pour justifier votre décision..."
+                    className="comment-textarea"
+                  />
                 </div>
-                <div className="modal-buttons">
-                  <button className="btn-cancel" onClick={() => {
-                    setSelectedDemande(null);
-                    setCommentaire('');
-                  }}>Annuler</button>
-                  <button className="btn-reject" onClick={() => validerDemande(selectedDemande.id, 'refuse')}>
-                    ❌ Rejeter
-                  </button>
-                  <button className="btn-validate" onClick={() => validerDemande(selectedDemande.id, 'valide')}>
-                    ✅ Valider
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="modal-buttons">
-                <button className="btn-cancel" onClick={() => {
+              )}
+            </div>
+
+            {/* Pied du modal - Boutons d'action */}
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary" 
+                onClick={() => {
                   setSelectedDemande(null);
                   setCommentaire('');
-                }}>Fermer</button>
-              </div>
-            )}
+                }}
+              >
+                {(!selectedDemande.statut || selectedDemande.statut === 'en_attente_chef') ? 'Annuler' : 'Fermer'}
+              </button>
+              
+              {(!selectedDemande.statut || selectedDemande.statut === 'en_attente_chef') && (
+                <>
+                  <button 
+                    className="btn-reject" 
+                    onClick={() => validerDemande(selectedDemande.id, 'refuse')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                    Rejeter
+                  </button>
+                  <button 
+                    className="btn-validate" 
+                    onClick={() => validerDemande(selectedDemande.id, 'valide')}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Valider
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
