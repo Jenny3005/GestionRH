@@ -190,7 +190,11 @@ urlpatterns = [
     path('dashboard/attestations-assignees/<str:matricule>/', views.get_attestations_assignees, name='get_attestations_assignees'),
     path('dashboard/attestations-historique/<str:matricule>/', views.get_attestations_historique, name='get_attestations_historique'),
     # Signature des attestations
-    path('api/attestations/signer/<path:reference>/', views.signer_attestation, name='signer_attestation'),
+    path('attestations/signer/<path:reference>/', views.signer_attestation, name='signer_attestation'),
+
+    path('forgot-password/', views.forgot_password, name='forgot_password'),
+    path('verify-reset-code/', views.verify_reset_code, name='verify_reset_code'),
+    path('reset-password/', views.reset_password, name='reset_password'),
 
     
 ]
