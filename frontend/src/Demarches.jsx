@@ -21,10 +21,13 @@ export default function Demarches() {
   const [showDemandeModal, setShowDemandeModal] = useState(false);
   const [demandeEnCours, setDemandeEnCours] = useState('');
   const [commentaireDemande, setCommentaireDemande] = useState('');
+  
+  // ✅ MODIFICATION : congeForm avec nombre_jours au lieu de date_fin
   const [congeForm, setCongeForm] = useState({
     date_debut: '',
-    date_fin: ''
+    nombre_jours: 1
   });
+  
   const [absenceForm, setAbsenceForm] = useState({
     date_debut: '',
     date_fin: '',
@@ -42,6 +45,25 @@ export default function Demarches() {
   const [certificatLoading, setCertificatLoading] = useState(false);
 
   const matricule = localStorage.getItem('userMatricule');
+
+  // ✅ Fonction pour calculer la date de fin à partir du nombre de jours
+  const calculerDateFin = (dateDebut, nombreJours) => {
+    if (!dateDebut || !nombreJours) return null;
+    const debut = new Date(dateDebut);
+    const fin = new Date(debut);
+    fin.setDate(fin.getDate() + nombreJours - 1);
+    return fin;
+  };
+
+  // ✅ Fonction pour formater une date en français
+  const formaterDateFr = (date) => {
+    if (!date) return '';
+    return date.toLocaleDateString('fr-FR', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
 
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
@@ -110,30 +132,68 @@ export default function Demarches() {
     return true;
   };
 
+  // ✅ Gestionnaire de changement pour le formulaire de congé
   const handleCongeChange = (e) => {
-    setCongeForm({ ...congeForm, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    if (name === 'nombre_jours') {
+      // S'assurer que le nombre est valide
+      let jours = parseInt(value) || 1;
+      jours = Math.max(1, Math.min(30, jours));
+      
+      // Si le solde est connu, limiter au solde restant
+      if (soldeConge && jours > soldeConge.jours_restants) {
+        jours = soldeConge.jours_restants;
+      }
+      
+      setCongeForm({ ...congeForm, nombre_jours: jours });
+    } else {
+      setCongeForm({ ...congeForm, [name]: value });
+    }
   };
 
   const handleAbsenceChange = (e) => {
     setAbsenceForm({ ...absenceForm, [e.target.name]: e.target.value });
   };
 
+  // ✅ Calcul de la date de fin pour l'affichage
+  const dateFinCalculee = congeForm.date_debut && congeForm.nombre_jours 
+    ? calculerDateFin(congeForm.date_debut, congeForm.nombre_jours)
+    : null;
+
+  // ✅ Soumission de la demande de congé
   const soumettreDemandeConge = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
       return;
     }
     
-    if (!congeForm.date_debut || !congeForm.date_fin) {
-      alert('Veuillez remplir toutes les dates');
+    if (!congeForm.date_debut || !congeForm.nombre_jours) {
+      alert('Veuillez remplir tous les champs');
       return;
     }
     
-    const debut = new Date(congeForm.date_debut);
-    const fin = new Date(congeForm.date_fin);
+    // Vérifier que le nombre de jours ne dépasse pas le solde
+    if (soldeConge && congeForm.nombre_jours > soldeConge.jours_restants) {
+      alert(`Solde insuffisant. Il vous reste ${soldeConge.jours_restants} jours.`);
+      return;
+    }
     
-    if (debut > fin) {
-      alert('La date de début doit être antérieure à la date de fin');
+    // Calculer la date de fin
+    const dateFin = calculerDateFin(congeForm.date_debut, congeForm.nombre_jours);
+    
+    if (!dateFin) {
+      alert('Erreur de calcul des dates');
+      return;
+    }
+    
+    // Vérifier que la date de début n'est pas dans le passé
+    const aujourdHui = new Date();
+    aujourdHui.setHours(0, 0, 0, 0);
+    const debut = new Date(congeForm.date_debut);
+    
+    if (debut < aujourdHui) {
+      alert('La date de début ne peut pas être dans le passé');
       return;
     }
     
@@ -145,16 +205,16 @@ export default function Demarches() {
         body: JSON.stringify({
           matricule: matricule,
           date_debut: congeForm.date_debut,
-          date_fin: congeForm.date_fin
+          nombre_jours: congeForm.nombre_jours
         })
       });
       
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande de congé envoyée !\nNuméro de suivi: ${data.numerosuivi}\nJours restants: ${data.jours_restants_apres || '?'}`);
+        alert(`✅ Demande de congé envoyée !\n\n📅 Période : ${formaterDateFr(debut)} au ${formaterDateFr(dateFin)}\n📆 ${congeForm.nombre_jours} jour${congeForm.nombre_jours > 1 ? 's' : ''}\n🔢 Numéro de suivi: ${data.numerosuivi}\n🌟 Jours restants: ${data.jours_restants_apres || '?'}`);
         setShowCongeForm(false);
-        setCongeForm({ date_debut: '', date_fin: '' });
+        setCongeForm({ date_debut: '', nombre_jours: 1 });
         fetchSoldeConge(matricule);
         fetchMesDemandes(matricule);
       } else {
@@ -270,14 +330,13 @@ export default function Demarches() {
     }
   };
 
-  // Vérifier si l'agent peut obtenir le certificat (avec anti-cache)
   // Vérifier si l'agent peut obtenir le certificat
   const verifierNonJouissance = async (annee) => {
     if (!matricule) return;
     
-    const anneeAVerifier = annee || certificatAnnee;
+    const anneeAVerifier = annee || certificatAnnee || new Date().getFullYear() - 1;
     setCertificatLoading(true);
-    setCertificatVerification(null); // ✅ Réinitialiser avant la requête
+    setCertificatVerification(null);
     
     try {
       const timestamp = new Date().getTime();
@@ -307,7 +366,6 @@ export default function Demarches() {
     }
   };
 
-  // ✅ MODIFIÉ : Envoie une demande de certificat (pas de génération directe)
   const genererCertificatNonJouissance = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -316,7 +374,6 @@ export default function Demarches() {
     
     setCertificatLoading(true);
     try {
-      // ✅ Envoyer une demande d'attestation (pas une génération directe)
       const response = await fetch('/api/attestations/demander/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -333,7 +390,7 @@ export default function Demarches() {
         alert(`✅ Demande de certificat de non-jouissance pour l'année ${certificatAnnee} envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre certificat sera prêt.`);
         setShowCertificatModal(false);
         setCertificatVerification(null);
-        setCertificatAnnee(new Date().getFullYear());
+        setCertificatAnnee(new Date().getFullYear() - 1);
         fetchMesDemandes(matricule);
       } else {
         alert(data.error || 'Erreur lors de la demande');
@@ -347,17 +404,16 @@ export default function Demarches() {
   };
 
   // Ouvrir la modale et vérifier
-  // Ouvrir la modale et vérifier
   const ouvrirModalCertificat = () => {
     const anneeActuelle = new Date().getFullYear();
-    const anneeParDefaut = anneeActuelle - 1; // ✅ Année dernière par défaut
+    const anneeParDefaut = anneeActuelle - 1;
     
     setShowCertificatModal(true);
     setCertificatAnnee(anneeParDefaut);
     setCertificatVerification(null);
     setCertificatLoading(true);
     verifierNonJouissance(anneeParDefaut);
-};
+  };
 
   // Nouvelle fonction pour les attestations
   const handleDemandeAttestation = (titre) => {
@@ -431,7 +487,7 @@ export default function Demarches() {
     });
   };
 
-  // ✅ Données des attestations
+  // Données des attestations
   const attestations = [
     {
       id: 1,
@@ -745,7 +801,7 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* MODAL DEMANDE DE CONGÉ */}
+      {/* ✅ MODAL DEMANDE DE CONGÉ - VERSION MODIFIÉE AVEC NOMBRE DE JOURS */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
           <div className="modal-content modal-conge" onClick={(e) => e.stopPropagation()}>
@@ -775,28 +831,145 @@ export default function Demarches() {
 
               <div className="modal-conge-form">
                 <div className="form-row">
-                  <div className="form-group">
+                  <div className="form-group" style={{ flex: 1 }}>
                     <label>Date de début <span className="required">*</span></label>
                     <input 
                       type="date" 
                       name="date_debut" 
                       value={congeForm.date_debut} 
-                      onChange={handleCongeChange} 
+                      onChange={handleCongeChange}
+                      min={new Date().toISOString().split('T')[0]}
                       required
                     />
                   </div>
                   
-                  <div className="form-group">
-                    <label>Date de fin <span className="required">*</span></label>
-                    <input 
-                      type="date" 
-                      name="date_fin" 
-                      value={congeForm.date_fin} 
-                      onChange={handleCongeChange} 
-                      required
-                    />
+                  <div className="form-group" style={{ flex: 0.7 }}>
+                    <label>Nombre de jours <span className="required">*</span></label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        onClick={() => {
+                          const newVal = Math.max(1, (congeForm.nombre_jours || 1) - 1);
+                          setCongeForm({ ...congeForm, nombre_jours: newVal });
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          border: '1px solid #ddd',
+                          background: 'white',
+                          cursor: 'pointer',
+                          fontSize: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        -
+                      </button>
+                      <input 
+                        type="number" 
+                        name="nombre_jours" 
+                        value={congeForm.nombre_jours} 
+                        onChange={handleCongeChange}
+                        min="1"
+                        max={soldeConge?.jours_restants || 30}
+                        style={{
+                          width: '70px',
+                          textAlign: 'center',
+                          fontSize: '18px',
+                          fontWeight: '600',
+                          padding: '8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '8px'
+                        }}
+                        required
+                      />
+                      <button 
+                        onClick={() => {
+                          const maxJours = soldeConge?.jours_restants || 30;
+                          const newVal = Math.min(maxJours, (congeForm.nombre_jours || 1) + 1);
+                          setCongeForm({ ...congeForm, nombre_jours: newVal });
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          border: '1px solid #ddd',
+                          background: 'white',
+                          cursor: 'pointer',
+                          fontSize: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <small style={{ display: 'block', marginTop: '4px', color: '#64748B' }}>
+                      {soldeConge && `Max: ${soldeConge.jours_restants} jours`}
+                    </small>
                   </div>
                 </div>
+                
+                {/* ✅ Affichage de la date de fin calculée */}
+                {dateFinCalculee && (
+                  <div style={{ 
+                    marginTop: '15px', 
+                    padding: '12px 16px', 
+                    background: '#F0F7FF', 
+                    borderRadius: '8px',
+                    border: '1px solid #BBDEFB',
+                    animation: 'fadeInDown 0.3s ease'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#1565C0' }}>
+                        📅 Date de fin calculée :
+                      </span>
+                      <span style={{ fontWeight: '600', color: '#0D47A1' }}>
+                        {formaterDateFr(dateFinCalculee)}
+                      </span>
+                    </div>
+                    <div style={{ 
+                      marginTop: '8px', 
+                      fontSize: '13px', 
+                      color: '#1565C0',
+                      opacity: 0.8
+                    }}>
+                      Période du {formaterDateFr(new Date(congeForm.date_debut))} 
+                      au {formaterDateFr(dateFinCalculee)} 
+                      ({congeForm.nombre_jours} jour{congeForm.nombre_jours > 1 ? 's' : ''})
+                    </div>
+                  </div>
+                )}
+                
+                {/* ✅ Indicateur de dépassement du solde */}
+                {soldeConge && congeForm.nombre_jours > soldeConge.jours_restants && (
+                  <div style={{ 
+                    marginTop: '10px', 
+                    padding: '8px 12px', 
+                    background: '#FFEBEE', 
+                    borderRadius: '6px',
+                    color: '#C62828',
+                    fontSize: '14px'
+                  }}>
+                    ⚠️ Vous demandez {congeForm.nombre_jours} jours mais il vous reste {soldeConge.jours_restants} jours.
+                  </div>
+                )}
+                
+                {/* ✅ Indicateur de dépassement de 30 jours */}
+                {congeForm.nombre_jours > 30 && (
+                  <div style={{ 
+                    marginTop: '10px', 
+                    padding: '8px 12px', 
+                    background: '#FFF3E0', 
+                    borderRadius: '6px',
+                    color: '#E65100',
+                    fontSize: '14px'
+                  }}>
+                    ⚠️ La durée maximale d'un congé est de 30 jours consécutifs.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -804,7 +977,28 @@ export default function Demarches() {
               <button className="btn-conge-cancel" onClick={() => setShowCongeForm(false)}>
                 Annuler
               </button>
-              <button className="btn-conge-submit" onClick={soumettreDemandeConge} disabled={loading}>
+              <button 
+                className="btn-conge-submit" 
+                onClick={soumettreDemandeConge} 
+                disabled={
+                  loading || 
+                  !congeForm.date_debut || 
+                  !congeForm.nombre_jours || 
+                  (soldeConge && congeForm.nombre_jours > soldeConge.jours_restants) ||
+                  congeForm.nombre_jours > 30 ||
+                  congeForm.nombre_jours < 1
+                }
+                style={{
+                  opacity: (
+                    loading || 
+                    !congeForm.date_debut || 
+                    !congeForm.nombre_jours || 
+                    (soldeConge && congeForm.nombre_jours > soldeConge.jours_restants) ||
+                    congeForm.nombre_jours > 30 ||
+                    congeForm.nombre_jours < 1
+                  ) ? 0.6 : 1
+                }}
+              >
                 {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
               </button>
             </div>
@@ -1005,8 +1199,7 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* MODAL CERTIFICAT NON-JOUISSANCE - Avec années terminées uniquement */}
-      {/* MODAL CERTIFICAT NON-JOUISSANCE - Version corrigée */}
+      {/* MODAL CERTIFICAT NON-JOUISSANCE */}
       {showCertificatModal && (
         <div className="modal-overlay" onClick={() => setShowCertificatModal(false)}>
           <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
@@ -1023,8 +1216,8 @@ export default function Demarches() {
                   onChange={(e) => {
                     const nouvelleAnnee = parseInt(e.target.value);
                     setCertificatAnnee(nouvelleAnnee);
-                    setCertificatVerification(null);  // ✅ Réinitialiser la vérification
-                    setCertificatLoading(true);       // ✅ Mettre en chargement immédiatement
+                    setCertificatVerification(null);
+                    setCertificatLoading(true);
                     verifierNonJouissance(nouvelleAnnee);
                   }}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
