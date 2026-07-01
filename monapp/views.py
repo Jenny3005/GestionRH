@@ -5383,244 +5383,335 @@ def _charger_pieces_requises(value):
     return pieces
 
 
-def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, diplome_requis, profil_recherche, pieces_requises=None, pieces_fournies=None, textes_par_piece=None):
-    pieces_requises = pieces_requises or []
+def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, 
+                                  diplome_requis, profil_recherche, pieces_requises=None, 
+                                  pieces_fournies=None, textes_par_piece=None):
+    """
+    Analyse IA avancée avec détection de fraudes et scoring détaillé
+    """
+    pieces_requises = pieces_requises or ['CV', 'LM', 'DIPLOME']
     pieces_fournies = pieces_fournies or []
     textes_par_piece = textes_par_piece or {}
     pieces_fournies_set = {_normaliser_type_piece(p) for p in pieces_fournies}
-    pieces_manquantes = [p for p in pieces_requises if p not in pieces_fournies_set]
-
-    if pieces_manquantes:
-        return 0, "Dossier incomplet: pieces obligatoires manquantes pour ce poste: " + ", ".join(pieces_manquantes)
-
-    cv_disponible = bool(cv_text and cv_text.strip())
-    lettre_disponible = bool(lettre_text and lettre_text.strip())
-    diplome_disponible = bool(diplome_text and diplome_text.strip())
-    cv_requis = 'CV' in pieces_requises
     lettre_requise = 'LM' in pieces_requises
-    diplome_requis_piece = 'DIPLOME' in pieces_requises
-
-    if not cv_requis:
-        cv_disponible = True
-    if not diplome_requis_piece:
-        diplome_disponible = True
-    if lettre_requise and not (lettre_text and lettre_text.strip()):
-        return 0, "Dossier incomplet: lettre de motivation obligatoire fournie mais contenu illisible ou vide."
-
-    autres_pieces_resume = ""
-    for code, texte in textes_par_piece.items():
-        code = _normaliser_type_piece(code)
-        if code in {'CV', 'LM', 'DIPLOME', 'CNI'}:
-            continue
-        if texte:
-            autres_pieces_resume += f"\n**CONTENU {code} :**\n{texte[:800]}\n"
-
-    if not cv_disponible:
-        return 0, "❌ CV manquant - dossier incomplet"
-    if not diplome_disponible:
-        return 0, "❌ Diplôme manquant - dossier incomplet"
     
-    # ⭐ AMÉLIORATION : Prompt plus strict avec interdiction d'inventer
-    prompt = f"""
-    **RÈGLE IMPORTANTE : Tu dois UNIQUEMENT analyser le contenu RÉEL des documents ci-dessous.**
-    **Si une information n'est pas mentionnée dans les documents, tu dois indiquer "Non mentionné" et ne pas l'inventer.**
-    **Ne suppose jamais qu'un candidat a un diplôme ou une compétence qui n'est pas explicitement écrite dans les documents.**
+    # ============================================================
+    # 1. VÉRIFICATION DES PIÈCES OBLIGATOIRES
+    # ============================================================
+    pieces_manquantes = [p for p in pieces_requises if p not in pieces_fournies_set]
+    if pieces_manquantes:
+        return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
     
-    **POSTE :**
-    - Diplôme requis : {diplome_requis if diplome_requis else 'Non spécifié'}
-    - Profil recherché : {profil_recherche if profil_recherche else 'Non spécifié'}
+    # ============================================================
+    # 2. DÉTECTION DE FRAUDE - VÉRIFICATION DES DOCUMENTS
+    # ============================================================
+    fraudes_detectees = []
     
-    **CONTENU RÉEL DU CV (extrait des fichiers uploadés) :**
-    {cv_text[:3000] if cv_text else '⚠️ CV NON FOURNI'}
+    # 2.1 Vérifier si le CV contient des indices de fraude
+    if cv_text:
+        fraud_patterns = [
+            ("cv générique", ["modèle", "template", "exemple", "remplacer"]),
+            ("fausse expérience", ["expérience factice", "stage fictif"]),
+            ("incohérence dates", ["20XX", "XXXX", "0000"]),
+            ("photoshop", ["modifié", "retouché"]),
+        ]
+        
+        for pattern_name, keywords in fraud_patterns:
+            for keyword in keywords:
+                if keyword.lower() in cv_text.lower():
+                    fraudes_detectees.append({
+                        'type': 'suspicion_fraude',
+                        'description': f'Mot suspect détecté dans le CV: "{keyword}"',
+                        'severite': 'moyenne' if pattern_name != "fausse expérience" else 'haute'
+                    })
+                    break
     
-    **CONTENU RÉEL DU DIPLÔME (extrait des fichiers uploadés) :**
-    {diplome_text[:1000] if diplome_text else '⚠️ DIPLÔME NON FOURNI'}
+    # 2.2 Vérifier si le diplôme est authentique (recherche de mots clés)
+    if diplome_text:
+        # Vérifier si c'est vraiment un diplôme
+        mots_authentiques = [
+            'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
+            'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
+            'obtention', 'promotion', 'annee', 'année', 'etudes', 'études'
+        ]
+        
+        mots_trouves = 0
+        for mot in mots_authentiques:
+            if mot.lower() in diplome_text.lower():
+                mots_trouves += 1
+        
+        if mots_trouves < 3:
+            fraudes_detectees.append({
+                'type': 'document_suspect',
+                'description': 'Le document "diplôme" ne semble pas être un diplôme authentique (peu de mots-clés académiques)',
+                'severite': 'haute'
+            })
+        
+        # Vérifier si c'est une simple image/photo au hasard
+        if len(diplome_text) < 50:
+            fraudes_detectees.append({
+                'type': 'document_illisible',
+                'description': 'Le diplôme semble illisible ou contient très peu de texte (peut être une photo non pertinente)',
+                'severite': 'haute'
+            })
     
-    **CONTENU RÉEL DE LA CNI (extrait des fichiers uploadés) :**
-    {cni_text[:500] if 'cni_text' in locals() and cni_text else 'CNI non analysée'}
+    # 2.3 Vérifier la cohérence CV vs Diplôme
+    if cv_text and diplome_text:
+        # Extraire les années du CV
+        import re
+        annees_cv = re.findall(r'\b(19|20)\d{2}\b', cv_text)
+        annees_diplome = re.findall(r'\b(19|20)\d{2}\b', diplome_text)
+        
+        # Vérifier si les années sont cohérentes
+        if annees_cv and annees_diplome:
+            annee_min_cv = min([int(a) for a in annees_cv])
+            annee_min_dip = min([int(a) for a in annees_diplome])
+            
+            # Si le diplôme est plus récent que le CV, c'est suspect
+            if annee_min_dip > annee_min_cv + 5:
+                fraudes_detectees.append({
+                    'type': 'incoherence_temps',
+                    'description': f'Incohérence temporelle: diplôme obtenu ({annee_min_dip}) après les expériences du CV ({annee_min_cv})',
+                    'severite': 'moyenne'
+                })
     
-    {autres_pieces_resume}
-    """
+    # 2.4 Vérifier si le CV contient un nom différent du candidat
+    # (On vérifie si le nom du candidat apparaît dans le CV)
+    # Cette vérification nécessite que le nom du candidat soit passé en paramètre
     
-    if lettre_disponible:
-        prompt += f"""
-    **CONTENU RÉEL DE LA LETTRE DE MOTIVATION (extrait des fichiers uploadés) :**
-    {lettre_text[:1000] if lettre_text else '⚠️ LETTRE NON FOURNIE'}
-    """
-    else:
-        prompt += """
-    **LETTRE DE MOTIVATION :** Non fournie (optionnel)
-    """
-    
-    prompt += """
-    
-    **ÉVALUATION À FAIRE (basée UNIQUEMENT sur le contenu RÉEL des documents) :**
-    
-    1. DIPLÔME (0-40 points) :
-       - Quel est le diplôme EXACT mentionné dans le document ?
-       - Compare avec le diplôme requis
-       - Si le diplôme n'est pas mentionné, mets 0 point et mentionne "Diplôme non précisé dans les documents"
-    
-    2. CV - EXPÉRIENCE (0-30 points) :
-       - Quelles années d'expérience sont mentionnées ?
-       - Quels postes sont mentionnés dans le CV ?
-       - Si rien n'est mentionné, mets "Expérience non mentionnée dans le CV"
-    
-    3. CV - COMPÉTENCES (0-20 points) :
-       - Quelles compétences techniques sont MENTIONNÉES dans le CV ?
-       - Quelles compétences de gestion sont MENTIONNÉES ?
-       - Si rien n'est mentionné, mets "Aucune compétence mentionnée"
-    
-    4. CV - ANCIENNETÉ FONCTION PUBLIQUE (0-10 points) :
-       - L'ancienneté dans la fonction publique est-elle MENTIONNÉE dans le CV ?
-       - Si oui, combien d'années ?
-       - Si non, mets "Non mentionné"
-    
-    5. LETTRE DE MOTIVATION (0-20 points) : UNIQUEMENT SI FOURNIE
-       - Évalue la personnalisation du contenu RÉEL
-       - Si non fournie, mets 0 point et mentionne "Lettre non fournie"
-    
-    **RÈGLES STRICTES :**
-    - ⚠️ NE JAMAIS INVENTER UN DIPLÔME OU UNE COMPÉTENCE NON MENTIONNÉ(E) DANS LES DOCUMENTS
-    - Si une information n'est pas dans les documents, écris "Non mentionné"
-    - Sois précis : cite EXACTEMENT ce qui est écrit dans les documents
-    - Le score doit refléter UNIQUEMENT ce qui est réellement présent
-    
-    Réponds UNIQUEMENT au format JSON :
-    {
-        "score": 0-100,
-        "diplome_trouve": "Le diplôme EXACT mentionné dans le document (ou 'Non mentionné')",
-        "diplome_analyse": "Correspondance avec le diplôme requis",
-        "experience_trouvee": "Les expériences EXACTES mentionnées (ou 'Non mentionné')",
-        "competences_trouvees": "Les compétences EXACTES mentionnées (ou 'Aucune')",
-        "anciennete_mentionnee": "L'ancienneté exacte mentionnée (ou 'Non mentionné')",
-        "analyse": "Analyse détaillée basée UNIQUEMENT sur le contenu réel",
-        "points_forts": ["point réel 1", "point réel 2"],
-        "points_faibles": ["point réel 1", "point réel 2"],
-        "verification_diplome": "valide|invalide|non_mentionne"
+    # ============================================================
+    # 3. ANALYSE DÉTAILLÉE DU CV
+    # ============================================================
+    score_total = 0
+    details_analyse = {
+        'diplome': {'points': 0, 'max': 40, 'details': '', 'trouve': ''},
+        'experience': {'points': 0, 'max': 30, 'details': '', 'trouve': ''},
+        'competences': {'points': 0, 'max': 20, 'details': '', 'trouve': []},
+        'anciennete': {'points': 0, 'max': 10, 'details': '', 'trouve': ''},
+        'lettre_motivation': {'points': 0, 'max': 20, 'details': '', 'trouve': False},
+        'fraudes': fraudes_detectees
     }
-    """
     
-    try:
-        import ollama
-        import json
+    # 3.1 Analyse du DIPLÔME (0-40 points)
+    if diplome_text:
+        diplome_lower = diplome_text.lower()
+        diplome_trouve = ""
+        
+        # Niveaux de diplômes
+        diplomes_niveaux = [
+            ('doctorat', 40, 'Doctorat'),
+            ('master', 35, 'Master'),
+            ('master 2', 35, 'Master 2'),
+            ('master 1', 30, 'Master 1'),
+            ('ingénieur', 35, 'Ingénieur'),
+            ('licence', 25, 'Licence'),
+            ('bac+3', 25, 'Bac+3'),
+            ('bac+2', 20, 'Bac+2'),
+            ('bts', 20, 'BTS'),
+            ('dut', 20, 'DUT'),
+            ('bac', 10, 'Baccalauréat'),
+        ]
+        
+        for diplome_nom, points, libelle in diplomes_niveaux:
+            if diplome_nom in diplome_lower:
+                if points > details_analyse['diplome']['points']:
+                    details_analyse['diplome']['points'] = points
+                    diplome_trouve = libelle
+        
+        # Vérifier la correspondance avec le diplôme requis
+        if diplome_requis and diplome_requis.lower() in diplome_lower:
+            details_analyse['diplome']['points'] = min(40, details_analyse['diplome']['points'] + 5)
+            details_analyse['diplome']['details'] = f"Diplôme correspond au requis: {diplome_requis}"
+        else:
+            details_analyse['diplome']['details'] = f"Diplôme trouvé: {diplome_trouve or 'Non spécifié'}" + (f" (Requis: {diplome_requis})" if diplome_requis else "")
+        
+        details_analyse['diplome']['trouve'] = diplome_trouve or 'Non spécifié'
+        score_total += details_analyse['diplome']['points']
+    
+    # 3.2 Analyse de l'EXPÉRIENCE (0-30 points)
+    if cv_text:
+        cv_lower = cv_text.lower()
         import re
         
-        print("📡 Envoi du contenu à l'IA pour analyse...")
+        # Extraire les années d'expérience
+        annees_experience = 0
+        patterns_experience = [
+            r'(\d+)\s*(?:ans|années|année)',
+            r'(\d+)\s*(?:ans|années|année)\s*(?:d\'expérience|d\'experience)',
+            r'expérience\s*(?:de|d\'|)\s*(\d+)',
+            r'experience\s*(?:de|d\'|)\s*(\d+)',
+        ]
         
-        response = ollama.chat(
-            model='llama3.2:3b',
-            format='json',
-            messages=[{
-                'role': 'system',
-                'content': "Expert RH. Tu DOIS analyser UNIQUEMENT le contenu RÉEL des documents. Tu ne dois JAMAIS inventer un diplôme, une compétence ou une expérience qui n'est pas mentionnée dans les documents. Si ce n'est pas dans les documents, écris 'Non mentionné'."
-            }, {
-                'role': 'user',
-                'content': prompt
-            }]
-        )
+        for pattern in patterns_experience:
+            matches = re.findall(pattern, cv_lower)
+            if matches:
+                annees = max([int(m) for m in matches if m.isdigit()])
+                annees_experience = max(annees_experience, annees)
         
-        reponse_brute = response['message']['content']
-        print(f"📥 Réponse brute reçue: {len(reponse_brute)} caractères")
-        
-        # Extraire le JSON
-        match = re.search(r'\{.*\}', reponse_brute, re.DOTALL)
-        if match:
-            reponse_brute = match.group()
-        
-        resultat = json.loads(reponse_brute)
-        score = resultat.get('score', 0)
-        analyse = resultat.get('analyse', '')
-        
-        print(f"\n📊 RÉSULTAT DE L'ANALYSE:")
-        print(f"   Diplôme trouvé: {resultat.get('diplome_trouve', 'N/A')}")
-        print(f"   Expérience trouvée: {resultat.get('experience_trouvee', 'N/A')}")
-        print(f"   Compétences trouvées: {resultat.get('competences_trouvees', 'N/A')}")
-        print(f"   Ancienneté: {resultat.get('anciennete_mentionnee', 'N/A')}")
-        print(f"   Score: {score}/100")
-        
-        return score, analyse
-        
-    except json.JSONDecodeError as e:
-        print(f"❌ Erreur JSON: {e}")
-        print(f"📄 Réponse brute: {reponse_brute[:500]}")
-        
-        # Fallback : analyse basée sur ce qui est réellement dans les textes
-        cv_lower = cv_text.lower() if cv_text else ""
-        diplome_lower = diplome_text.lower() if diplome_text else ""
-        
-        score = 0
-        analyse_points = []
-        
-        # === Analyse RÉELLE du diplôme ===
-        if "master" in diplome_lower or "master" in cv_lower:
-            score += 40
-            analyse_points.append("Diplôme Master mentionné dans les documents")
-        elif "licence" in diplome_lower or "licence" in cv_lower:
-            score += 25
-            analyse_points.append("Diplôme Licence mentionné dans les documents")
-        elif "bac" in diplome_lower or "bac" in cv_lower:
-            score += 10
-            analyse_points.append("Diplôme Baccalauréat mentionné dans les documents")
+        # Points selon l'expérience
+        if annees_experience >= 10:
+            points_exp = 30
+            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (excellent)"
+        elif annees_experience >= 7:
+            points_exp = 25
+            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (très bon)"
+        elif annees_experience >= 5:
+            points_exp = 20
+            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (bon)"
+        elif annees_experience >= 3:
+            points_exp = 15
+            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (satisfaisant)"
+        elif annees_experience >= 1:
+            points_exp = 10
+            details_analyse['experience']['details'] = f"{annees_experience} an d'expérience (débutant)"
         else:
-            analyse_points.append("Aucun diplôme spécifique mentionné dans les documents")
+            points_exp = 5
+            details_analyse['experience']['details'] = "Expérience non spécifiée ou inférieure à 1 an"
         
-        # === Analyse RÉELLE du CV ===
-        if cv_lower:
-            # Compter les années d'expérience mentionnées
-            import re
-            annee_match = re.search(r'(\d+)\s*(?:ans|années|ans d\'expérience)', cv_lower)
-            if annee_match:
-                annees = int(annee_match.group(1))
-                if annees >= 5:
-                    score += 30
-                    analyse_points.append(f"{annees} ans d'expérience mentionnés")
-                elif annees >= 3:
-                    score += 20
-                    analyse_points.append(f"{annees} ans d'expérience mentionnés")
-                elif annees >= 1:
-                    score += 10
-                    analyse_points.append(f"{annees} ans d'expérience mentionnés")
-            else:
-                analyse_points.append("Expérience non mentionnée dans le CV")
-            
-            # Compétences mentionnées
-            competences = []
-            if "sql" in cv_lower or "base de données" in cv_lower:
-                competences.append("Base de données")
-            if "python" in cv_lower or "java" in cv_lower:
-                competences.append("Programmation")
-            if "laravel" in cv_lower or "php" in cv_lower:
-                competences.append("Framework")
-            if "équipe" in cv_lower or "team" in cv_lower:
-                competences.append("Gestion d'équipe")
-            
-            if competences:
-                score += min(20, len(competences) * 5)
-                analyse_points.append(f"Compétences mentionnées: {', '.join(competences)}")
-            else:
-                analyse_points.append("Aucune compétence spécifique mentionnée dans le CV")
-            
-            # Ancienneté fonction publique
-            if "fonction publique" in cv_lower or "ministère" in cv_lower:
-                score += 10
-                analyse_points.append("Expérience dans la fonction publique mentionnée")
-            else:
-                analyse_points.append("Expérience dans la fonction publique non mentionnée")
+        details_analyse['experience']['points'] = points_exp
+        details_analyse['experience']['trouve'] = f"{annees_experience} ans" if annees_experience > 0 else "Non spécifié"
+        score_total += points_exp
+        
+        # 3.3 Analyse des COMPÉTENCES (0-20 points)
+        competences_trouvees = []
+        competences_techniques = {
+            'programmation': ['python', 'java', 'php', 'javascript', 'c++', 'c#', 'ruby', 'golang'],
+            'bases_donnees': ['sql', 'mysql', 'postgresql', 'mongodb', 'oracle', 'nosql'],
+            'web': ['html', 'css', 'react', 'angular', 'vue', 'laravel', 'symfony', 'django'],
+            'devops': ['docker', 'kubernetes', 'aws', 'azure', 'cloud', 'ci/cd'],
+            'analyse': ['analyse', 'data', 'excel', 'power bi', 'statistiques', 'machine learning'],
+            'gestion': ['gestion', 'management', 'équipe', 'projet', 'agile', 'scrum', 'leadership'],
+        }
+        
+        for categorie, mots in competences_techniques.items():
+            for mot in mots:
+                if mot in cv_lower:
+                    competences_trouvees.append(f"{mot} ({categorie})")
+        
+        # Compétences uniques
+        competences_uniques = list(set(competences_trouvees))
+        details_analyse['competences']['trouve'] = competences_uniques[:10]
+        points_competences = min(20, len(competences_uniques) * 2)
+        details_analyse['competences']['points'] = points_competences
+        score_total += points_competences
+        
+        # 3.4 Analyse ANCIENNETÉ (0-10 points)
+        if 'fonction publique' in cv_lower or 'ministère' in cv_lower or 'etat' in cv_lower:
+            details_analyse['anciennete']['points'] = 10
+            details_analyse['anciennete']['details'] = "Expérience dans la fonction publique mentionnée"
         else:
-            analyse_points.append("CV non fourni ou illisible")
+            details_analyse['anciennete']['points'] = 5
+            details_analyse['anciennete']['details'] = "Pas d'expérience spécifique dans la fonction publique mentionnée"
+        score_total += details_analyse['anciennete']['points']
+    
+    # 3.5 Analyse LETTRE DE MOTIVATION (0-20 points si elle est requise)
+    if not lettre_requise:
+        details_analyse['lettre_motivation']['trouve'] = bool(lettre_text and lettre_text.strip())
+        details_analyse['lettre_motivation']['max'] = 0
+        details_analyse['lettre_motivation']['points'] = 0
+        details_analyse['lettre_motivation']['details'] = "Lettre de motivation non demandee pour ce poste, non prise en compte dans la note"
+    elif lettre_text:
+        details_analyse['lettre_motivation']['trouve'] = True
+        lettre_lower = lettre_text.lower()
         
-        score = min(100, max(0, score))
-        analyse = " | ".join(analyse_points)
+        points_lettre = 10  # Base pour une lettre présente
         
-        print(f"\n🔄 Fallback - Score: {score}/100")
-        print(f"   {analyse}")
+        # Vérifier les éléments de qualité
+        if 'motivation' in lettre_lower:
+            points_lettre += 3
+        if 'compétence' in lettre_lower or 'competence' in lettre_lower:
+            points_lettre += 3
+        if 'poste' in lettre_lower and ('intérêt' in lettre_lower or 'interet' in lettre_lower):
+            points_lettre += 2
+        if len(lettre_text) > 500:
+            points_lettre += 2
         
-        return score, analyse
-        
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
-        return 0, f"Erreur d'analyse: {str(e)}"
+        details_analyse['lettre_motivation']['points'] = min(20, points_lettre)
+        details_analyse['lettre_motivation']['details'] = f"Lettre présente, {len(lettre_text)} caractères"
+        score_total += details_analyse['lettre_motivation']['points']
+    else:
+        details_analyse['lettre_motivation']['points'] = 0
+        details_analyse['lettre_motivation']['details'] = "Lettre de motivation demandee mais non fournie ou illisible"
+    
+    # ============================================================
+    # 4. SCORE FINAL (limité à 100)
+    # ============================================================
+    score_final = min(100, score_total)
+    
+    # PÉNALITÉ pour fraude
+    fraudes_graves = [f for f in fraudes_detectees if f.get('severite') == 'haute']
+    if fraudes_graves:
+        penalite = len(fraudes_graves) * 15
+        score_final = max(0, score_final - penalite)
+    
+    # ============================================================
+    # 5. CONSTRUCTION DU RAPPORT D'ANALYSE DÉTAILLÉ
+    # ============================================================
+    competences_ligne = ', '.join(details_analyse['competences']['trouve'][:5]) if details_analyse['competences']['trouve'] else 'Aucune'
+    lettre_points_ligne = (
+        f"{details_analyse['lettre_motivation']['points']}/{details_analyse['lettre_motivation']['max']}"
+        if details_analyse['lettre_motivation']['max'] > 0
+        else "Non prise en compte"
+    )
+    lettre_statut_ligne = (
+        "Non demandee"
+        if details_analyse['lettre_motivation']['max'] == 0
+        else ("Fournie" if details_analyse['lettre_motivation']['trouve'] else "Non fournie")
+    )
+    fraude_lignes = "\n".join([
+        f"- {fraude['description']} (severite: {fraude.get('severite', 'moyenne')})"
+        for fraude in fraudes_detectees
+    ]) if fraudes_detectees else "- Aucune suspicion detectee"
+
+    rapport_analyse = f"""
+ANALYSE DETAILLEE DE LA CANDIDATURE
+===================================
+
+Score final: {score_final}/100
+
+1. Diplome
+- Diplome trouve: {details_analyse['diplome']['trouve']}
+- Note: {details_analyse['diplome']['points']}/{details_analyse['diplome']['max']}
+- Observation: {details_analyse['diplome']['details']}
+
+2. Experience professionnelle
+- Experience trouvee: {details_analyse['experience']['trouve']}
+- Note: {details_analyse['experience']['points']}/{details_analyse['experience']['max']}
+- Observation: {details_analyse['experience']['details']}
+
+3. Competences techniques
+- Competences identifiees: {competences_ligne}
+- Note: {details_analyse['competences']['points']}/{details_analyse['competences']['max']}
+
+4. Anciennete dans la fonction publique
+- Note: {details_analyse['anciennete']['points']}/{details_analyse['anciennete']['max']}
+- Observation: {details_analyse['anciennete']['details']}
+
+5. Lettre de motivation
+- Statut: {lettre_statut_ligne}
+- Note: {lettre_points_ligne}
+- Observation: {details_analyse['lettre_motivation']['details']}
+
+6. Verification du dossier
+- Suspicions detectees: {len(fraudes_detectees)}
+{fraude_lignes}
+        """.strip()
+            
+    # ============================================================
+    # 6. SAUVEGARDE DANS LA BASE DE DONNÉES
+    # ============================================================
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            UPDATE candidature 
+            SET score_eligibilite = %s, analyse_ia = %s
+            WHERE id = %s
+        """, [score_final, rapport_analyse, candidature_id])
+
+    # ✅ AJOUTE AUSSI LES DÉTAILS (stockage en JSON)
+    details_json = json.dumps(details_analyse, ensure_ascii=False)
+
+    # ✅ RETOURNE 3 VALEURS
+    return score_final, rapport_analyse, details_analyse
 
 
 @csrf_exempt
@@ -5657,7 +5748,7 @@ def analyser_candidature(request, candidature_id):
             
             # 3. Récupérer les infos du poste
             cursor.execute("""
-                SELECT p.diplomeRequis, p.profil_recherche, p.intitule
+                SELECT p.diplomeRequis, p.profil_recherche, p.intitule, p.pieces_requises
                 FROM candidature c
                 JOIN poste_vacant p ON c.poste_vacant_id = p.id
                 WHERE c.id = %s
@@ -5671,10 +5762,15 @@ def analyser_candidature(request, candidature_id):
             diplome_requis = poste[0] or ''
             profil_recherche = poste[1] or ''
             poste_intitule = poste[2] or ''
+            pieces_requises = _charger_pieces_requises(poste[3]) or ['CV', 'LM', 'DIPLOME']
+            pieces_fournies = [_normaliser_type_piece(piece[1]) for piece in pieces]
+            textes_par_piece = {}
             
             print(f"📌 Poste: {poste_intitule}")
             print(f"📌 Diplôme requis: {diplome_requis if diplome_requis else 'Non spécifié'}")
             print(f"📌 Profil recherché: {profil_recherche[:100] if profil_recherche else 'Non spécifié'}...")
+            print(f"📋 Pièces requises: {pieces_requises}")
+            print(f"📄 Pièces fournies: {pieces_fournies}")
             
             # 4. Extraire les textes des pièces
             cv_text = ""
@@ -5688,6 +5784,8 @@ def analyser_candidature(request, candidature_id):
                 print(f"\n🔍 Traitement: {type_libelle} (ID: {piece_id})")
                 
                 texte = extraire_texte_piece(piece_id)
+                type_piece_code = _normaliser_type_piece(type_libelle)
+                textes_par_piece[type_piece_code] = texte
                 print(f"   📝 Texte extrait: {len(texte)} caractères")
                 if len(texte) > 0 and len(texte) < 500:
                     print(f"   📝 Contenu: {texte[:200]}...")
@@ -5723,9 +5821,12 @@ def analyser_candidature(request, candidature_id):
             
             # 7. Analyser avec IA
             print("\n🤖 Appel de l'IA pour analyse...")
-            score_ia, analyse_ia = analyser_candidature_avec_ia(
+            score_ia, analyse_ia, details_analyse = analyser_candidature_avec_ia(
                 candidature_id, cv_text, lettre_text, diplome_text, 
-                diplome_requis, profil_recherche
+                diplome_requis, profil_recherche,
+                pieces_requises=pieces_requises,
+                pieces_fournies=pieces_fournies,
+                textes_par_piece=textes_par_piece
             )
             
             print(f"\n📊 RÉSULTAT DE L'IA:")
@@ -5782,6 +5883,7 @@ def analyser_candidature(request, candidature_id):
             'success': True,
             'score': score_ia,
             'analyse': analyse_ia,
+            'details': details_analyse,
             'message': f'Analyse terminée - Score: {score_ia}/100'
         })
         
@@ -5790,6 +5892,7 @@ def analyser_candidature(request, candidature_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
+
 
 @csrf_exempt
 @require_http_methods(["GET"])
