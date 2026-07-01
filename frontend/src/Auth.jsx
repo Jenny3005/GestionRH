@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getDashboardPath, normalizeRole } from './PortalNav';
 import './App.css';
 
@@ -44,7 +44,6 @@ export default function Auth({ onLogin }) {
     setIsLoading(true);
 
     if (isLogin) {
-      // Connexion
       if (validateLogin()) {
         try {
           const response = await fetch('http://localhost:8000/api/login/', {
@@ -94,7 +93,6 @@ export default function Auth({ onLogin }) {
         }
       }
     } else {
-      // Inscription - Vérifier si le matricule existe dans la base
       if (validateRegister()) {
         try {
           const response = await fetch('http://localhost:8000/api/activate-account/', {
@@ -114,7 +112,6 @@ export default function Auth({ onLogin }) {
             setFormData({ matricule: '', password: '', confirmPassword: '' });
             setShowRegistrationInfo(false);
           } else {
-            // Si le matricule n'existe pas dans la base
             if (data.error && data.error.includes('matricule')) {
               setShowRegistrationInfo(true);
             } else {
@@ -131,116 +128,187 @@ export default function Auth({ onLogin }) {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
+    <div className="auth-page-wrapper">
+      {/* ===== NAVBAR ===== */}
+      <nav className="auth-navbar">
+        <div className="auth-navbar-left">
           <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/logo2.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
-          <h1>{isLogin ? 'Connexion' : 'Activation de compte'}</h1>
-          <p>{isLogin ? 'Accédez à votre espace agent' : 'Activez votre compte avec votre matricule'}</p>
         </div>
+      </nav>
 
-        <div className="auth-tabs">
-          <button className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => {
-            setIsLogin(true);
-            setShowRegistrationInfo(false);
-            setFormData({ matricule: '', password: '', confirmPassword: '' });
-            setErrors({});
-          }} disabled={isLoading}>
-            Connexion
-          </button>
-          <button className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => {
-            setIsLogin(false);
-            setShowRegistrationInfo(false);
-            setFormData({ matricule: '', password: '', confirmPassword: '' });
-            setErrors({});
-          }} disabled={isLoading}>
-            Activation
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>Matricule Agent <span className="required">*</span></label>
-            <input 
-              type="text" 
-              name="matricule" 
-              placeholder="Ex: 875825" 
-              value={formData.matricule} 
-              onChange={handleChange} 
-              className={errors.matricule ? 'error' : ''} 
-              disabled={isLoading} 
-            />
-            {errors.matricule && <span className="error-text">{errors.matricule}</span>}
+      {/* ===== FORMULAIRE ===== */}
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="auth-header">
+            <h1 className="auth-title">
+              {isLogin ? 'Veuillez vous identifier' : 'Activer votre compte'}
+            </h1>
           </div>
 
-          <div className="form-group">
-            <label>Mot de passe <span className="required">*</span></label>
-            <div className="input-icon">
-              <input 
-                type={showPassword ? 'text' : 'password'} 
-                name="password" 
-                placeholder="••••••••" 
-                value={formData.password} 
-                onChange={handleChange} 
-                className={errors.password ? 'error' : ''} 
-                disabled={isLoading} 
-              />
-              <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
-                {showPassword ? '🙈' : '👁️'}
-              </button>
-            </div>
-            {errors.password && <span className="error-text">{errors.password}</span>}
+          {/* Onglets */}
+          <div className="auth-tabs">
+            <button 
+              className={`auth-tab ${isLogin ? 'active' : ''}`} 
+              onClick={() => {
+                setIsLogin(true);
+                setShowRegistrationInfo(false);
+                setFormData({ matricule: '', password: '', confirmPassword: '' });
+                setErrors({});
+              }} 
+              disabled={isLoading}
+            >
+              Connexion
+            </button>
+            <button 
+              className={`auth-tab ${!isLogin ? 'active' : ''}`} 
+              onClick={() => {
+                setIsLogin(false);
+                setShowRegistrationInfo(false);
+                setFormData({ matricule: '', password: '', confirmPassword: '' });
+                setErrors({});
+              }} 
+              disabled={isLoading}
+            >
+              Activation
+            </button>
           </div>
 
-          {!isLogin && (
+          {/* Formulaire */}
+          <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
-              <label>Confirmer le mot de passe <span className="required">*</span></label>
+              <label htmlFor="matricule">Matricule Agent <span className="required">*</span></label>
               <input 
-                type="password" 
-                name="confirmPassword" 
-                placeholder="••••••••" 
-                value={formData.confirmPassword} 
+                type="text" 
+                id="matricule"
+                name="matricule" 
+                placeholder="Ex: 875825" 
+                value={formData.matricule} 
                 onChange={handleChange} 
-                className={errors.confirmPassword ? 'error' : ''} 
+                className={errors.matricule ? 'error' : ''} 
                 disabled={isLoading} 
               />
-              {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
+              {errors.matricule && <span className="error-text">{errors.matricule}</span>}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password">Mot de passe <span className="required">*</span></label>
+              <div className="input-icon">
+                <input 
+                  id="password"
+                  type={showPassword ? 'text' : 'password'} 
+                  name="password" 
+                  placeholder="••••••••" 
+                  value={formData.password} 
+                  onChange={handleChange} 
+                  className={errors.password ? 'error' : ''} 
+                  disabled={isLoading} 
+                />
+                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {errors.password && <span className="error-text">{errors.password}</span>}
+            </div>
+
+            {/* Mot de passe oublié - UNIQUEMENT en mode Connexion */}
+            {isLogin && (
+              <div className="forgot-password-link">
+                <Link to="/reset-password" className="forgot-password-btn">
+                  Mot de passe oublié ?
+                </Link>
+              </div>
+            )}
+
+            {!isLogin && (
+              <div className="form-group">
+                <label htmlFor="confirmPassword">Confirmer le mot de passe <span className="required">*</span></label>
+                <input 
+                  id="confirmPassword"
+                  type="password" 
+                  name="confirmPassword" 
+                  placeholder="••••••••" 
+                  value={formData.confirmPassword} 
+                  onChange={handleChange} 
+                  className={errors.confirmPassword ? 'error' : ''} 
+                  disabled={isLoading} 
+                />
+                {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
+              </div>
+            )}
+
+            <button type="submit" className="btn-auth-submit" disabled={isLoading}>
+              {isLoading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'Activer mon compte')}
+            </button>
+          </form>
+
+          {/* Message info */}
+          {showRegistrationInfo && (
+            <div className="auth-info-message">
+              <div className="info-icon">ℹ️</div>
+              <div className="info-content">
+                <h4>Matricule non trouvé</h4>
+                <p>Votre matricule n'existe pas dans notre base de données.</p>
+                <p>Veuillez vous rapprocher de la <strong>Direction des Affaires Financières (DPAF)</strong> ou du <strong>Service des Ressources Humaines</strong> pour que votre compte soit créé.</p>
+                <button 
+                  className="btn-close-info" 
+                  onClick={() => setShowRegistrationInfo(false)}
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
           )}
 
-          <button type="submit" className="btn-auth-submit" disabled={isLoading}>
-            {isLoading ? 'Chargement...' : (isLogin ? 'Se connecter' : 'Activer mon compte')}
-          </button>
-        </form>
-
-        {/* Message d'information pour l'inscription */}
-        {showRegistrationInfo && (
-          <div className="auth-info-message">
-            <div className="info-icon">ℹ️</div>
-            <div className="info-content">
-              <h4>Matricule non trouvé</h4>
-              <p>Votre matricule n'existe pas dans notre base de données.</p>
-              <p>Veuillez vous rapprocher de la <strong>Direction des Affaires Financières (DPAF)</strong> ou du <strong>Service des Ressources Humaines</strong> pour que votre compte soit créé.</p>
-              <button 
-                className="btn-close-info" 
-                onClick={() => setShowRegistrationInfo(false)}
-              >
-                Fermer
-              </button>
-            </div>
+          {/* Footer */}
+          <div className="auth-footer-link">
+            {isLogin ? (
+              <p>Vous n'avez pas activé votre compte ? <button type="button" onClick={() => setIsLogin(false)} className="auth-link-btn" disabled={isLoading}>Activer mon compte</button></p>
+            ) : (
+              <p>Déjà un compte ? <button type="button" onClick={() => setIsLogin(true)} className="auth-link-btn" disabled={isLoading}>Se connecter</button></p>
+            )}
           </div>
-        )}
-
-        <div className="auth-footer">
-          {isLogin ? (
-            <p>Pas encore de compte ? <button onClick={() => setIsLogin(false)} className="auth-link-btn" disabled={isLoading}>Activer mon compte</button></p>
-          ) : (
-            <p>Déjà un compte ? <button onClick={() => setIsLogin(true)} className="auth-link-btn" disabled={isLoading}>Se connecter</button></p>
-          )}
         </div>
       </div>
+
+      {/* ===== FOOTER ===== */}
+      <footer className="mnd-grand-footer">
+        <div className="benin-national-tricolor-line"></div>
+        <div className="footer-main-content">
+          <div className="footer-centered-logo-zone">
+            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
+          </div>
+          <div className="footer-columns-grid">
+            <div className="footer-col">
+              <h4>Navigation Portail</h4>
+              <ul>
+                <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                <li><a href="#demarches">Démarches en Ligne</a></li>
+                <li><a href="#documents">Documents & Notes</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Liens Utiles</h4>
+              <ul>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
+                <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h4>Contact & Situation</h4>
+              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p>📞 +229 21 30 70 13</p>
+              <p>✉️ numerique@gouv.bj</p>
+            </div>
+          </div>
+        </div>
+        <div className="footer-bottom-bar">
+          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
+        </div>
+      </footer>
     </div>
   );
 }
