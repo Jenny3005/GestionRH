@@ -859,25 +859,42 @@ def demande_conge(request):
         data = json.loads(request.body)
         matricule = data.get('matricule')
         date_debut_str = data.get('date_debut')
-        date_fin_str = data.get('date_fin')
+        nombre_jours = data.get('nombre_jours')  # ✅ NOUVEAU : reçu du frontend
         
-        if not date_debut_str or not date_fin_str:
-            return JsonResponse({'error': 'Veuillez renseigner les dates'}, status=400)
+        # Validation des champs
+        if not date_debut_str or not nombre_jours:
+            return JsonResponse({'error': 'Date de début et nombre de jours requis'}, status=400)
         
+        # Convertir en entier
+        try:
+            nombre_jours = int(nombre_jours)
+        except ValueError:
+            return JsonResponse({'error': 'Le nombre de jours doit être un nombre entier'}, status=400)
+        
+        # Vérifier l'agent
         agent = Agent.objects.get(matricule=matricule)
-
+        
         # ⛔ Refuser si l'agent est chef
         if est_chef(agent):
             return JsonResponse({
                 'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la hiérarchie (Ministre ou supérieur).'
             }, status=403)
         
+        # Valider les dates
         date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
-        date_fin = datetime.strptime(date_fin_str, '%Y-%m-%d').date()
         
-        if date_debut > date_fin:
-            return JsonResponse({'error': 'La date de début doit être antérieure à la date de fin'}, status=400)
+        # ✅ Calculer la date de fin automatiquement
+        date_fin = date_debut + timedelta(days=nombre_jours - 1)
         
+        # Vérifier que la date de début n'est pas dans le passé
+        if date_debut < datetime.now().date():
+            return JsonResponse({'error': 'La date de début ne peut pas être dans le passé'}, status=400)
+        
+        # ✅ Vérifier le nombre maximum de jours
+        if nombre_jours > 30:
+            return JsonResponse({'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'}, status=400)
+        
+        # Vérifier l'année
         annee_demande = date_debut.year
         annee_courante = datetime.now().year
         
@@ -887,13 +904,13 @@ def demande_conge(request):
         if annee_demande > annee_courante:
             return JsonResponse({'error': f'Impossible de demander un congé pour {annee_demande} (année future)'}, status=400)
         
-        nombre_jours = (date_fin - date_debut).days + 1
-        
+        # Vérifier l'ancienneté
         if agent.date_prise_service:
             anciennete_jours = (datetime.now().date() - agent.date_prise_service).days
             if anciennete_jours < 365:
                 return JsonResponse({'error': 'Ancienneté insuffisante. Vous devez avoir au moins 1 an de service.'}, status=400)
         
+        # Vérifier le nombre de demandes dans l'année
         nb_demandes_annee = Demande.objects.filter(
             agent=agent,
             type_demande__libelle='Congé',
@@ -903,6 +920,7 @@ def demande_conge(request):
         if nb_demandes_annee >= 2:
             return JsonResponse({'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'}, status=400)
         
+        # ✅ Vérifier le solde avec le nombre de jours
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
@@ -910,11 +928,11 @@ def demande_conge(request):
         )
         
         if nombre_jours > solde.jours_restants:
-            return JsonResponse({'error': f'Solde insuffisant. Vous avez {solde.jours_restants} jours restants, vous demandez {nombre_jours} jours.'}, status=400)
+            return JsonResponse({
+                'error': f'Solde insuffisant. Vous avez {solde.jours_restants} jours restants, vous demandez {nombre_jours} jours.'
+            }, status=400)
         
-        if nombre_jours > 30:
-            return JsonResponse({'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'}, status=400)
-        
+        # Vérifier les chevauchements
         chevauchement = DemandeConge.objects.filter(
             demande__agent=agent,
             date_debut__lte=date_fin,
@@ -925,6 +943,7 @@ def demande_conge(request):
         if chevauchement:
             return JsonResponse({'error': 'Vous avez déjà une demande de congé sur cette période.'}, status=400)
         
+        # Créer la demande
         try:
             type_demande = TypeDemande.objects.get(libelle='Congé')
         except TypeDemande.DoesNotExist:
@@ -938,6 +957,7 @@ def demande_conge(request):
             numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         )
         
+        # ✅ Créer le congé avec date_fin calculée
         conge = DemandeConge.objects.create(
             demande=demande,
             date_debut=date_debut,
@@ -945,6 +965,7 @@ def demande_conge(request):
             nombrejours=nombre_jours
         )
         
+        # Notifier le chef
         role_chef = Role.objects.get(libelle__iexact='chef')
         chef_direction = (agent.direction or '').strip()
         chef = Agent.objects.filter(
@@ -966,13 +987,18 @@ def demande_conge(request):
             'success': True,
             'numerosuivi': demande.numerosuivi,
             'message': f'Demande de {nombre_jours} jours envoyée pour validation',
-            'jours_restants_apres': solde.jours_restants - nombre_jours
+            'jours_restants_apres': solde.jours_restants - nombre_jours,
+            'date_debut': str(date_debut),
+            'date_fin': str(date_fin),
+            'nombre_jours': nombre_jours
         })
         
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
     except Exception as e:
         print(f"ERREUR demande_conge: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
@@ -1203,7 +1229,7 @@ def valider_demande_conge(request, demande_id):
             
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 annee_conge = demande.demandeconge.date_debut.year
-                nombre_jours = demande.demandeconge.nombrejours
+                nombre_jours = demande.demandeconge.nombrejours  # ✅ Déjà stocké
                 
                 solde, _ = SoldeConge.objects.get_or_create(
                     agent=demande.agent,
@@ -1253,7 +1279,6 @@ def valider_demande_conge(request, demande_id):
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -2794,6 +2819,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
     import re
     import base64
     from django.conf import settings
+    from datetime import timedelta  # ✅ AJOUTER CET IMPORT
     
     type_acte = _type_acte_canonique(acte.type_acte)
     
@@ -2934,14 +2960,28 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
         if hasattr(demande, 'demandeconge') and demande.demandeconge:
             date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
             date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+            
+            # ✅ CORRECTION : La date de reprise est le lendemain de la date de fin
+            date_reprise = demande.demandeconge.date_fin + timedelta(days=1)
+            date_reprise_str = date_reprise.strftime('%d/%m/%Y')
+            
             nombre_jours = demande.demandeconge.nombrejours
             motif = ''
         else:
             date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
             date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
+            
+            # ✅ CORRECTION : Date de reprise pour les absences aussi
+            if hasattr(demande, 'demandeabsence') and demande.demandeabsence:
+                date_reprise = demande.demandeabsence.date_fin + timedelta(days=1)
+                date_reprise_str = date_reprise.strftime('%d/%m/%Y')
+            else:
+                date_reprise_str = ''
+            
             nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
             motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
         
+        # ✅ AJOUTER date_reprise dans les replacements
         replacements = {
             '{{REFERENCE}}': acte.reference,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
@@ -2949,6 +2989,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
             '{{DATE_DEBUT}}': date_debut,
             '{{DATE_FIN}}': date_fin,
+            '{{DATE_REPRISE}}': date_reprise_str,  # ✅ NOUVEAU
             '{{NOMBRE_JOURS}}': str(nombre_jours),
             '{{MOTIF}}': motif,
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
@@ -3143,7 +3184,6 @@ def commencer_traitement_rh(request, demande_id):
 def generer_acte_rh(request, demande_id):
     try:
         data = json.loads(request.body)
-        reference = data.get('reference')
         rh_matricule = data.get('rh_matricule')
         
         demande = Demande.objects.get(id=demande_id)
@@ -3184,9 +3224,14 @@ def generer_acte_rh(request, demande_id):
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
                 date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
+                
+                # ✅ CORRECTION : Date de reprise = lendemain de la date de fin
+                date_reprise = demande.demandeconge.date_fin + timedelta(days=1)
+                date_reprise_str = date_reprise.strftime('%d/%m/%Y')
+                
                 nombre_jours = demande.demandeconge.nombrejours
             else:
-                date_debut = date_fin = nombre_jours = ''
+                date_debut = date_fin = date_reprise_str = nombre_jours = ''
             motif = ''
             filename_prefix = 'Autorisation_Conge'
         elif is_absence:
@@ -3195,10 +3240,15 @@ def generer_acte_rh(request, demande_id):
             if hasattr(demande, 'demandeabsence') and demande.demandeabsence:
                 date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y')
                 date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y')
+                
+                # ✅ CORRECTION : Date de reprise pour absence
+                date_reprise = demande.demandeabsence.date_fin + timedelta(days=1)
+                date_reprise_str = date_reprise.strftime('%d/%m/%Y')
+                
                 nombre_jours = demande.demandeabsence.nombrejours
                 motif = demande.demandeabsence.motif if demande.demandeabsence.motif else ''
             else:
-                date_debut = date_fin = nombre_jours = motif = ''
+                date_debut = date_fin = date_reprise_str = nombre_jours = motif = ''
             filename_prefix = 'Autorisation_Absence'
         else:
             return JsonResponse({
@@ -3213,8 +3263,11 @@ def generer_acte_rh(request, demande_id):
         
         doc = Document(template_path)
 
-        numero_seul = reference.split('/')[0] if '/' in reference else reference
+        # ✅ GÉNÉRER LA RÉFÉRENCE ICI
+        numero_seul = generer_reference_acte(type_acte)
+        reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
         
+        # ✅ AJOUTER DATE_REPRISE dans les replacements
         replacements = {
             '{{REFERENCE}}': numero_seul,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
@@ -3222,6 +3275,7 @@ def generer_acte_rh(request, demande_id):
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
             '{{DATE_DEBUT}}': date_debut,
             '{{DATE_FIN}}': date_fin,
+            '{{DATE_REPRISE}}': date_reprise_str,  # ✅ NOUVEAU
             '{{NOMBRE_JOURS}}': str(nombre_jours),
             '{{MOTIF}}': motif,
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
@@ -3243,7 +3297,6 @@ def generer_acte_rh(request, demande_id):
             print(f"⚠️ ERREUR conversion PDF: {e}")
             return _create_docx_response(docx_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
 
-        reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
         acte = ActeAdministratif.objects.create(
@@ -3267,6 +3320,8 @@ def generer_acte_rh(request, demande_id):
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
         print(f"❌ ERREUR generer_acte_rh: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
