@@ -936,8 +936,7 @@ export default function Demarches() {
                       color: '#1565C0',
                       opacity: 0.8
                     }}>
-                      Période du {formaterDateFr(new Date(congeForm.date_debut))} 
-                      au {formaterDateFr(dateFinCalculee)} 
+                      Période du {formaterDateFr(new Date(congeForm.date_debut))} au {formaterDateFr(dateFinCalculee)} 
                       ({congeForm.nombre_jours} jour{congeForm.nombre_jours > 1 ? 's' : ''})
                     </div>
                   </div>

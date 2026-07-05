@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AdminNav from './AdminNav';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus } from 'lucide-react';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -15,7 +15,8 @@ export default function AdminRoles() {
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [adminOpen, setAdminOpen] = useState(true);
   const [formData, setFormData] = useState({
     libelle: ''
   });
@@ -36,7 +37,6 @@ export default function AdminRoles() {
       navigate('/auth');
       return;
     }
-    // Vérifier si l'utilisateur a la permission de gérer les rôles
     if (!permissionsLoading && !hasPermission('GERER_ROLES') && !isAdmin()) {
       navigate('/admin/dashboard');
       return;
@@ -52,16 +52,6 @@ export default function AdminRoles() {
     fetchAgents();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownOpen && !event.target.closest('.user-menu-container')) {
-        setDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [dropdownOpen]);
-
   // Filtrer les agents pour le modal
   useEffect(() => {
     if (selectedRole) {
@@ -75,6 +65,18 @@ export default function AdminRoles() {
       setFilteredAgents(filtered);
     }
   }, [agents, selectedRole, agentSearchTerm]);
+
+  const navigateTo = (path) => {
+    navigate(path);
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
 
   const fetchRoles = async () => {
     try {
@@ -109,7 +111,6 @@ export default function AdminRoles() {
   const handleAddRole = async (e) => {
     e.preventDefault();
     
-    // Vérifier la permission d'ajouter un rôle
     if (!hasPermission('AJOUTER_ROLE') && !isAdmin()) {
       alert("Vous n'avez pas la permission d'ajouter des rôles");
       return;
@@ -148,7 +149,6 @@ export default function AdminRoles() {
   };
 
   const assignRole = async (agentMatricule) => {
-    // Vérifier la permission d'attribuer un rôle
     if (!hasPermission('ATTRIBUER_ROLE') && !isAdmin()) {
       alert("Vous n'avez pas la permission d'attribuer des rôles");
       return;
@@ -179,7 +179,6 @@ export default function AdminRoles() {
   };
 
   const handleDeleteRole = async (roleId, roleLibelle) => {
-    // Vérifier la permission de supprimer un rôle
     if (!hasPermission('SUPPRIMER_ROLE') && !isAdmin()) {
       alert("Vous n'avez pas la permission de supprimer des rôles");
       return;
@@ -221,10 +220,10 @@ export default function AdminRoles() {
 
   const getRoleLabel = (role) => {
     const labels = {
-      'admin': ' Administrateur',
-      'rh': ' Ressources Humaines',
-      'chef': ' Chef de service',
-      'agent': '👤 Agent'
+      'admin': 'Administrateur',
+      'rh': 'Ressources Humaines',
+      'chef': 'Chef de service',
+      'agent': 'Agent'
     };
     return labels[role] || role;
   };
@@ -239,15 +238,7 @@ export default function AdminRoles() {
     return classes[role] || 'role-badge custom';
   };
 
-  const getRoleIcon = (role) => {
-    const icons = {
-      'admin': '',
-      'rh': '',
-      'chef': '',
-      'agent': '👤'
-    };
-    return icons[role] || '';
-  };
+  const getRoleIcon = () => '';
 
   const getRoleDescription = (role) => {
     const descriptions = {
@@ -259,229 +250,310 @@ export default function AdminRoles() {
     return descriptions[role] || 'Rôle personnalisé créé par l\'administrateur';
   };
 
-  // Filtrer TOUS les rôles pour la recherche
   const filteredRoles = roles.filter(role =>
     role.libelle.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/'); 
-  };
-
-  // Affichage du chargement des permissions
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
   }
 
   return (
-    <div className="intranet-home">
-      <header className="intranet-navbar">
-        <div className="nav-left-zone">
-          <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
-          </a>
+    <div className="admin-layout">
+      {/* ===== SIDEBAR ===== */}
+      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{userPrenom?.charAt(0) || 'A'}</div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-user-name">{userName}</span>
+            <span className="sidebar-user-role">Administrateur</span>
+          </div>
         </div>
-        <AdminNav />
-        <div className="nav-right">
-          <div className="user-menu-container">
-            <div className="user-badge" onClick={() => setDropdownOpen(!dropdownOpen)}>
-              <div className="avatar-circle">{userPrenom?.charAt(0) || 'A'}</div>
-              <div className="user-meta">
-                <span className="user-name">{userName}</span>
-                <span className="user-role">Administrateur</span>
-              </div>
-              <span className="dropdown-arrow">▼</span>
-            </div>
-            {dropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-header">
-                  <strong>{userName}</strong>
-                  <small>{userEmail}</small>
-                </div>
-                <div className="dropdown-divider"></div>
-                
-                {/* Tableau de bord */}
-                <button className="dropdown-item" onClick={() => navigate('/admin/dashboard')}>
-                  Tableau de bord
-                </button>
-                
-                {/* Agents */}
+
+        <nav className="sidebar-nav">
+          {/* Tableau de bord */}
+          <button 
+            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/admin/dashboard')}
+          >
+            <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
+            <span className="sidebar-label">Tableau de bord</span>
+          </button>
+
+          {/* Administration - Menu déroulant */}
+          <div className="sidebar-group">
+            <button 
+              className={`sidebar-item sidebar-parent ${adminOpen ? 'open' : ''}`}
+              onClick={() => setAdminOpen(!adminOpen)}
+            >
+              <span className="sidebar-icon"><Settings2 size={18} /></span>
+              <span className="sidebar-label">Administration</span>
+              <span className="sidebar-arrow">{adminOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
+            </button>
+            
+            {adminOpen && (
+              <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
-                  <button className="dropdown-item" onClick={() => navigate('/admin/agents')}>
-                    Agents
+                  <button 
+                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/admin/agents')}
+                  >
+                    <span className="sidebar-icon"><Users size={16} /></span>
+                    <span className="sidebar-label">Agents</span>
                   </button>
                 </Can>
-                
-                {/* Rôles */}
                 <Can permission="GERER_ROLES">
-                  <button className="dropdown-item" onClick={() => navigate('/admin/roles')}>
-                    Rôles
+                  <button 
+                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/admin/roles')}
+                  >
+                    <span className="sidebar-icon"><ShieldCheck size={16} /></span>
+                    <span className="sidebar-label">Rôles</span>
                   </button>
                 </Can>
-                
-                {/* Permissions */}
                 <Can permission="GERER_PERMISSIONS">
-                  <button className="dropdown-item" onClick={() => navigate('/admin/permissions')}>
-                    Permissions
+                  <button 
+                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/admin/permissions')}
+                  >
+                    <span className="sidebar-icon"><ShieldCheck size={16} /></span>
+                    <span className="sidebar-label">Permissions</span>
                   </button>
                 </Can>
-                
-                {/* Types de demande */}
                 <Can permission="GERE_TYPE_DEMANDE">
-                  <button className="dropdown-item" onClick={() => navigate('/admin/types-demande')}>
-                    Types de demande
+                  <button 
+                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/admin/types-demande')}
+                  >
+                    <span className="sidebar-icon"><FileText size={16} /></span>
+                    <span className="sidebar-label">Types de demande</span>
                   </button>
                 </Can>
-                
-                {/* Types de pièce */}
                 <Can permission="GERER_TYPES_PIECE">
-                  <button className="dropdown-item" onClick={() => navigate('/admin/types-piece')}>
-                    Types de pièce
+                  <button 
+                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/admin/types-piece')}
+                  >
+                    <span className="sidebar-icon"><FilePlus2 size={16} /></span>
+                    <span className="sidebar-label">Types de pièce</span>
                   </button>
                 </Can>
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Mon profil */}
-                <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                  👤 Mon profil
-                </button>
-                
-                {/* Déconnexion */}
-                <button className="dropdown-item logout" onClick={handleLogout}>
-                  Se déconnecter
-                </button>
               </div>
             )}
           </div>
-        </div>
-      </header>
 
-      <main className="intranet-main">
-        <section className="hero-banner-intranet">
-          <div className="banner-content">
-            <h2> Gestion des Rôles</h2>
-            <p>Créez, modifiez et gérez tous les rôles des agents (système + personnalisés).</p>
-          </div>
-        </section>
+          {/* Mon profil */}
+          <button 
+            className={`sidebar-item ${window.location.pathname === '/profil' ? 'active' : ''}`}
+            onClick={() => navigateTo('/profil')}
+          >
+            <span className="sidebar-icon"><UserCircle2 size={18} /></span>
+            <span className="sidebar-label">Mon profil</span>
+          </button>
 
-        <div className="admin-actions-bar">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="🔍 Rechercher un rôle..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-          <div className="action-buttons">
-            <Can permission="AJOUTER_ROLE">
-              <button className="btn-add" onClick={() => setShowModal(true)}>➕ Ajouter un rôle personnalisé</button>
-            </Can>
-          </div>
-        </div>
+          {/* Déconnexion */}
+          <button className="sidebar-item logout" onClick={handleLogout}>
+            <span className="sidebar-icon"><LogOut size={18} /></span>
+            <span className="sidebar-label">Se déconnecter</span>
+          </button>
+        </nav>
+      </aside>
 
-        {/* CARDS DES RÔLES - TOUS LES RÔLES (SYSTÈME + PERSONNALISÉS) */}
-        <div className="roles-cards-grid">
-          {loading ? (
-            <p>Chargement...</p>
-          ) : filteredRoles.length === 0 ? (
-            <div className="empty-state">
-              <p>Aucun rôle trouvé</p>
+      {/* ===== CONTENU PRINCIPAL ===== */}
+      <div className={`admin-main ${sidebarOpen ? 'with-sidebar' : 'without-sidebar'}`}>
+        {/* ===== NAVBAR ===== */}
+        <header className="admin-navbar">
+          <div className="nav-left-zone">
+            <a href="/" className="logo-nav-link">
+              <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            </a>
+          </div>
+          <div className="admin-navbar-left">
+            <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+              <Menu size={18} />
+            </button>
+            <span className="admin-page-title">Gestion des Rôles</span>
+          </div>
+          <div className="admin-navbar-right">
+            <span className="admin-user-name">{userName}</span>
+          </div>
+        </header>
+
+        {/* ===== CONTENU ===== */}
+        <main className="admin-content">
+          <section className="hero-banner-intranet">
+            <div className="banner-content">
+              <h2>Gestion des Rôles</h2>
+              <p>Créez, modifiez et gérez tous les rôles des agents (système + personnalisés).</p>
+            </div>
+          </section>
+
+          <div className="admin-actions-bar">
+            <div className="search-box">
+              <input
+                type="text"
+                placeholder="Rechercher un rôle..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+            <div className="action-buttons">
               <Can permission="AJOUTER_ROLE">
-                <button className="btn-add" onClick={() => setShowModal(true)}>➕ Créer un rôle</button>
+                <button className="btn-add" onClick={() => setShowModal(true)}><Plus size={16} />Ajouter un rôle personnalisé</button>
               </Can>
             </div>
-          ) : (
-            filteredRoles.map((role) => (
-              <div key={role.id} className="role-card">
-                <div className="role-card-icon">{getRoleIcon(role.libelle)}</div>
-                <div className="role-card-content">
-                  <h3>{getRoleLabel(role.libelle)}</h3>
-                  <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
-                  <p className="role-description">
-                    {getRoleDescription(role.libelle)}
-                  </p>
-                </div>
-                <div className="role-card-actions">
-                  <Can permission="ATTRIBUER_ROLE">
+          </div>
+
+          {/* CARDS DES RÔLES */}
+          <div className="roles-cards-grid">
+            {loading ? (
+              <p>⏳ Chargement...</p>
+            ) : filteredRoles.length === 0 ? (
+              <div className="empty-state">
+                <p>📭 Aucun rôle trouvé</p>
+                <Can permission="AJOUTER_ROLE">
+                  <button className="btn-add" onClick={() => setShowModal(true)}>Créer un rôle</button>
+                </Can>
+              </div>
+            ) : (
+              filteredRoles.map((role) => (
+                <div key={role.id} className="role-card">
+                  <div className="role-card-icon" aria-hidden="true"></div>
+                  <div className="role-card-content">
+                    <h3>{getRoleLabel(role.libelle)}</h3>
+                    <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
+                    <p className="role-description">
+                      {getRoleDescription(role.libelle)}
+                    </p>
+                  </div>
+                  <div className="role-card-actions">
                     <button 
-                      className="btn-assign"
+                      className="admin-action-icon-btn edit"
                       onClick={() => {
                         setSelectedRole(role);
                         setAgentSearchTerm('');
                         setShowAssignModal(true);
                       }}
+                      title="Attribuer"
+                      aria-label="Attribuer"
                     >
-                      👥 Attribuer
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="8" cy="7" r="4" />
+                        <path d="M19 8v6" />
+                        <path d="M22 11h-6" />
+                      </svg>
                     </button>
-                  </Can>
-                  <Can permission="SUPPRIMER_ROLE">
                     {!SYSTEM_ROLES.includes(role.libelle) && (
                       <button 
-                        className="btn-delete-role"
+                        className="admin-action-icon-btn delete"
                         onClick={() => handleDeleteRole(role.id, role.libelle)}
+                        title="Supprimer"
+                        aria-label="Supprimer"
                       >
-                        🗑️ Supprimer
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6" />
+                          <path d="M14 11v6" />
+                        </svg>
                       </button>
                     )}
-                  </Can>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* STATISTIQUES DES RÔLES - RÉPARTITION */}
-        <section className="roles-stats">
-          <h3> Répartition des agents par rôle</h3>
-          <div className="stats-roles-grid">
-            {roles.length === 0 ? (
-              <p>Aucun rôle trouvé</p>
-            ) : (
-              roles.map((role) => {
-                const count = agents.filter(a => {
-                  const agentRoles = a.roles?.map(r => r.libelle) || [];
-                  return agentRoles.includes(role.libelle);
-                }).length;
-                const percentage = agents.length ? Math.round((count / agents.length) * 100) : 0;
-                const isSystemRole = SYSTEM_ROLES.includes(role.libelle);
-                
-                return (
-                  <div key={role.id} className="stat-role-item">
-                    <div className="stat-role-header">
-                      <span className="stat-role-name">
-                        {getRoleLabel(role.libelle)}
-                        {isSystemRole && <span className="system-badge">Système</span>}
-                        {!isSystemRole && <span className="custom-badge">Personnalisé</span>}
-                      </span>
-                      <span className="stat-role-count">{count} agent(s)</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ 
-                          width: `${percentage}%`,
-                          background: isSystemRole ? '#3B82F6' : '#10B981'
-                        }} 
-                      ></div>
-                    </div>
-                    <span className="stat-role-percentage">{percentage}%</span>
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
           </div>
-        </section>
-      </main>
+
+          {/* STATISTIQUES DES RÔLES */}
+          <section className="roles-stats">
+            <h3>Répartition des agents par rôle</h3>
+            <div className="stats-roles-grid">
+              {roles.length === 0 ? (
+                <p>Aucun rôle trouvé</p>
+              ) : (
+                roles.map((role) => {
+                  const count = agents.filter(a => {
+                    const agentRoles = a.roles?.map(r => r.libelle) || [];
+                    return agentRoles.includes(role.libelle);
+                  }).length;
+                  const percentage = agents.length ? Math.round((count / agents.length) * 100) : 0;
+                  const isSystemRole = SYSTEM_ROLES.includes(role.libelle);
+                  
+                  return (
+                    <div key={role.id} className="stat-role-item">
+                      <div className="stat-role-header">
+                        <span className="stat-role-name">
+                          {getRoleLabel(role.libelle)}
+                          {isSystemRole && <span className="system-badge">Système</span>}
+                          {!isSystemRole && <span className="custom-badge">Personnalisé</span>}
+                        </span>
+                        <span className="stat-role-count">{count} agent(s)</span>
+                      </div>
+                      <div className="progress-bar">
+                        <div 
+                          className="progress-fill" 
+                          style={{ 
+                            width: `${percentage}%`,
+                            background: isSystemRole ? '#3B82F6' : '#10B981'
+                          }} 
+                        ></div>
+                      </div>
+                      <span className="stat-role-percentage">{percentage}%</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </main>
+
+        {/* FOOTER */}
+        <footer className="mnd-grand-footer">
+          <div className="benin-national-tricolor-line"></div>
+          <div className="footer-main-content">
+            <div className="footer-centered-logo-zone">
+              <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+              <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
+            </div>
+            <div className="footer-columns-grid">
+              <div className="footer-col">
+                <h4>Navigation Portail</h4>
+                <ul>
+                  <li><a href="#carriere">Mon Profil & Carrière</a></li>
+                  <li><a href="#demarches">Démarches en Ligne</a></li>
+                  <li><a href="#documents">Documents & Notes</a></li>
+                </ul>
+              </div>
+              <div className="footer-col">
+                <h4>Liens Utiles</h4>
+                <ul>
+                  <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
+                  <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
+                  <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
+                </ul>
+              </div>
+              <div className="footer-col">
+                <h4>Contact & Situation</h4>
+                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p>📞 +229 21 30 70 13</p>
+                <p>✉️ numerique@gouv.bj</p>
+              </div>
+            </div>
+          </div>
+          <div className="footer-bottom-bar">
+            <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
+          </div>
+        </footer>
+      </div>
 
       {/* MODAL AJOUT RÔLE */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>➕ Ajouter un rôle personnalisé</h3>
+            <h3>Ajouter un rôle personnalisé</h3>
             <form onSubmit={handleAddRole}>
               <div className="form-group">
                 <label>Libellé du rôle</label>
@@ -508,7 +580,7 @@ export default function AdminRoles() {
       {showAssignModal && selectedRole && (
         <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <h3>👥 Attribuer le rôle "{getRoleLabel(selectedRole.libelle)}"</h3>
+            <h3>Attribuer le rôle "{getRoleLabel(selectedRole.libelle)}"</h3>
             <p>Sélectionnez les agents qui auront ce rôle :</p>
             
             <div className="assign-search-box">
@@ -553,44 +625,6 @@ export default function AdminRoles() {
           </div>
         </div>
       )}
-
-      {/* FOOTER */}
-      <footer className="mnd-grand-footer">
-        <div className="benin-national-tricolor-line"></div>
-        <div className="footer-main-content">
-          <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
-            <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
-          </div>
-          <div className="footer-columns-grid">
-            <div className="footer-col">
-              <h4>Navigation Portail</h4>
-              <ul>
-                <li><a href="#carriere">Mon Profil & Carrière</a></li>
-                <li><a href="#demarches">Démarches en Ligne</a></li>
-                <li><a href="#documents">Documents & Notes</a></li>
-              </ul>
-            </div>
-            <div className="footer-col">
-              <h4>Liens Utiles</h4>
-              <ul>
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noopener noreferrer">Portail du Ministère</a></li>
-                <li><a href="https://eservices.travail.gouv.bj" target="_blank" rel="noopener noreferrer">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank" rel="noopener noreferrer">Statut de l'Agent (SGG)</a></li>
-              </ul>
-            </div>
-            <div className="footer-col">
-              <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
-            </div>
-          </div>
-        </div>
-        <div className="footer-bottom-bar">
-          <p>© 2026 Ministère du Numérique et de la Digitalisation — République du Bénin.</p>
-        </div>
-      </footer>
     </div>
   );
 }

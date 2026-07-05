@@ -42,6 +42,7 @@ export default function Auth({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrors({});
 
     if (isLogin) {
       if (validateLogin()) {
@@ -54,13 +55,10 @@ export default function Auth({ onLogin }) {
               password: formData.password
             })
           });
-          console.log("🔍 Tentative de connexion avec:", formData.matricule);
 
           const data = await response.json();
 
           if (response.ok) {
-            alert(`Bienvenue ${data.prenom} ${data.nom}`);
-            
             const normalizedRole = normalizeRole(data.role || 'agent');
             const rawRoles = Array.isArray(data.roles) ? data.roles : [data.role || normalizedRole];
             const normalizedRoles = rawRoles.map(normalizeRole).filter(Boolean);
@@ -76,8 +74,6 @@ export default function Auth({ onLogin }) {
             localStorage.setItem('lastLogin', Date.now().toString());
             
             if (onLogin) onLogin(data.matricule, selectedRole);
-            console.log('rolesToStore.length:', rolesToStore.length);
-            console.log('navigation vers:', rolesToStore.length > 1 ? '/dashboard' : getDashboardPath(selectedRole));
 
             if (rolesToStore.length > 1) {
               navigate('/dashboard');
@@ -85,11 +81,21 @@ export default function Auth({ onLogin }) {
               navigate(getDashboardPath(selectedRole));
             }
           } else {
-            alert(data.error || 'Erreur de connexion');
+            const errorMessage = data.error || 'Erreur de connexion';
+            
+            if (errorMessage.toLowerCase().includes('matricule') || errorMessage.toLowerCase().includes('incorrect')) {
+              setFormData(prev => ({ ...prev, matricule: '' }));
+              setErrors({ matricule: errorMessage });
+            } else if (errorMessage.toLowerCase().includes('mot de passe') || errorMessage.toLowerCase().includes('password')) {
+              setFormData(prev => ({ ...prev, password: '' }));
+              setErrors({ password: errorMessage });
+            } else {
+              setErrors({ general: errorMessage });
+            }
           }
         } catch (error) {
-          console.error("❌ Erreur détaillée:", error);
-          alert('Impossible de se connecter au serveur.');
+          console.error("❌ Erreur:", error);
+          setErrors({ general: 'Impossible de se connecter au serveur.' });
         }
       }
     } else {
@@ -107,20 +113,21 @@ export default function Auth({ onLogin }) {
           const data = await response.json();
 
           if (response.ok) {
-            alert('Compte activé avec succès ! Veuillez vous connecter.');
             setIsLogin(true);
             setFormData({ matricule: '', password: '', confirmPassword: '' });
             setShowRegistrationInfo(false);
+            setErrors({ success: 'Compte activé avec succès ! Veuillez vous connecter.' });
           } else {
             if (data.error && data.error.includes('matricule')) {
               setShowRegistrationInfo(true);
+              setFormData(prev => ({ ...prev, matricule: '' }));
             } else {
-              alert(data.error || "Erreur lors de l'activation");
+              setErrors({ general: data.error || "Erreur lors de l'activation" });
             }
           }
         } catch (error) {
           console.error('Erreur:', error);
-          alert('Impossible de contacter le serveur.');
+          setErrors({ general: 'Impossible de contacter le serveur.' });
         }
       }
     }
@@ -146,6 +153,20 @@ export default function Auth({ onLogin }) {
               {isLogin ? 'Veuillez vous identifier' : 'Activer votre compte'}
             </h1>
           </div>
+
+          {/* ✅ Message de succès */}
+          {errors.success && (
+            <div className="auth-success-message">
+              ✅ {errors.success}
+            </div>
+          )}
+
+          {/* ✅ Message d'erreur général */}
+          {errors.general && (
+            <div className="auth-error-message">
+              ❌ {errors.general}
+            </div>
+          )}
 
           {/* Onglets */}
           <div className="auth-tabs">
@@ -212,7 +233,7 @@ export default function Auth({ onLogin }) {
               {errors.password && <span className="error-text">{errors.password}</span>}
             </div>
 
-            {/* Mot de passe oublié - UNIQUEMENT en mode Connexion */}
+            {/* ✅ MOT DE PASSE OUBLIÉ - UNIQUEMENT EN MODE CONNEXION */}
             {isLogin && (
               <div className="forgot-password-link">
                 <Link to="/reset-password" className="forgot-password-btn">
