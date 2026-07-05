@@ -1,12 +1,11 @@
-// ResetPassword.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import './App.css';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1: demande code, 2: vérification, 3: nouveau mot de passe
-  const [matricule, setMatricule] = useState('');
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,7 +22,7 @@ export default function ResetPassword() {
       const response = await fetch('http://localhost:8000/api/forgot-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricule })
+        body: JSON.stringify({ email })
       });
 
       const data = await response.json();
@@ -51,7 +50,7 @@ export default function ResetPassword() {
       const response = await fetch('http://localhost:8000/api/verify-reset-code/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matricule, code })
+        body: JSON.stringify({ email, code })
       });
 
       const data = await response.json();
@@ -91,7 +90,7 @@ export default function ResetPassword() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          matricule,
+          email,
           code,
           new_password: newPassword
         })
@@ -135,9 +134,9 @@ export default function ResetPassword() {
               {step === 3 && '✏️ Nouveau mot de passe'}
             </h1>
             <p className="auth-subtitle-reset">
-              {step === 1 && 'Entrez votre matricule pour recevoir un code par email'}
+              {step === 1 && 'Entrez votre email pour recevoir un code de réinitialisation'}
               {step === 2 && 'Saisissez le code à 6 chiffres reçu par email'}
-              {step === 3 && 'Créez votre nouveau mot de passe (min. 6 caractères)'}
+              {step === 3 && 'Créez votre nouveau mot de passe (minimum 6 caractères)'}
             </p>
           </div>
 
@@ -152,20 +151,21 @@ export default function ResetPassword() {
           {step === 1 && (
             <form onSubmit={handleRequestCode} className="auth-form">
               <div className="form-group">
-                <label htmlFor="resetMatricule">Matricule Agent <span className="required">*</span></label>
+                <label htmlFor="resetEmail">Adresse email <span className="required">*</span></label>
                 <input
-                  type="text"
-                  id="resetMatricule"
-                  placeholder="Ex: 875825"
-                  value={matricule}
-                  onChange={(e) => setMatricule(e.target.value)}
+                  type="email"
+                  id="resetEmail"
+                  placeholder="Ex: jean.dupont@numerique.gouv.bj"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading}
                 />
+                <small className="form-hint">Entrez l'email associé à votre compte agent</small>
               </div>
 
               <div className="reset-actions">
-                <button type="button" className="btn-reset-back" onClick={() => navigate('/')} disabled={isLoading}>
+                <button type="button" className="btn-reset-back" onClick={() => navigate('/auth')} disabled={isLoading}>
                   ← Retour
                 </button>
                 <button type="submit" className="btn-reset-submit" disabled={isLoading}>
@@ -212,7 +212,7 @@ export default function ResetPassword() {
                 <input
                   type="password"
                   id="resetNewPassword"
-                  placeholder="•••••••• (min. 6 caractères)"
+                  placeholder="•••••••• (minimum 6 caractères)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
@@ -244,14 +244,6 @@ export default function ResetPassword() {
             </form>
           )}
 
-          {/* Lien vers la connexion */}
-          <div className="auth-footer-link">
-            <p>
-              <button type="button" className="auth-link-btn" onClick={() => navigate('/')}>
-                ← Retour à la connexion
-              </button>
-            </p>
-          </div>
         </div>
       </div>
 

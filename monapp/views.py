@@ -5665,7 +5665,6 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
 
     rapport_analyse = f"""
 ANALYSE DETAILLEE DE LA CANDIDATURE
-===================================
 
 Score final: {score_final}/100
 
@@ -7538,43 +7537,43 @@ def forgot_password(request):
     
     try:
         data = json.loads(request.body)
-        matricule = data.get('matricule')
+        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
         
-        if not matricule:
-            return JsonResponse({'error': 'Matricule requis'}, status=400)
+        if not email:
+            return JsonResponse({'error': 'Email requis'}, status=400)
         
-        # Vérifier si le matricule existe dans Agent
+        # ✅ Vérifier si l'email existe dans Agent
         try:
-            agent = Agent.objects.get(matricule=matricule)
+            agent = Agent.objects.get(email=email)
         except Agent.DoesNotExist:
-            return JsonResponse({'error': 'Matricule non trouvé dans notre base de données'}, status=404)
+            return JsonResponse({'error': 'Email non trouvé'}, status=404)
         
         # Vérifier si l'agent a un compte
         try:
             compte = Compte.objects.get(agent=agent)
         except Compte.DoesNotExist:
-            return JsonResponse({'error': 'Aucun compte associé à ce matricule'}, status=404)
+            return JsonResponse({'error': 'Aucun compte associé à cet email'}, status=404)
         
         # Générer un code à 6 chiffres
         code = ''.join(random.choices(string.digits, k=6))
         
-        # Stocker le code dans le cache (expiration 15 minutes)
-        cache_key = f'reset_code_{matricule}'
+        # Stocker le code dans le cache avec l'email
+        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
         cache.set(cache_key, {
             'code': code,
-            'matricule': matricule,
-            'created_at': datetime.now().isoformat()  # ✅ CHANGÉ : timezone.now() → datetime.now()
-        }, timeout=900)  # 15 minutes en secondes
+            'email': email,
+            'matricule': agent.matricule,  # Garder matricule pour la mise à jour
+            'created_at': datetime.now().isoformat()
+        }, timeout=900)
         
         # Préparer l'email
         subject = "🔐 Réinitialisation de votre mot de passe"
         
-        # Rendre le template HTML
         html_message = render_to_string('emails/reset_password_email.html', {
             'nom': agent.nom,
             'prenom': agent.prenom,
             'code': code,
-            'matricule': matricule
+            'email': email
         })
         
         plain_message = strip_tags(html_message)
@@ -7585,7 +7584,7 @@ def forgot_password(request):
                 subject,
                 plain_message,
                 'no-reply@numerique.gouv.bj',
-                [agent.email],
+                [agent.email],  # Envoyer à l'email de l'agent
                 html_message=html_message,
                 fail_silently=False,
             )
@@ -7593,7 +7592,7 @@ def forgot_password(request):
             return JsonResponse({
                 'success': True,
                 'message': 'Un code de réinitialisation a été envoyé à votre adresse email',
-                'matricule': matricule
+                'email': email
             })
             
         except Exception as e:
@@ -7610,14 +7609,14 @@ def verify_reset_code(request):
     
     try:
         data = json.loads(request.body)
-        matricule = data.get('matricule')
+        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
         code = data.get('code')
         
-        if not matricule or not code:
-            return JsonResponse({'error': 'Matricule et code requis'}, status=400)
+        if not email or not code:
+            return JsonResponse({'error': 'Email et code requis'}, status=400)
         
         # Récupérer le code du cache
-        cache_key = f'reset_code_{matricule}'
+        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
         cached_data = cache.get(cache_key)
         
         if not cached_data:
@@ -7628,7 +7627,6 @@ def verify_reset_code(request):
         if stored_code != code:
             return JsonResponse({'error': 'Code invalide'}, status=400)
         
-        # ✅ CHANGÉ : timezone.fromisoformat → datetime.fromisoformat
         created_at = datetime.fromisoformat(cached_data.get('created_at'))
         if datetime.now() - created_at > timedelta(minutes=15):
             cache.delete(cache_key)
@@ -7637,12 +7635,11 @@ def verify_reset_code(request):
         return JsonResponse({
             'success': True,
             'message': 'Code valide',
-            'matricule': matricule
+            'email': email
         })
         
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Données invalides'}, status=400)
-
 
 @csrf_exempt
 def reset_password(request):
@@ -7651,18 +7648,18 @@ def reset_password(request):
     
     try:
         data = json.loads(request.body)
-        matricule = data.get('matricule')
+        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
         code = data.get('code')
         new_password = data.get('new_password')
         
-        if not matricule or not code or not new_password:
+        if not email or not code or not new_password:
             return JsonResponse({'error': 'Tous les champs sont requis'}, status=400)
         
         if len(new_password) < 6:
             return JsonResponse({'error': 'Le mot de passe doit contenir au moins 6 caractères'}, status=400)
         
         # Vérifier le code dans le cache
-        cache_key = f'reset_code_{matricule}'
+        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
         cached_data = cache.get(cache_key)
         
         if not cached_data:
@@ -7673,22 +7670,23 @@ def reset_password(request):
         if stored_code != code:
             return JsonResponse({'error': 'Code invalide'}, status=400)
         
-        # ✅ CHANGÉ : timezone.fromisoformat → datetime.fromisoformat
         created_at = datetime.fromisoformat(cached_data.get('created_at'))
         if datetime.now() - created_at > timedelta(minutes=15):
             cache.delete(cache_key)
             return JsonResponse({'error': 'Code expiré. Veuillez en demander un nouveau.'}, status=400)
         
-        # Mettre à jour le mot de passe dans la table Compte
+        # ✅ Récupérer le matricule depuis le cache
+        matricule = cached_data.get('matricule')
+        
+        # Mettre à jour le mot de passe
         try:
             agent = Agent.objects.get(matricule=matricule)
             compte = Compte.objects.get(agent=agent)
             
-            # Hasher le nouveau mot de passe
             compte.mot_de_passe = make_password(new_password)
             compte.save()
             
-            # Supprimer le code du cache (utilisé)
+            # Supprimer le code du cache
             cache.delete(cache_key)
             
             return JsonResponse({

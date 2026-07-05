@@ -46,19 +46,35 @@ export default function usePermissions() {
     }
   }, [userPermissions]);
 
+  const getPermissionAliases = (permission) => {
+    const aliases = {
+      MODIFIER_ROLE: ['MODIFIER_ROLE', 'ATTRIBUER_ROLE', 'GERER_ROLES'],
+      ATTRIBUER_ROLE: ['ATTRIBUER_ROLE', 'MODIFIER_ROLE', 'GERER_ROLES'],
+      GERER_ROLES: ['GERER_ROLES', 'ATTRIBUER_ROLE', 'MODIFIER_ROLE'],
+      GERER_PERMISSIONS: ['GERER_PERMISSIONS', 'GERER_PERMISSION', 'GERER_PERM'],
+      AJOUTER_PERMISSION: ['AJOUTER_PERMISSION', 'AJOUTER_PERMISSIONS', 'AJOUTER_PERM'],
+      SUPPRIMER_PERMISSION: ['SUPPRIMER_PERMISSION', 'SUPPRIMER_PERMISSIONS', 'SUPPRIMER_PERM'],
+      ATTRIBUER_PERMISSION: ['ATTRIBUER_PERMISSION', 'ATTRIBUER_PERMISSIONS', 'ATTRIBUER_PERM'],
+      VOIR_AGENTS: ['VOIR_AGENTS', 'CONSULTER_AGENTS'],
+    };
+
+    return aliases[permission] || [permission];
+  };
+
   // Vérifier si l'utilisateur a une permission spécifique
   const hasPermission = (permission) => {
-    return userPermissions.includes(permission);
+    const candidates = getPermissionAliases(permission);
+    return candidates.some(code => userPermissions.includes(code));
   };
 
   // Vérifier si l'utilisateur a au moins une des permissions
   const hasAnyPermission = (permissions) => {
-    return permissions.some(p => userPermissions.includes(p));
+    return permissions.some(p => hasPermission(p));
   };
 
   // Vérifier si l'utilisateur a toutes les permissions
   const hasAllPermissions = (permissions) => {
-    return permissions.every(p => userPermissions.includes(p));
+    return permissions.every(p => hasPermission(p));
   };
 
   // Vérifier le rôle
