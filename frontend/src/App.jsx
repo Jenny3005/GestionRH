@@ -187,7 +187,7 @@ export default function App() {
         {/* BANDEAU HERO */}
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>Bienvenue sur votre Portail </h2>
+            <h2>Bienvenue sur le Portail de gestion des Ressources Humaines</h2>
             <p>
               Retrouvez toutes les actualités administratives du Ministère, consultez les appels à candidatures internes 
               et accédez directement à vos outils de gestion de carrière.
