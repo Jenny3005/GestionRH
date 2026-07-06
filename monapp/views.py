@@ -4105,6 +4105,9 @@ def upload_document(request):
             date_expiration=date_expiration, date_upload=date.today(), valide=1, cheminfichier=cleaned_base64
         )
         
+        cache_key = f'anomalies_{matricule}'
+        cache.delete(cache_key)
+
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(dossier_agent=dossier, type_piece__obligatoire=1).count()
         taux = round((pieces_obligatoires / total_obligatoire) * 100) if total_obligatoire > 0 else 100
@@ -4167,6 +4170,9 @@ def delete_document(request, piece_id):
         
         dossier = piece.dossier_agent
         piece.delete()
+
+        cache_key = f'anomalies_{dossier.agent.matricule}'
+        cache.delete(cache_key)
         
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(dossier_agent=dossier, type_piece__obligatoire=1).count()
@@ -4357,6 +4363,11 @@ def detect_anomalies(request, matricule):
         if not dossier:
             return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': json.dumps(fallback_analysis(100))})
 
+        cache_key = f'anomalies_{matricule}'
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return JsonResponse(cached_response)
+
         pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
         anomalies = []
         score = 100
@@ -4469,7 +4480,18 @@ Anomalies détectées: {len(anomalies)}"""
 
         # Appel Ollama — 4 arguments, cohérent avec la définition
         try:
-            parsed = call_ollama(resume, score, points_faibles_forces, points_forts_forces)
+            if score == 100:
+                parsed = {
+                    'score': score,
+                    'statut_global': 'conforme',
+                    'resume': 'Dossier complet sans anomalies détectées.',
+                    'points_forts': points_forts_forces,
+                    'points_faibles': points_faibles_forces,
+                    'risques': [],
+                    'recommandations': []
+                }
+            else:
+                parsed = call_ollama(resume, score, points_faibles_forces, points_forts_forces)
 
             if not parsed:
                 parsed = fallback_analysis(score)
@@ -4489,7 +4511,7 @@ Anomalies détectées: {len(anomalies)}"""
             fb['points_forts'] = points_forts_forces
             ai_analysis = json.dumps(fb, ensure_ascii=False)
 
-        return JsonResponse({
+        response_data = {
             'success': True,
             'agent': f"{agent.prenom} {agent.nom}",
             'anomalies': anomalies,
@@ -4497,7 +4519,10 @@ Anomalies détectées: {len(anomalies)}"""
             'total_anomalies': len(anomalies),
             'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé',
             'ai_analysis': ai_analysis
-        })
+        }
+
+        cache.set(cache_key, response_data, timeout=3600)
+        return JsonResponse(response_data)
 
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
