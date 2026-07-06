@@ -4,6 +4,7 @@ import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
 import { normalizeRole, getRoleLabel } from './PortalNav';
 import Can from './components/Can';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
 import './App.css';
 
 export default function DashboardAdmin() {
@@ -154,6 +155,7 @@ export default function DashboardAdmin() {
             className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
             onClick={() => navigateTo('/admin/dashboard')}
           >
+            <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
           </button>
 
@@ -163,9 +165,9 @@ export default function DashboardAdmin() {
               className={`sidebar-item sidebar-parent ${adminOpen ? 'open' : ''}`}
               onClick={() => setAdminOpen(!adminOpen)}
             >
-              <span className="sidebar-icon">⚙️</span>
+              <span className="sidebar-icon"><Settings2 size={18} /></span>
               <span className="sidebar-label">Administration</span>
-              <span className="sidebar-arrow">{adminOpen ? '▼' : '▶'}</span>
+              <span className="sidebar-arrow">{adminOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
             </button>
             
             {adminOpen && (
@@ -175,7 +177,8 @@ export default function DashboardAdmin() {
                     className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
                     onClick={() => navigateTo('/admin/agents')}
                   >
-                    Agents
+                    <span className="sidebar-icon"><Users size={16} /></span>
+                    <span className="sidebar-label">Agents</span>
                   </button>
                 </Can>
                 <Can permission="GERER_ROLES">
@@ -183,7 +186,8 @@ export default function DashboardAdmin() {
                     className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
                     onClick={() => navigateTo('/admin/roles')}
                   >
-                    Rôles
+                    <span className="sidebar-icon"><ShieldCheck size={16} /></span>
+                    <span className="sidebar-label">Rôles</span>
                   </button>
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
@@ -191,7 +195,8 @@ export default function DashboardAdmin() {
                     className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
                     onClick={() => navigateTo('/admin/permissions')}
                   >
-                     Permissions
+                    <span className="sidebar-icon"><ShieldCheck size={16} /></span>
+                    <span className="sidebar-label">Permissions</span>
                   </button>
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
@@ -199,7 +204,8 @@ export default function DashboardAdmin() {
                     className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
                     onClick={() => navigateTo('/admin/types-demande')}
                   >
-                    Types de demande
+                    <span className="sidebar-icon"><FileText size={16} /></span>
+                    <span className="sidebar-label">Types de demande</span>
                   </button>
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
@@ -207,7 +213,8 @@ export default function DashboardAdmin() {
                     className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
                     onClick={() => navigateTo('/admin/types-piece')}
                   >
-                    Types de pièce
+                    <span className="sidebar-icon"><FilePlus2 size={16} /></span>
+                    <span className="sidebar-label">Types de pièce</span>
                   </button>
                 </Can>
               </div>
@@ -219,11 +226,13 @@ export default function DashboardAdmin() {
             className={`sidebar-item ${window.location.pathname === '/profil' ? 'active' : ''}`}
             onClick={() => navigateTo('/profil')}
           >
+            <span className="sidebar-icon"><UserCircle2 size={18} /></span>
             <span className="sidebar-label">Mon profil</span>
           </button>
 
           {/* Déconnexion */}
           <button className="sidebar-item logout" onClick={handleLogout}>
+            <span className="sidebar-icon"><LogOut size={18} /></span>
             <span className="sidebar-label">Se déconnecter</span>
           </button>
         </nav>
