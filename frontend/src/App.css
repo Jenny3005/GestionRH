@@ -3230,10 +3230,10 @@ body {
   display: inline-flex !important;
   gap: 0.35rem;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   flex-wrap: nowrap;
   white-space: nowrap;
-  min-width: 120px;
+  min-width: 84px;
   width: 100%;
   height: 100%;
 }
@@ -12640,7 +12640,6 @@ body .mnd-official-logo,
 .admin-navbar .mnd-official-logo,
 .intranet-navbar .mnd-official-logo {
 
-  width: auto !important;
 }
 
 .admin-navbar-left {
@@ -12874,4 +12873,9 @@ body .mnd-official-logo,
   .banner-content p {
     font-size: 0.85rem;
   }
+}
+
+
+.auth-navbar-left .oo {
+  height: 50px;
 }

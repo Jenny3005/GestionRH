@@ -24,6 +24,8 @@ export default function RHDocuments() {
   // États pour l'analyse IA
   const [scoreDossier, setScoreDossier] = useState(100);
   const [analyseLoading, setAnalyseLoading] = useState(false);
+  const [analysisReady, setAnalysisReady] = useState(false);
+  const [analysisRetryCount, setAnalysisRetryCount] = useState(0);
 
   // État pour le diagramme
   const [chartData, setChartData] = useState(null);
@@ -34,6 +36,85 @@ export default function RHDocuments() {
     if (!matricule) return;
     loadDocuments();
   }, [matricule]);
+
+  const parseAiAnalysis = (aiAnalysis) => {
+    let parsed = null;
+    if (typeof aiAnalysis === 'string') {
+      try {
+        parsed = JSON.parse(aiAnalysis);
+      } catch (_) {
+        const match = aiAnalysis.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { parsed = JSON.parse(match[0]); } catch (_) {}
+        }
+      }
+    } else if (typeof aiAnalysis === 'object') {
+      parsed = aiAnalysis;
+    }
+    return parsed;
+  };
+
+  const setChartFromAnomalyData = (anomalyData) => {
+    const scoreBackend = anomalyData.score || 100;
+    setScoreDossier(scoreBackend);
+
+    const parsed = parseAiAnalysis(anomalyData.ai_analysis);
+    const statut = scoreBackend >= 80 ? 'conforme' : scoreBackend >= 50 ? 'attention' : 'critique';
+
+    setChartData({
+      score: scoreBackend,
+      pointsForts:     parsed?.points_forts     ?? [],
+      pointsFaibles:   parsed?.points_faibles   ?? [],
+      risques:         parsed?.risques          ?? [],
+      recommandations: parsed?.recommandations  ?? [],
+      statut_global:   parsed?.statut_global    ?? statut,
+      resume:          parsed?.resume           ?? `Score de conformité : ${scoreBackend}%`
+    });
+  };
+
+  const fetchAnomalies = async (attempt = 1) => {
+    try {
+      const anomalyRes = await fetch(`/api/anomalies/${matricule}/`, {
+        headers: { 'X-User-Matricule': rhMatricule }
+      });
+
+      if (!anomalyRes.ok) {
+        console.warn(`[Anomalies] Erreur HTTP ${anomalyRes.status}`);
+        throw new Error('Erreur serveur anomalies');
+      }
+
+      const contentType = anomalyRes.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.warn('[Anomalies] Réponse non-JSON reçue');
+        throw new Error('Réponse non JSON');
+      }
+
+      const anomalyData = await anomalyRes.json();
+      setAnalysisReady(!!anomalyData.analysis_ready);
+      setChartFromAnomalyData(anomalyData);
+
+      if (anomalyData.analysis_ready) {
+        setAnalyseLoading(false);
+      } else {
+        setAnalyseLoading(true);
+        if (attempt < 6) {
+          setAnalysisRetryCount(attempt);
+          setTimeout(() => fetchAnomalies(attempt + 1), 1500);
+        } else {
+          setAnalyseLoading(false);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur anomalies :', error);
+      setAnalyseLoading(false);
+      setChartData({
+        score: 100, pointsForts: [], pointsFaibles: [],
+        risques: [], recommandations: [],
+        statut_global: 'conforme',
+        resume: 'Analyse IA indisponible.'
+      });
+    }
+  };
 
   const loadDocuments = async () => {
     setLoading(true);
@@ -70,64 +151,10 @@ export default function RHDocuments() {
       }
 
       setLoading(false);
-
-      // 2. Analyse IA en arrière-plan (UN SEUL appel)
       setAnalyseLoading(true);
-
-      const anomalyRes = await fetch(`/api/anomalies/${matricule}/`, {
-        headers: { 'X-User-Matricule': rhMatricule }
-      });
-
-      if (!anomalyRes.ok) {
-        console.warn(`[Anomalies] Erreur HTTP ${anomalyRes.status}`);
-        setChartData({
-          score: 100, pointsForts: [], pointsFaibles: [],
-          risques: [], recommandations: [],
-          statut_global: 'conforme',
-          resume: 'Analyse IA indisponible (erreur serveur).'
-        });
-        setAnalyseLoading(false);
-        return;
-      }
-
-      const contentType = anomalyRes.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        console.warn('[Anomalies] Réponse non-JSON reçue');
-        setAnalyseLoading(false);
-        return;
-      }
-
-      const anomalyData = await anomalyRes.json();
-      const scoreBackend = anomalyData.score || 100;
-      setScoreDossier(scoreBackend);
-
-      let parsed = null;
-      if (typeof anomalyData.ai_analysis === 'string') {
-        try {
-          parsed = JSON.parse(anomalyData.ai_analysis);
-        } catch (_) {
-          const match = anomalyData.ai_analysis.match(/\{[\s\S]*\}/);
-          if (match) {
-            try { parsed = JSON.parse(match[0]); } catch (_) {}
-          }
-        }
-      } else if (typeof anomalyData.ai_analysis === 'object') {
-        parsed = anomalyData.ai_analysis;
-      }
-
-      const statut = scoreBackend >= 80 ? 'conforme' : scoreBackend >= 50 ? 'attention' : 'critique';
-
-      setChartData({
-        score: scoreBackend,
-        pointsForts:     parsed?.points_forts     ?? [],
-        pointsFaibles:   parsed?.points_faibles   ?? [],
-        risques:         parsed?.risques          ?? [],
-        recommandations: parsed?.recommandations  ?? [],
-        statut_global:   parsed?.statut_global    ?? statut,
-        resume:          parsed?.resume           ?? `Score de conformité : ${scoreBackend}%`
-      });
-
-      setAnalyseLoading(false);
+      setAnalysisReady(false);
+      setAnalysisRetryCount(0);
+      await fetchAnomalies();
 
     } catch (error) {
       console.error('Erreur chargement:', error);
@@ -346,7 +373,11 @@ export default function RHDocuments() {
             {analyseLoading ? (
               <div style={{ textAlign: 'center', padding: '20px' }}>
                 <div className="spinner" style={{ margin: '0 auto', width: '40px', height: '40px', border: '4px solid #e0e0e0', borderTopColor: '#0B192C', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                <p style={{ marginTop: '10px', color: '#666' }}>Analyse IA en cours...</p>
+                <p style={{ marginTop: '10px', color: '#666' }}>
+                  {analysisReady
+                    ? 'Analyse IA terminée.'
+                    : `Analyse IA en cours. Résultat initial disponible${analysisRetryCount ? ` (réessai ${analysisRetryCount}/6)` : ''}.`}
+                </p>
               </div>
             ) : chartData ? (
               <div style={{ display: 'flex', gap: '40px', alignItems: 'center', flexWrap: 'wrap' }}>
