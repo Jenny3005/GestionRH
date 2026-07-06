@@ -4107,6 +4107,7 @@ def upload_document(request):
         
         cache_key = f'anomalies_{matricule}'
         cache.delete(cache_key)
+        threading.Thread(target=refresh_cached_analysis, args=(matricule,), daemon=True).start()
 
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(dossier_agent=dossier, type_piece__obligatoire=1).count()
@@ -4173,6 +4174,7 @@ def delete_document(request, piece_id):
 
         cache_key = f'anomalies_{dossier.agent.matricule}'
         cache.delete(cache_key)
+        threading.Thread(target=refresh_cached_analysis, args=(dossier.agent.matricule,), daemon=True).start()
         
         total_obligatoire = TypePiece.objects.filter(obligatoire=1).count()
         pieces_obligatoires = Piece.objects.filter(dossier_agent=dossier, type_piece__obligatoire=1).count()
@@ -4314,6 +4316,185 @@ def fallback_analysis(score):
     }
 
 
+def pending_analysis(score):
+    return {
+        "score": score,
+        "statut_global": "attention" if score >= 50 else "critique",
+        "resume": "Analyse IA en cours...",
+        "points_forts": [],
+        "points_faibles": [],
+        "risques": [],
+        "recommandations": []
+    }
+
+
+def build_ai_analysis(parsed_payload, score, points_faibles, points_forts):
+    parsed_payload['score'] = score
+    parsed_payload['statut_global'] = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
+    parsed_payload['points_faibles'] = points_faibles
+    parsed_payload['points_forts'] = points_forts if points_forts else parsed_payload.get('points_forts', [])
+    return parsed_payload
+
+
+def build_anomaly_response(agent, dossier):
+    pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
+    anomalies = []
+    score = 100
+    today = date.today()
+
+    for piece in pieces:
+        if piece.date_expiration and piece.date_upload and piece.date_expiration < piece.date_upload:
+            anomalies.append({
+                'type': 'date_incoherente',
+                'severite': 'haute',
+                'message': f"Date d'expiration antérieure à la date d'upload pour {piece.type_piece.libelle}"
+            })
+            score -= 15
+
+    type_ids = [p.type_piece.id for p in pieces]
+    doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
+    for type_id in doublons:
+        pieces_doublons = [p for p in pieces if p.type_piece.id == type_id]
+        type_libelle = pieces_doublons[0].type_piece.libelle if pieces_doublons else 'Document'
+        anomalies.append({
+            'type': 'doublon',
+            'severite': 'moyenne',
+            'message': f'Doublon : {len(pieces_doublons)} versions de "{type_libelle}"'
+        })
+        score -= 10
+
+    if agent.date_prise_service and agent.echelon:
+        anciennete = (today - agent.date_prise_service).days / 365
+        try:
+            echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
+        except Exception:
+            echelon_num = 1
+        if anciennete > 10 and echelon_num < 3:
+            anomalies.append({
+                'type': 'anciennete_grade',
+                'severite': 'basse',
+                'message': f'Ancienneté élevée ({anciennete:.0f} ans) mais échelon bas ({agent.echelon})'
+            })
+            score -= 5
+
+    for piece in pieces:
+        if piece.date_expiration and piece.date_expiration < today:
+            anomalies.append({
+                'type': 'document_expire',
+                'severite': 'haute',
+                'message': f'Document expiré : {piece.type_piece.libelle} (expiré le {piece.date_expiration})'
+            })
+            score -= 10
+
+    types_obligatoires = TypePiece.objects.filter(obligatoire=1)
+    manquants = types_obligatoires.exclude(id__in=[p.type_piece.id for p in pieces])
+    for tp in manquants:
+        est_critique = tp.libelle in ["Carte Nationale d'Identité", 'Acte de naissance']
+        anomalies.append({
+            'type': 'document_manquant',
+            'severite': 'haute' if est_critique else 'moyenne',
+            'message': f'Document obligatoire manquant : {tp.libelle}'
+        })
+        score -= 15 if est_critique else 8
+
+    score = max(0, min(100, score))
+    points_faibles_forces = []
+    for a in anomalies:
+        if a['type'] == 'document_manquant':
+            points_faibles_forces.append(a['message'].replace('Document obligatoire manquant : ', 'Document manquant : '))
+        else:
+            points_faibles_forces.append(a['message'])
+
+    points_forts_forces = [
+        f"{p.type_piece.libelle} — valide"
+        for p in pieces
+        if not (p.date_expiration and p.date_expiration < today)
+    ]
+
+    docs_list = []
+    for p in pieces:
+        statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "OK"
+        docs_list.append(f"{p.type_piece.libelle}: {statut}")
+
+    manquants_list = [tp.libelle for tp in manquants]
+    anciennete_val = (today - agent.date_prise_service).days // 365 if agent.date_prise_service else 0
+
+    resume = f"""Agent: {agent.prenom} {agent.nom}
+Poste: {agent.poste or 'N/A'}
+Ancienneté: {anciennete_val} ans
+Complétude: {dossier.taux_completude or 0}%
+Documents présents: {', '.join(docs_list[:8])}{'...' if len(docs_list) > 8 else ''}
+Documents manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}
+Score calculé: {score}/100
+Anomalies détectées: {len(anomalies)}"""
+
+    response_data = {
+        'success': True,
+        'agent': f"{agent.prenom} {agent.nom}",
+        'anomalies': anomalies,
+        'score': score,
+        'total_anomalies': len(anomalies),
+        'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé',
+    }
+
+    if score == 100:
+        parsed = {
+            'score': score,
+            'statut_global': 'conforme',
+            'resume': 'Dossier complet sans anomalies détectées.',
+            'points_forts': points_forts_forces,
+            'points_faibles': points_faibles_forces,
+            'risques': [],
+            'recommandations': []
+        }
+        parsed = build_ai_analysis(parsed, score, points_faibles_forces, points_forts_forces)
+        response_data['ai_analysis'] = json.dumps(parsed, ensure_ascii=False)
+        response_data['analysis_ready'] = True
+        return response_data, None
+
+    response_data['ai_analysis'] = json.dumps(pending_analysis(score), ensure_ascii=False)
+    response_data['analysis_ready'] = False
+    refresh_payload = {
+        'resume': resume,
+        'points_faibles_forces': points_faibles_forces,
+        'points_forts_forces': points_forts_forces,
+        'score': score
+    }
+    return response_data, refresh_payload
+
+
+def refresh_cached_analysis(matricule, refresh_payload=None):
+    try:
+        cache_key = f'anomalies_{matricule}'
+        agent = Agent.objects.get(matricule=matricule)
+        dossier = DossierAgent.objects.filter(agent=agent).first()
+        if not dossier:
+            return
+
+        response_data, payload = build_anomaly_response(agent, dossier)
+        if refresh_payload is not None:
+            payload = refresh_payload
+
+        if payload is not None:
+            parsed = call_ollama(
+                payload['resume'],
+                payload['score'],
+                payload['points_faibles_forces'],
+                payload['points_forts_forces']
+            )
+            if not parsed:
+                parsed = fallback_analysis(payload['score'])
+            parsed = build_ai_analysis(parsed, payload['score'], payload['points_faibles_forces'], payload['points_forts_forces'])
+            response_data['ai_analysis'] = json.dumps(parsed, ensure_ascii=False)
+            response_data['analysis_ready'] = True
+
+        cache.set(cache_key, response_data, timeout=3600)
+    except Exception as e:
+        print(f"[Ollama] Erreur de rafraîchissement cache : {e}")
+    finally:
+        cache.delete(f'anomalies_refresh_{matricule}')
+
+
 def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
     try:
         print(f"[Ollama] Tentative d'appel...")
@@ -4361,167 +4542,29 @@ def detect_anomalies(request, matricule):
         agent = Agent.objects.get(matricule=matricule)
         dossier = DossierAgent.objects.filter(agent=agent).first()
         if not dossier:
-            return JsonResponse({'anomalies': [], 'score': 100, 'ai_analysis': json.dumps(fallback_analysis(100))})
+            return JsonResponse({
+                'anomalies': [],
+                'score': 100,
+                'ai_analysis': json.dumps(fallback_analysis(100)),
+                'analysis_ready': True
+            })
 
         cache_key = f'anomalies_{matricule}'
         cached_response = cache.get(cache_key)
         if cached_response:
             return JsonResponse(cached_response)
 
-        pieces = Piece.objects.filter(dossier_agent=dossier).select_related('type_piece')
-        anomalies = []
-        score = 100
-        today = date.today()
+        lock_key = f'anomalies_refresh_{matricule}'
+        if cache.get(lock_key):
+            response_data, payload = build_anomaly_response(agent, dossier)
+            cache.set(cache_key, response_data, timeout=120)
+            return JsonResponse(response_data)
 
-        # 1. Dates incohérentes
-        for piece in pieces:
-            if piece.date_expiration and piece.date_upload:
-                if piece.date_expiration < piece.date_upload:
-                    anomalies.append({
-                        'type': 'date_incoherente',
-                        'severite': 'haute',
-                        'message': f"Date d'expiration antérieure à la date d'upload pour {piece.type_piece.libelle}"
-                    })
-                    score -= 15
-
-        # 2. Doublons
-        type_ids = [p.type_piece.id for p in pieces]
-        doublons = [type_id for type_id, count in Counter(type_ids).items() if count > 1]
-        for type_id in doublons:
-            pieces_doublons = pieces.filter(type_piece_id=type_id)
-            noms = [p.nom_fichier for p in pieces_doublons]
-            type_libelle = pieces_doublons.first().type_piece.libelle
-            anomalies.append({
-                'type': 'doublon',
-                'severite': 'moyenne',
-                'message': f'Doublon : {len(noms)} versions de "{type_libelle}"'
-            })
-            score -= 10
-
-        # 3. Ancienneté vs échelon
-        if agent.date_prise_service and agent.echelon:
-            anciennete = (today - agent.date_prise_service).days / 365
-            try:
-                echelon_num = int(agent.echelon.split('-')[0].replace('A', '').replace('B', '')) if agent.echelon else 1
-            except Exception:
-                echelon_num = 1
-            if anciennete > 10 and echelon_num < 3:
-                anomalies.append({
-                    'type': 'anciennete_grade',
-                    'severite': 'basse',
-                    'message': f'Ancienneté élevée ({anciennete:.0f} ans) mais échelon bas ({agent.echelon})'
-                })
-                score -= 5
-
-        # 4. Documents expirés
-        for piece in pieces:
-            if piece.date_expiration and piece.date_expiration < today:
-                anomalies.append({
-                    'type': 'document_expire',
-                    'severite': 'haute',
-                    'message': f'Document expiré : {piece.type_piece.libelle} (expiré le {piece.date_expiration})'
-                })
-                score -= 10
-
-        # 5. Documents obligatoires manquants
-        types_obligatoires = TypePiece.objects.filter(obligatoire=1)
-        manquants = types_obligatoires.exclude(id__in=pieces.values('type_piece_id'))
-        for tp in manquants:
-            est_critique = tp.libelle in ["Carte Nationale d'Identité", 'Acte de naissance']
-            anomalies.append({
-                'type': 'document_manquant',
-                'severite': 'haute' if est_critique else 'moyenne',
-                'message': f'Document obligatoire manquant : {tp.libelle}'
-            })
-            score -= 15 if est_critique else 8
-
-        score = max(0, min(100, score))
-
-        # Construction des points faibles depuis les anomalies réelles
-        points_faibles_forces = []
-        for a in anomalies:
-            if a['type'] == 'document_manquant':
-                points_faibles_forces.append(
-                    a['message'].replace('Document obligatoire manquant : ', 'Document manquant : ')
-                )
-            elif a['type'] == 'document_expire':
-                points_faibles_forces.append(a['message'])
-            elif a['type'] == 'doublon':
-                points_faibles_forces.append(a['message'])
-            elif a['type'] == 'date_incoherente':
-                points_faibles_forces.append(a['message'])
-            elif a['type'] == 'anciennete_grade':
-                points_faibles_forces.append(a['message'])
-
-        # Construction des points forts depuis les documents valides
-        points_forts_forces = [
-            f"{p.type_piece.libelle} — valide"
-            for p in pieces
-            if not (p.date_expiration and p.date_expiration < today)
-        ]
-
-        # Résumé pour l'IA
-        docs_list = []
-        for p in pieces:
-            statut = "EXPIRÉ" if (p.date_expiration and p.date_expiration < today) else "OK"
-            docs_list.append(f"{p.type_piece.libelle}: {statut}")
-
-        manquants_list = [tp.libelle for tp in manquants]
-        anciennete_val = (today - agent.date_prise_service).days // 365 if agent.date_prise_service else 0
-
-        resume = f"""Agent: {agent.prenom} {agent.nom}
-Poste: {agent.poste or 'N/A'}
-Ancienneté: {anciennete_val} ans
-Complétude: {dossier.taux_completude or 0}%
-Documents présents: {', '.join(docs_list[:8])}{'...' if len(docs_list) > 8 else ''}
-Documents manquants: {', '.join(manquants_list[:5]) if manquants_list else 'Aucun'}
-Score calculé: {score}/100
-Anomalies détectées: {len(anomalies)}"""
-
-        # Appel Ollama — 4 arguments, cohérent avec la définition
-        try:
-            if score == 100:
-                parsed = {
-                    'score': score,
-                    'statut_global': 'conforme',
-                    'resume': 'Dossier complet sans anomalies détectées.',
-                    'points_forts': points_forts_forces,
-                    'points_faibles': points_faibles_forces,
-                    'risques': [],
-                    'recommandations': []
-                }
-            else:
-                parsed = call_ollama(resume, score, points_faibles_forces, points_forts_forces)
-
-            if not parsed:
-                parsed = fallback_analysis(score)
-
-            # Toujours forcer les données backend (fiables)
-            parsed['score'] = score
-            parsed['statut_global'] = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
-            parsed['points_faibles'] = points_faibles_forces
-            parsed['points_forts'] = points_forts_forces if points_forts_forces else parsed.get('points_forts', [])
-
-            ai_analysis = json.dumps(parsed, ensure_ascii=False)
-
-        except Exception as e:
-            print(f"[Ollama] Erreur inattendue : {e}")
-            fb = fallback_analysis(score)
-            fb['points_faibles'] = points_faibles_forces
-            fb['points_forts'] = points_forts_forces
-            ai_analysis = json.dumps(fb, ensure_ascii=False)
-
-        response_data = {
-            'success': True,
-            'agent': f"{agent.prenom} {agent.nom}",
-            'anomalies': anomalies,
-            'score': score,
-            'total_anomalies': len(anomalies),
-            'niveau_risque': 'faible' if score >= 80 else 'moyen' if score >= 50 else 'élevé',
-            'ai_analysis': ai_analysis
-        }
-
-        cache.set(cache_key, response_data, timeout=3600)
+        acquired = cache.add(lock_key, True, timeout=300)
+        response_data, payload = build_anomaly_response(agent, dossier)
+        cache.set(cache_key, response_data, timeout=120)
+        if acquired:
+            threading.Thread(target=refresh_cached_analysis, args=(matricule, payload), daemon=True).start()
         return JsonResponse(response_data)
 
     except Agent.DoesNotExist:
