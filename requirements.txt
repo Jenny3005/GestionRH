@@ -11,6 +11,7 @@ docx2pdf==0.1.8
 easyocr==1.7.2
 filelock==3.29.1
 fsspec==2026.4.0
+gunicorn==23.0.0
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
