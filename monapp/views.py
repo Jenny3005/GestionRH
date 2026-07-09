@@ -5,7 +5,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import pythoncom
+import sys
+if sys.platform == 'win32':
+    import pythoncom
 from django.views.decorators.http import require_http_methods
 from django.db import connection
 from django.db import models
@@ -161,7 +163,9 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
     """Convertit un fichier DOCX (bytes) en PDF (bytes)"""
     import tempfile
     import os
-    import pythoncom
+    import sys
+    if sys.platform == 'win32':
+        import pythoncom
     from docx2pdf import convert
     
     pythoncom.CoInitialize()
@@ -182,7 +186,8 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             else:
                 raise RuntimeError("Conversion échouée - fichier PDF vide ou inexistant")
     finally:
-        pythoncom.CoUninitialize()
+        if sys.platform == 'win32':
+            pythoncom.CoUninitialize()
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
