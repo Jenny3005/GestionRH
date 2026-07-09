@@ -98,12 +98,13 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'gestionrh',              # Le nom de ta base de données MySQL
-        'USER': 'root',                   # Ton utilisateur MySQL
-        'PASSWORD': '',                   # Ton mot de passe MySQL
-        'HOST': 'localhost',              # Ou l'adresse de ton serveur MySQL
-        'PORT': '3306',                   # Port par défaut de MySQL
+        'NAME': os.environ.get('DB_NAME'),
+        'USER': os.environ.get('DB_USER'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),
+        'PORT': os.environ.get('DB_PORT'),
         'OPTIONS': {
+            'ssl': {'ssl-mode': 'REQUIRED'} if os.environ.get('DB_SSL_MODE') == 'REQUIRED' else {},
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
             'charset': 'utf8mb4',
         }
