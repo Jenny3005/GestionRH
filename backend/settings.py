@@ -23,9 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-u*k*t1_kd##x9h)=z)3k8(*5!#-$5=#7v6bhd+t06c5oz2q1du'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['gestionrh-gnxw.onrender.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -58,6 +58,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://gestionrh-gnxw.onrender.com",
 ]
 
 # Configuration des uploads
@@ -139,11 +140,14 @@ EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
 DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
 
 # URL du frontend (utilisée pour les liens d'activation par email)
-FRONTEND_URL = 'http://localhost:5173'   # développement
+FRONTEND_URL = 'https://gestionrh-gnxw.onrender.com'   # développement
 # FRONTEND_URL = 'https://votre-domaine.gouv.bj'  # production
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'monapp/static')]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
