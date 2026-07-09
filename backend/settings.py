@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u*k*t1_kd##x9h)=z)3k8(*5!#-$5=#7v6bhd+t06c5oz2q1du'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-u*k*t1_kd##x9h)=z)3k8(*5!#-$5=#7v6bhd+t06c5oz2q1du')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = ['gestionrh-gnxw.onrender.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'gestionrh-gnxw.onrender.com,localhost,127.0.0.1').split(',') if host.strip()]
 
 
 # Application definition
@@ -77,7 +78,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': '/opt/render/project/src/frontend/dist',
+        'DIRS': [str(BASE_DIR / 'frontend' / 'dist')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -146,12 +147,19 @@ FRONTEND_URL = 'https://gestionrh-gnxw.onrender.com'   # développement
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'monapp/static'),
-    os.path.join(BASE_DIR, 'frontend', 'dist', 'static'),
+    os.path.join(BASE_DIR, 'monapp', 'static'),
+    os.path.join(BASE_DIR, 'frontend', 'dist'),
 ]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_TRUSTED_ORIGINS = [
+    'https://gestionrh-gnxw.onrender.com',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
