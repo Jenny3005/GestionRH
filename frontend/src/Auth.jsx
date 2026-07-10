@@ -47,7 +47,7 @@ export default function Auth({ onLogin }) {
     if (isLogin) {
       if (validateLogin()) {
         try {
-          const response = await fetch('http://localhost:8000/api/login/', {
+          const response = await fetch('/api/login/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -101,7 +101,7 @@ export default function Auth({ onLogin }) {
     } else {
       if (validateRegister()) {
         try {
-          const response = await fetch('http://localhost:8000/api/activate-account/', {
+          const response = await fetch('/api/activate-account/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -140,7 +140,7 @@ export default function Auth({ onLogin }) {
       <nav className="auth-navbar">
         <div className="auth-navbar-left">
           <a href="/" className="logo-nav-link">
-            <img src="/logo2.png" alt="Logo MND" className="oo" />
+            <img src="/static/logo2.png" alt="Logo MND" className="oo" />
           </a>
         </div>
       </nav>
@@ -298,7 +298,7 @@ export default function Auth({ onLogin }) {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">

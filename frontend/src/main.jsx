@@ -8,7 +8,7 @@ import Demarches from './Demarches';
 import Documents from './Documents';
 import DashboardAdmin from './DashboardAdmin';
 import DashboardRH from './DashboardRH';
-import RHDocuments from './RHDocuments'; 
+import RHDocuments from './RHDocuments';
 import AdminAgents from './AdminAgents';
 import AdminRoles from './AdminRoles';
 import ActivateAccount from './ActivateAccount';
@@ -27,6 +27,59 @@ import CandidaturesPage from './CandidaturesPage';
 import BulletinNotes from './Bulletinnotes';
 import ResetPassword from './ResetPassword';
 
+const originalFetch = window.fetch.bind(window);
+
+window.fetch = (input, init) => {
+  let url = typeof input === 'string' ? input : input instanceof Request ? input.url : input?.url;
+
+  if (typeof url === 'string') {
+    const rewrittenUrl = url
+      .replace(/^http:\/\/localhost:8000\/api\//, '/api/')
+      .replace(/^http:\/\/localhost:3001\/api/, '/api')
+      .replace(/^http:\/\/localhost:8000\//, '/');
+
+    if (rewrittenUrl !== url) {
+      if (typeof input === 'string') {
+        input = rewrittenUrl;
+      } else if (input instanceof Request) {
+        input = new Request(rewrittenUrl, input);
+      } else {
+        input = { ...input, url: rewrittenUrl };
+      }
+    }
+  }
+
+  return originalFetch(input, init);
+};
+
+const rewriteAssetUrl = (url) => {
+  if (!url || /^https?:\/\//i.test(url) || /^data:/i.test(url) || url.startsWith('blob:')) {
+    return url;
+  }
+
+  if (['/logo_MND.png', '/logo2.png', '/favicon.svg', '/unsplash3.avif', '/unsplash2.jpg', '/unsplash.jpg', '/icons.svg'].includes(url)) {
+    return `/static${url}`;
+  }
+
+  return url;
+};
+
+const patchStaticAssets = () => {
+  document.querySelectorAll('img').forEach((img) => {
+    const currentSrc = img.getAttribute('src');
+    if (currentSrc) {
+      const rewrittenSrc = rewriteAssetUrl(currentSrc);
+      if (rewrittenSrc !== currentSrc) {
+        img.setAttribute('src', rewrittenSrc);
+      }
+    }
+  });
+};
+
+patchStaticAssets();
+
+const observer = new MutationObserver(() => patchStaticAssets());
+observer.observe(document.body, { childList: true, subtree: true });
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte

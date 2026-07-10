@@ -40,7 +40,7 @@ export default function DashboardAgent() {
     }
 
     const loadAll = async () => {
-      await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
+      await fetch('/api/avancements/calculer/').catch(() => {});
       await fetchUserInfo();
       await fetchDemandesRecentes();
       await fetchSoldeConge();
@@ -74,7 +74,7 @@ export default function DashboardAgent() {
 
   const fetchAvancement = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/avancements/agent/${matricule}/`);
+      const response = await fetch(`/api/avancements/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         const prochain = data.find(a => a.type === 'normal' && a.date_prevue) || data[0] || null;
@@ -88,7 +88,7 @@ export default function DashboardAgent() {
   const checkExpiryOnce = async () => {
     if (expiryChecked) return;
     try {
-      await fetch(`http://localhost:8000/api/check-expiry/`);
+      await fetch(`/api/check-expiry/`);
       setExpiryChecked(true);
     } catch (error) {
       console.error('Erreur check-expiry:', error);
@@ -98,7 +98,7 @@ export default function DashboardAgent() {
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
-      const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
+      const notifResponse = await fetch(`/api/notifications/${matricule}/`);
       let notifs = [];
       if (notifResponse.ok) {
         notifs = await notifResponse.json();
@@ -113,7 +113,7 @@ export default function DashboardAgent() {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/`);
+      const response = await fetch(`/api/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setUserInfo({
@@ -198,14 +198,14 @@ export default function DashboardAgent() {
   const marquerNotificationLue = async (notificationId) => {
     if (notificationId === 'all') {
       try {
-        await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/lues/`, { method: 'PUT' });
+        await fetch(`/api/notifications/${encodeURIComponent(matricule)}/lues/`, { method: 'PUT' });
         fetchAllNotifications();
       } catch (error) {
         console.error('Erreur:', error);
       }
     } else if (typeof notificationId === 'number') {
       try {
-        await fetch(`http://localhost:8000/api/notifications/${notificationId}/lue/`, { method: 'PUT' });
+        await fetch(`/api/notifications/${notificationId}/lue/`, { method: 'PUT' });
         fetchAllNotifications();
       } catch (error) {
         console.error('Erreur:', error);
@@ -217,7 +217,7 @@ export default function DashboardAgent() {
     e.stopPropagation();
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     try {
-      await fetch(`http://localhost:8000/api/notifications/${notificationId}/supprimer/`, { method: 'DELETE' });
+      await fetch(`/api/notifications/${notificationId}/supprimer/`, { method: 'DELETE' });
     } catch (error) {
       console.error('Erreur:', error);
       fetchAllNotifications();
@@ -228,7 +228,7 @@ export default function DashboardAgent() {
     if (!window.confirm('Supprimer définitivement toutes les notifications ?')) return;
     setNotifications([]);
     try {
-      await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/supprimer-toutes/`, { method: 'DELETE' });
+      await fetch(`/api/notifications/${encodeURIComponent(matricule)}/supprimer-toutes/`, { method: 'DELETE' });
     } catch (error) {
       console.error('Erreur:', error);
       fetchAllNotifications();
@@ -280,7 +280,7 @@ export default function DashboardAgent() {
       <header className="intranet-navbar">
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
         <PortalNav />
@@ -725,7 +725,7 @@ export default function DashboardAgent() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">
