@@ -4,6 +4,9 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from datetime import date
+import threading
+import random
+import time
 
 
 def _envoyer_email(sujet, template, context, destinataire):
@@ -164,3 +167,41 @@ def envoyer_email_anniversaire(agent):
         print(f"❌ Erreur email anniversaire pour {agent.email} : {erreur}")
 
     return succes, erreur
+
+
+
+def envoyer_email_activation_async(agent):
+    """
+    Envoie l'email d'activation dans un thread séparé (asynchrone)
+    Ne bloque pas l'import
+    """
+    try:
+        # Petit délai aléatoire pour éviter de surcharger le serveur
+        time.sleep(random.uniform(0.5, 2))
+        
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        activation_link = f"{frontend_url}/activate?matricule={agent.matricule}"
+        
+        context = {
+            'prenom': agent.prenom,
+            'nom': agent.nom,
+            'matricule': agent.matricule,
+            'email': agent.email,
+            'activation_link': activation_link,
+        }
+        
+        html_message = render_to_string('emails/activation_email.html', context)
+        plain_message = strip_tags(html_message)
+        
+        send_mail(
+            subject='Activation de votre compte MND',
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[agent.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        print(f"✅ Email d'activation envoyé à {agent.email}")
+        
+    except Exception as e:
+        print(f"❌ Erreur envoi email à {agent.email}: {e}")
