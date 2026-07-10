@@ -29,7 +29,7 @@ export default function ArchivagePage() {
   const fetchActes = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/actes/archives/');
+      const res = await fetch('/api/actes/archives/');
       if (res.ok) {
         const data = await res.json();
         setActes(data.filter(a => a.statut !== 'archive'));
@@ -45,7 +45,7 @@ export default function ArchivagePage() {
   const handleArchiverUn = async (reference) => {
     if (!window.confirm(`Archiver l'acte ${reference} ?`)) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/archiver/`, {
+      const res = await fetch(`/api/actes/${encodeURIComponent(reference)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -68,7 +68,7 @@ export default function ArchivagePage() {
     if (!window.confirm(`Archiver ${selectedActes.length} acte(s) ?`)) return;
     
     for (const ref of selectedActes) {
-      await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(ref)}/archiver/`, {
+      await fetch(`/api/actes/${encodeURIComponent(ref)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -81,7 +81,7 @@ export default function ArchivagePage() {
     if (!window.confirm(`Archiver tous les actes (${actes.length}) ?`)) return;
     
     for (const acte of actes) {
-      await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(acte.reference)}/archiver/`, {
+      await fetch(`/api/actes/${encodeURIComponent(acte.reference)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -108,7 +108,7 @@ export default function ArchivagePage() {
 
   const handleVoirActe = async (reference) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`);
+      const res = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (res.ok) {
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -152,7 +152,7 @@ export default function ArchivagePage() {
       <div className="intranet-home">
         <header className="intranet-navbar">
           <div className="nav-left-zone">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </div>
           <div className="nav-right"><UserMenu /></div>
         </header>

@@ -44,7 +44,7 @@ export default function Postuler() {
 
   const fetchPosteDetails = async (id) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/postes-vacants/`);
+      const res = await fetch(`/api/postes-vacants/`);
       if (res.ok) {
         const data = await res.json();
         const posteTrouve = data.find(p => p.id == id);
@@ -169,7 +169,7 @@ export default function Postuler() {
 
       // 1. Créer la candidature
       console.log('📝 Création de la candidature...');
-      const candidatureRes = await fetch('http://localhost:8000/api/candidatures/postuler/', {
+      const candidatureRes = await fetch('/api/candidatures/postuler/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,7 +196,7 @@ export default function Postuler() {
         console.log(`📤 Upload ${type} - Taille: ${(fileData.base64.length / 1024).toFixed(2)} KB`);
         
         try {
-          const uploadRes = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/upload-piece/`, {
+          const uploadRes = await fetch(`/api/candidatures/${candidatureId}/upload-piece/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

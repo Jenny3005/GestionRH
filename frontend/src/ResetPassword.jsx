@@ -19,7 +19,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/forgot-password/', {
+      const response = await fetch('/api/forgot-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -47,7 +47,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/verify-reset-code/', {
+      const response = await fetch('/api/verify-reset-code/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code })
@@ -86,7 +86,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/reset-password/', {
+      const response = await fetch('/api/reset-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

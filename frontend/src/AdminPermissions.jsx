@@ -78,7 +78,7 @@ export default function AdminPermissions() {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/permissions/');
+      const response = await fetch('/api/permissions/');
       if (response.ok) {
         const data = await response.json();
         setPermissions(data);
@@ -92,7 +92,7 @@ export default function AdminPermissions() {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
         setRoles(data);
@@ -104,7 +104,7 @@ export default function AdminPermissions() {
 
   const fetchRolePermissions = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/role-permissions/');
+      const response = await fetch('/api/role-permissions/');
       if (response.ok) {
         const data = await response.json();
         setRolePermissions(data);
@@ -129,7 +129,7 @@ export default function AdminPermissions() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/permissions/add/', {
+      const response = await fetch('/api/permissions/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -153,7 +153,7 @@ export default function AdminPermissions() {
   const handleDeletePermission = async (code) => {
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer la permission "${code}" ?\n\nCette action est irréversible.`)) {
       try {
-        const response = await fetch(`http://localhost:8000/api/permissions/${code}/delete/`, {
+        const response = await fetch(`/api/permissions/${code}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -179,7 +179,7 @@ export default function AdminPermissions() {
     }
     
     try {
-      const response = await fetch('http://localhost:8000/api/role-permissions/toggle/', {
+      const response = await fetch('/api/role-permissions/toggle/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
