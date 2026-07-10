@@ -633,7 +633,7 @@ def import_agents(request):
                         [agent.matricule, role_agent.id]
                     )
                 
-                # ✅ AJOUTE CETTE LIGNE : Envoi de l'email d'activation
+                # ✅ AJOUTE CETTE LIGNE POUR ENVOYER L'EMAIL
                 try:
                     envoyer_email_activation(agent)
                     print(f"📧 Email d'activation envoyé à {agent.email}")
@@ -658,6 +658,7 @@ def import_agents(request):
     except Exception as e:
         print(f"Erreur import_agents: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
 
 # ==================== GESTION DES RÔLES ====================
 
