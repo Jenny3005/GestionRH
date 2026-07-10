@@ -26,7 +26,16 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-u*k*t1_kd##x9h)=z)3k8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'gestionrh-gnxw.onrender.com,localhost,127.0.0.1').split(',') if host.strip()]
+DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'gestionrh-gnxw.onrender.com']
+render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_host:
+    DEFAULT_ALLOWED_HOSTS.append(render_host)
+
+env_allowed_hosts = os.environ.get('ALLOWED_HOSTS', '')
+if env_allowed_hosts:
+    ALLOWED_HOSTS = [host.strip() for host in env_allowed_hosts.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = DEFAULT_ALLOWED_HOSTS
 
 
 # Application definition
@@ -160,6 +169,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
+if render_host:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
