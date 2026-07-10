@@ -65,7 +65,7 @@ export default function AdminTypesPiece() {
   const fetchTypes = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/types-piece/');
+      const response = await fetch('/api/types-piece/');
       if (response.ok) {
         const data = await response.json();
         setTypes(data);
@@ -111,7 +111,7 @@ export default function AdminTypesPiece() {
 
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/types-piece/add/', {
+      const response = await fetch('/api/types-piece/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -155,7 +155,7 @@ export default function AdminTypesPiece() {
 
     setPending(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/types-piece/${selectedType.id}/edit/`, {
+      const response = await fetch(`/api/types-piece/${selectedType.id}/edit/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -187,7 +187,7 @@ export default function AdminTypesPiece() {
     if (!window.confirm(`Supprimer le type de pièce "${libelle}" ?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/types-piece/${id}/delete/`, {
+      const response = await fetch(`/api/types-piece/${id}/delete/`, {
         method: 'DELETE'
       });
       if (response.ok) {

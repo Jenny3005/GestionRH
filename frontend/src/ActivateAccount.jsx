@@ -33,7 +33,7 @@ export default function ActivateAccount() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/activate/', {
+      const response = await fetch('/api/activate/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,7 +67,7 @@ export default function ActivateAccount() {
         <div className="auth-header">
            <a href="/" className="logo-nav-link">
             <img 
-              src="/logo_MND.png" 
+              src="/static/logo_MND.png" 
               alt="Logo MND" 
               className="mnd-official-logo" 
             />

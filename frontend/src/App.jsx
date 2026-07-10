@@ -59,7 +59,7 @@ export default function App() {
   const fetchPostesVacants = async () => {
     setLoadingPostes(true);
     try {
-      const response = await fetch('http://localhost:8000/api/postes-vacants/');
+      const response = await fetch('/api/postes-vacants/');
       if (response.ok) {
         const data = await response.json();
         // Filtrer uniquement les annonces publiées
@@ -78,7 +78,7 @@ export default function App() {
   const fetchNotesService = async () => {
     setLoadingNotes(true);
     try {
-      const response = await fetch('http://localhost:8000/api/notes-service/');
+      const response = await fetch('/api/notes-service/');
       if (response.ok) {
         const data = await response.json();
         setNotesService(data);
@@ -161,7 +161,7 @@ export default function App() {
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
             <img 
-              src="/logo_MND.png" 
+              src="/static/logo_MND.png" 
               alt="Logo Ministère du Numérique et de la Digitalisation" 
               className="mnd-official-logo" 
             />
@@ -523,7 +523,7 @@ export default function App() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">

@@ -46,7 +46,7 @@ export default function DashboardAdmin() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -60,7 +60,7 @@ export default function DashboardAdmin() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/stats/');
+      const response = await fetch('/api/stats/');
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -77,7 +77,7 @@ export default function DashboardAdmin() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentId}/toggle/`, {
+      const response = await fetch(`/api/agents/${agentId}/toggle/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actif: currentStatus ? 0 : 1 })
@@ -244,7 +244,7 @@ export default function DashboardAdmin() {
         <header className="admin-navbar">
           <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
           </div>
           <div className="admin-navbar-left">
@@ -415,7 +415,7 @@ export default function DashboardAdmin() {
           <div className="benin-national-tricolor-line"></div>
           <div className="footer-main-content">
             <div className="footer-centered-logo-zone">
-              <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+              <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
               <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
             </div>
             <div className="footer-columns-grid">

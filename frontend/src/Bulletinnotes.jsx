@@ -82,7 +82,7 @@ export default function BulletinNotes() {
 
   const fetchAgent = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/`);
+      const res = await fetch(`/api/agent/${matricule}/bulletin/`);
       if (res.ok) {
         const data = await res.json();
         setAgent(data);
@@ -106,7 +106,7 @@ export default function BulletinNotes() {
 
   const fetchEnfants = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/`);
+      const res = await fetch(`/api/agent/${matricule}/enfants/`);
       if (res.ok) {
         const data = await res.json();
         setEnfants(data);
@@ -125,7 +125,7 @@ export default function BulletinNotes() {
     setSaveSuccess(false);
     try {
       // Sauvegarde de TOUTES les informations (agent + bulletin)
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/`, {
+      const response = await fetch(`/api/agent/${matricule}/bulletin/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +166,7 @@ export default function BulletinNotes() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/`, {
+      const res = await fetch(`/api/agent/${matricule}/enfants/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ export default function BulletinNotes() {
   const handleSupprimerEnfant = async (id) => {
     if (!window.confirm('Supprimer cet enfant ?')) return;
     try {
-      await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/${id}/`, { method: 'DELETE' });
+      await fetch(`/api/agent/${matricule}/enfants/${id}/`, { method: 'DELETE' });
       setEnfants(prev => prev.filter(e => e.id !== id));
     } catch (e) {
       console.error('Erreur suppression enfant:', e);
@@ -202,7 +202,7 @@ export default function BulletinNotes() {
   const handleGenererPDF = async () => {
     setGenerating(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/generer/`, {
+      const res = await fetch(`/api/agent/${matricule}/bulletin/generer/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -427,7 +427,7 @@ export default function BulletinNotes() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
         </div>

@@ -167,9 +167,9 @@ export default function DashboardRH() {
     setLoading(true);
     try {
       const matriculeRH = localStorage.getItem('userMatricule');
-      await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
+      await fetch('/api/avancements/calculer/').catch(() => {});
 
-      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      const agentsRes = await fetch('/api/agents/');
       if (agentsRes.ok) {
         const agentsData = await agentsRes.json();
         setVraisAgents(agentsData);
@@ -177,14 +177,14 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, totalAgents: agentsData.length }));
       }
 
-      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matriculeRH}/`);
+      const assigneesRes = await fetch(`/api/rh/demandes-assignees/${matriculeRH}/`);
       if (assigneesRes.ok) {
         const data = await assigneesRes.json();
         setDemandesAssignees(data);
         setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
       }
 
-      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matriculeRH}/`);
+      const enCoursRes = await fetch(`/api/rh/demandes-cours/${matriculeRH}/`);
       if (enCoursRes.ok) {
         const data = await enCoursRes.json();
         setDemandesEnCours(data);
@@ -192,7 +192,7 @@ export default function DashboardRH() {
       }
 
       // ✅ Récupération des actes générés
-      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matriculeRH}/`);
+      const actesRes = await fetch(`/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
         console.log('📄 Actes générés reçus:', data);
@@ -200,19 +200,19 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
 
-      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matriculeRH}/`);
+      const termineesRes = await fetch(`/api/rh/demandes-terminees/${matriculeRH}/`);
       if (termineesRes.ok) {
         const data = await termineesRes.json();
         setDemandesTerminees(data);
       }
 
-      const expiredRes = await fetch('http://localhost:8000/api/documents/expired-count/');
+      const expiredRes = await fetch('/api/documents/expired-count/');
       if (expiredRes.ok) {
         const data = await expiredRes.json();
         setStats(prev => ({ ...prev, documentsExpires: data.total_expired || 0 }));
       }
 
-      const anniversairesRes = await fetch('http://localhost:8000/api/anniversaires/check/');
+      const anniversairesRes = await fetch('/api/anniversaires/check/');
       if (anniversairesRes.ok) {
         const data = await anniversairesRes.json();
         setStats(prev => ({ ...prev, anniversairesDuJour: data.anniversaires_du_jour || 0 }));
@@ -227,7 +227,7 @@ export default function DashboardRH() {
 
   const fetchPostesVacants = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/postes-vacants/');
+      const res = await fetch('/api/postes-vacants/');
       if (res.ok) {
         const data = await res.json();
         setPostesVacants(data);
@@ -244,7 +244,7 @@ export default function DashboardRH() {
 
   const fetchNotesService = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/notes-service/');
+      const res = await fetch('/api/notes-service/');
       if (res.ok) {
         const data = await res.json();
         setNotesService(data);
@@ -256,7 +256,7 @@ export default function DashboardRH() {
 
   const fetchCandidaturesByPoste = async (posteId) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${posteId}/`);
+      const res = await fetch(`/api/candidatures/poste/${posteId}/`);
       if (res.ok) {
         const data = await res.json();
         setCandidatures(prev => ({ ...prev, [posteId]: data }));
@@ -271,7 +271,7 @@ export default function DashboardRH() {
   const handleCreateNote = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/notes-service/', {
+      const res = await fetch('/api/notes-service/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -316,7 +316,7 @@ export default function DashboardRH() {
   const handleUpdateNote = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:8000/api/notes-service/${editNote.id}/`, {
+      const res = await fetch(`/api/notes-service/${editNote.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -344,7 +344,7 @@ export default function DashboardRH() {
   const handleSupprimerNote = async (noteId) => {
     if (!window.confirm('Confirmer la suppression de cette note ?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/notes-service/${noteId}/`, {
+      const res = await fetch(`/api/notes-service/${noteId}/`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -363,7 +363,7 @@ export default function DashboardRH() {
   const handleCreateAnnonce = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/postes-vacants/', {
+      const res = await fetch('/api/postes-vacants/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -413,7 +413,7 @@ export default function DashboardRH() {
   const handleUpdateAnnonce = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:8000/api/postes-vacants/${selectedPosteToEdit.id}/`, {
+      const res = await fetch(`/api/postes-vacants/${selectedPosteToEdit.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editAnnonce)
@@ -435,7 +435,7 @@ export default function DashboardRH() {
   const handleCloturerAnnonce = async (posteId) => {
     if (!window.confirm('Confirmer la clôture de cette annonce ?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/postes-vacants/${posteId}/cloturer/`, {
+      const res = await fetch(`/api/postes-vacants/${posteId}/cloturer/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -453,7 +453,7 @@ export default function DashboardRH() {
   const handleVoirCandidatures = async (poste) => {
     setSelectedPoste(poste);
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${poste.id}/`);
+      const res = await fetch(`/api/candidatures/poste/${poste.id}/`);
       if (res.ok) {
         const data = await res.json();
         const sortedData = [...data].sort((a, b) => (b.score_eligibilite || 0) - (a.score_eligibilite || 0));
@@ -476,7 +476,7 @@ export default function DashboardRH() {
     setSelectedCandidatNom(candidatNom);
     setSelectedCandidatId(candidatureId);
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/pieces/`);
+      const res = await fetch(`/api/candidatures/${candidatureId}/pieces/`);
       if (res.ok) {
         const data = await res.json();
         setSelectedPieces(data);
@@ -566,7 +566,7 @@ export default function DashboardRH() {
 
   const handleTraiterDemande = async (demandeId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/commencer-traitement/${demandeId}/`, {
+      const response = await fetch(`/api/rh/commencer-traitement/${demandeId}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
@@ -616,7 +616,7 @@ export default function DashboardRH() {
         
         let typeAttestation = demande.type_demande;
         
-        const response = await fetch(`http://localhost:8000/api/rh/attestations/generer/${demande.id}/`, {
+        const response = await fetch(`/api/rh/attestations/generer/${demande.id}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -674,7 +674,7 @@ export default function DashboardRH() {
     try {
       const refNumber = `${new Date().getFullYear()}${Date.now()}`;
       const reference = `${refNumber}`;
-      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
+      const response = await fetch(`/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -720,7 +720,7 @@ export default function DashboardRH() {
 
   const handleEnvoyerSecretaire = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${reference}/`, {
+      const response = await fetch(`/api/rh/envoyer-acte-secretaire/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
@@ -741,7 +741,7 @@ export default function DashboardRH() {
   const handleVoirActe = async (reference, acte) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`);
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (response.ok) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
@@ -805,7 +805,7 @@ export default function DashboardRH() {
   const handleSubmitNewAgent = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:8000/api/register/', {
+      const response = await fetch('/api/register/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAgent)
@@ -868,7 +868,7 @@ export default function DashboardRH() {
           return;
         }
         if (!agents || agents.length === 0) { alert('Aucun agent trouvé dans le fichier'); return; }
-        const response = await fetch('http://localhost:8000/api/import-agents/', {
+        const response = await fetch('/api/import-agents/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agents })
@@ -893,14 +893,14 @@ export default function DashboardRH() {
       let data = [];
       let filename = '';
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           data = agents.map(agent => formatAgentForExport(agent));
           filename = 'Liste_Agents.xlsx';
         }
       } else if (type === 'stats') {
-        const res = await fetch('http://localhost:8000/api/stats/');
+        const res = await fetch('/api/stats/');
         if (res.ok) {
           const statsData = await res.json();
           data = [statsData];
@@ -949,7 +949,7 @@ export default function DashboardRH() {
   const handleExportPDF = async (type) => {
     try {
       const doc = new jsPDF();
-      const logoUrl = '/logo_MND.png';
+      const logoUrl = '/static/logo_MND.png';
       doc.addImage(logoUrl, 'PNG', 10, 1, 60, 60);
       doc.setFontSize(16);
       doc.setTextColor(0, 51, 102);
@@ -965,7 +965,7 @@ export default function DashboardRH() {
       doc.line(14, 70, 196, 70);
 
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           const formatted = agents.map(agent => formatAgentForExport(agent));
@@ -979,7 +979,7 @@ export default function DashboardRH() {
           });
         }
       } else if (type === 'stats') {
-        const res = await fetch('http://localhost:8000/api/stats/');
+        const res = await fetch('/api/stats/');
         if (res.ok) {
           const stats = await res.json();
           autoTable(doc, {
@@ -1035,7 +1035,7 @@ export default function DashboardRH() {
       let data = [];
       let filename = '';
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           data = agents.map(agent => formatAgentForExport(agent));
@@ -1078,7 +1078,7 @@ export default function DashboardRH() {
 
   const fetchAvancementsStats = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/avancements/periode/?annee=' + new Date().getFullYear());
+      const res = await fetch('/api/avancements/periode/?annee=' + new Date().getFullYear());
       if (res.ok) {
         const data = await res.json();
         const normaux = data.filter(a => a.type !== 'plafonne');
@@ -1089,7 +1089,7 @@ export default function DashboardRH() {
 
   const fetchAvancementsAgenda = async (annee, mois) => {
     try {
-      let url = `http://localhost:8000/api/avancements/periode/?annee=${annee}`;
+      let url = `/api/avancements/periode/?annee=${annee}`;
       if (mois) url += `&mois=${mois}`;
       const res = await fetch(url);
       if (res.ok) {
@@ -1103,7 +1103,7 @@ export default function DashboardRH() {
 
   const fetchAlertesAvancement = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/avancements/alertes/');
+        const res = await fetch('/api/avancements/alertes/');
         if (res.ok) {
           const data = await res.json();
           console.log('Alertes reçues :', data.alertes);
@@ -1117,11 +1117,11 @@ export default function DashboardRH() {
       const annee = calendrierAnnee;
       const mois = calendrierMois;
 
-      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      const agentsRes = await fetch('/api/agents/');
       if (!agentsRes.ok) throw new Error('Erreur chargement agents');
       const agents = await agentsRes.json();
 
-      const avRes = await fetch('http://localhost:8000/api/avancements/periode/?annee=');
+      const avRes = await fetch('/api/avancements/periode/?annee=');
       if (!avRes.ok) throw new Error('Erreur chargement avancements');
       const allAvancements = await avRes.json();
       const avancementsNormaux = allAvancements.filter(a => a.type === 'normal' && a.date_prevue);

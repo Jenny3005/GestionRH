@@ -65,7 +65,7 @@ export default function AdminTypesDemande() {
   const fetchTypes = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/types-demande/');
+      const response = await fetch('/api/types-demande/');
       if (response.ok) {
         const data = await response.json();
         setTypes(data);
@@ -108,7 +108,7 @@ export default function AdminTypesDemande() {
 
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/types-demande/add/', {
+      const response = await fetch('/api/types-demande/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,7 +156,7 @@ export default function AdminTypesDemande() {
 
     setPending(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/types-demande/${selectedType.id}/edit/`, {
+      const response = await fetch(`/api/types-demande/${selectedType.id}/edit/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ export default function AdminTypesDemande() {
     
     if (window.confirm(`Supprimer le type "${libelle}" ?`)) {
       try {
-        const response = await fetch(`http://localhost:8000/api/types-demande/${id}/delete/`, {
+        const response = await fetch(`/api/types-demande/${id}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {

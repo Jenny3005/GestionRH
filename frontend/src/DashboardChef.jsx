@@ -32,7 +32,7 @@ export default function DashboardChef() {
     setError('');
     try {
       // Récupérer toutes les demandes de la direction (sans filtre statut)
-      const response = await fetch(`http://localhost:8000/api/conges/direction/${encodeURIComponent(matricule)}/`);
+      const response = await fetch(`/api/conges/direction/${encodeURIComponent(matricule)}/`);
       const data = await response.json();
 
       if (response.ok && Array.isArray(data)) {
@@ -85,7 +85,7 @@ export default function DashboardChef() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/${demandeId}/valider/`, {
+      const response = await fetch(`/api/conges/${demandeId}/valider/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

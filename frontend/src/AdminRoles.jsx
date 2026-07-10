@@ -80,7 +80,7 @@ export default function AdminRoles() {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
         setRoles(data);
@@ -94,7 +94,7 @@ export default function AdminRoles() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -127,7 +127,7 @@ export default function AdminRoles() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/roles/add/', {
+      const response = await fetch('/api/roles/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ libelle: formData.libelle.toLowerCase() })
@@ -155,7 +155,7 @@ export default function AdminRoles() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentMatricule}/role/update/`, {
+      const response = await fetch(`/api/agents/${agentMatricule}/role/update/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role_id: selectedRole.id })
@@ -201,7 +201,7 @@ export default function AdminRoles() {
     
     if (window.confirm(`Supprimer le rôle "${roleLibelle}" ?`)) {
       try {
-        const response = await fetch(`http://localhost:8000/api/roles/${roleId}/delete/`, {
+        const response = await fetch(`/api/roles/${roleId}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {

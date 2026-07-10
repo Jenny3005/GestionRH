@@ -68,7 +68,7 @@ export default function AdminAgents() {
   const fetchAgents = async () => {
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -83,7 +83,7 @@ export default function AdminAgents() {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
         setRoles(data);
@@ -134,7 +134,7 @@ export default function AdminAgents() {
 
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/register/', {
+      const response = await fetch('/api/register/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,7 +158,7 @@ export default function AdminAgents() {
 
       if (response.ok) {
         if (formData.role_id !== '1') {
-          await fetch(`http://localhost:8000/api/agents/${data.id}/role/add/`, {
+          await fetch(`/api/agents/${data.id}/role/add/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role_id: formData.role_id })
@@ -193,13 +193,13 @@ export default function AdminAgents() {
     
     try {
       if (isChecked) {
-        await fetch(`http://localhost:8000/api/agents/${agentId}/role/add/`, {
+        await fetch(`/api/agents/${agentId}/role/add/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role_id: roleId })
         });
       } else {
-        await fetch(`http://localhost:8000/api/agents/${agentId}/role/remove/`, {
+        await fetch(`/api/agents/${agentId}/role/remove/`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role_id: roleId })
@@ -457,7 +457,7 @@ export default function AdminAgents() {
           return;
         }
         
-        const response = await fetch('http://localhost:8000/api/import-agents/', {
+        const response = await fetch('/api/import-agents/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agents: agentsToImport })

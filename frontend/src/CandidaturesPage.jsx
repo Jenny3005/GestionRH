@@ -21,7 +21,7 @@ export default function CandidaturesPage() {
   const fetchCandidatures = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/candidatures/?matricule=${matricule}`);
+      const response = await fetch(`/api/candidatures/?matricule=${matricule}`);
       if (response.ok) {
         const data = await response.json();
         setCandidatures(data);
@@ -38,7 +38,7 @@ export default function CandidaturesPage() {
       <header className="intranet-navbar">
         <a href="/" className="logo-nav-link">
           <img 
-            src="/logo_MND.png" 
+            src="/static/logo_MND.png" 
             alt="Logo Ministère du Numérique et de la Digitalisation" 
             className="mnd-official-logo" 
           />
@@ -111,7 +111,7 @@ export default function CandidaturesPage() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">
