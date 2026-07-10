@@ -83,12 +83,16 @@ export default function Auth({ onLogin }) {
           } else {
             const errorMessage = data.error || 'Erreur de connexion';
             
-            if (errorMessage.toLowerCase().includes('matricule') || errorMessage.toLowerCase().includes('incorrect')) {
+            if (errorMessage.toLowerCase().includes('matricule')) {
+              // Erreur spécifique au matricule
               setFormData(prev => ({ ...prev, matricule: '' }));
               setErrors({ matricule: errorMessage });
-            } else if (errorMessage.toLowerCase().includes('mot de passe') || errorMessage.toLowerCase().includes('password')) {
-              setFormData(prev => ({ ...prev, password: '' }));
-              setErrors({ password: errorMessage });
+            } else if (errorMessage.toLowerCase().includes('mot de passe') || 
+                errorMessage.toLowerCase().includes('password') ||
+                errorMessage.toLowerCase().includes('incorrect')) {
+                // Erreur de mot de passe (y compris "incorrect")
+                setFormData(prev => ({ ...prev, password: '' }));
+                setErrors({ password: errorMessage });
             } else {
               setErrors({ general: errorMessage });
             }

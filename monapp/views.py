@@ -5,9 +5,6 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import sys
-if sys.platform == 'win32':
-    import pythoncom
 from django.views.decorators.http import require_http_methods
 from django.db import connection
 from django.db import models
