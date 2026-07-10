@@ -580,6 +580,7 @@ def import_agents(request):
         
         for agent_data in agents_data:
             try:
+                # Vérifier les doublons
                 if Agent.objects.filter(matricule=agent_data.get('matricule')).exists():
                     error_count += 1
                     errors.append(f"{agent_data.get('matricule')}: Matricule existe déjà")
@@ -590,6 +591,7 @@ def import_agents(request):
                     errors.append(f"{agent_data.get('matricule')}: Email existe déjà")
                     continue
                 
+                # Gérer la date de prise de service
                 date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
                 if isinstance(date_prise_service, str):
                     try:
@@ -597,6 +599,7 @@ def import_agents(request):
                     except ValueError:
                         date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
                 
+                # Gérer la date de naissance
                 date_naissance = agent_data.get('date_naissance')
                 if date_naissance and isinstance(date_naissance, str):
                     try:
@@ -609,6 +612,7 @@ def import_agents(request):
                 else:
                     date_naissance = None
                 
+                # Créer l'agent
                 agent = Agent.objects.create(
                     matricule=agent_data.get('matricule'),
                     nom=agent_data.get('nom'),
@@ -627,19 +631,25 @@ def import_agents(request):
                 )
                 print(f"✅ Agent créé: {agent.matricule} - {agent.nom} {agent.prenom}")
                 
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
-                        [agent.matricule, role_agent.id]
-                    )
+                # Ajouter le rôle 'agent'
+                AgentRole.objects.get_or_create(
+                    agent=agent,
+                    role=role_agent,
+                    defaults={'date_attribution': date.today()}
+                )
                 
-                # ✅ AJOUTE CETTE LIGNE POUR ENVOYER L'EMAIL
-                try:
-                    envoyer_email_activation(agent)
-                    print(f"📧 Email d'activation envoyé à {agent.email}")
-                except Exception as email_error:
-                    print(f"⚠️ Erreur envoi email à {agent.email}: {email_error}")
-                    # Ne pas bloquer l'import si l'email échoue
+                # ✅ ENVOI D'EMAIL EN ARRIÈRE-PLAN (asynchrone)
+                if agent.email and '@' in agent.email:
+                    import threading
+                    thread = threading.Thread(
+                        target=envoyer_email_activation_async,
+                        args=(agent,)
+                    )
+                    thread.daemon = True
+                    thread.start()
+                    print(f"📧 Email en cours d'envoi pour {agent.email}")
+                else:
+                    print(f"⚠️ Email invalide pour {agent.matricule}: {agent.email}")
                 
                 success_count += 1
                 
@@ -656,9 +666,10 @@ def import_agents(request):
         })
         
     except Exception as e:
-        print(f"Erreur import_agents: {str(e)}")
+        print(f"❌ Erreur générale dans import_agents: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
-
 
 # ==================== GESTION DES RÔLES ====================
 
