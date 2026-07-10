@@ -35,6 +35,7 @@ from .emails import (
     envoyer_email_rappel_avancement,
     envoyer_email_avancement_effectue,
     envoyer_email_avancement_agent, 
+    envoyer_email_activation_async,
 )
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,EnfantAgent,Validation,
