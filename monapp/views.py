@@ -633,7 +633,7 @@ def import_agents(request):
                         [agent.matricule, role_agent.id]
                     )
                 
-                # ✅ AJOUTE CETTE LIGNE POUR ENVOYER L'EMAIL
+                # ✅ AJOUTE CETTE LIGNE : Envoi de l'email d'activation
                 try:
                     envoyer_email_activation(agent)
                     print(f"📧 Email d'activation envoyé à {agent.email}")
