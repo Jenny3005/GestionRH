@@ -1,5 +1,5 @@
 # backend/emails.py
-from django.core.mail import send_mail
+from django.core.mail import get_connection, send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
@@ -7,6 +7,17 @@ from datetime import date
 import threading
 import random
 import time
+
+
+def resolve_email_backend():
+    """Choisit le backend SMTP si les identifiants sont disponibles, sinon le backend console."""
+    host_user = (getattr(settings, 'EMAIL_HOST_USER', '') or '').strip()
+    host_password = (getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip()
+
+    if host_user and host_password:
+        return getattr(settings, 'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+
+    return 'django.core.mail.backends.console.EmailBackend'
 
 
 def _envoyer_email(sujet, template, context, destinataire):
@@ -20,6 +31,8 @@ def _envoyer_email(sujet, template, context, destinataire):
     try:
         html_message = render_to_string(template, context)
         plain_message = strip_tags(html_message)
+        backend = resolve_email_backend()
+        connection = get_connection(backend=backend)
 
         send_mail(
             subject=sujet,
@@ -28,6 +41,7 @@ def _envoyer_email(sujet, template, context, destinataire):
             recipient_list=[destinataire],
             html_message=html_message,
             fail_silently=False,
+            connection=connection,
         )
         return True, None
 
