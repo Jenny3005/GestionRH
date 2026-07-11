@@ -20,6 +20,7 @@ from django.utils import timezone
 import io
 import os
 import random
+import socket
 import string
 import subprocess
 import tempfile
@@ -567,6 +568,44 @@ def get_stats(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def smtp_test(request):
+    """Test simple de connexion au serveur SMTP configuré."""
+    try:
+        host = getattr(settings, 'EMAIL_HOST', '')
+        port = getattr(settings, 'EMAIL_PORT', 0)
+        timeout = int(getattr(settings, 'EMAIL_TIMEOUT', 20))
+
+        if not host or not port:
+            return JsonResponse({
+                'success': False,
+                'error': 'EMAIL_HOST ou EMAIL_PORT non configuré dans les variables d\'environnement.'
+            }, status=500)
+
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Connexion TCP au serveur SMTP réussie.',
+                    'host': host,
+                    'port': port,
+                    'timeout': timeout,
+                    'backend': getattr(settings, 'EMAIL_BACKEND', ''),
+                })
+        except Exception as exc:
+            return JsonResponse({
+                'success': False,
+                'error': str(exc),
+                'host': host,
+                'port': port,
+                'timeout': timeout,
+                'backend': getattr(settings, 'EMAIL_BACKEND', ''),
+            }, status=500)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @csrf_exempt
