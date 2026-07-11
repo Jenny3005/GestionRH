@@ -96,17 +96,17 @@ createRoot(document.getElementById('root')).render(
       {/* Pages protégées (vérifient la connexion à l'intérieur) */}
       <Route path="/demarches" element={<Demarches />} />
       <Route path="/documents" element={<Documents />} />
-      <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-      <Route path="/admin/agents" element={<AdminAgents />} />
-      <Route path="/admin/roles" element={<AdminRoles />} />
+      <Route path="/app-admin/dashboard" element={<DashboardAdmin />} />
+      <Route path="/app-admin/agents" element={<AdminAgents />} />
+      <Route path="/app-admin/roles" element={<AdminRoles />} />
       <Route path="/activate" element={<ActivateAccount />} />
       <Route path="/dashboard" element={<DashboardAgent />} />
       <Route path="/choose-role" element={<ChooseRole />} />
       <Route path="/profil" element={<Profil />} />
       <Route path="/chef/dashboard" element={<DashboardChef />} />
-      <Route path="/admin/types-demande" element={<AdminTypesDemande />} />
-      <Route path="/admin/types-piece" element={<AdminTypesPiece />} />
-      <Route path="/admin/permissions" element={<AdminPermissions />} />
+      <Route path="/app-admin/types-demande" element={<AdminTypesDemande />} />
+      <Route path="/app-admin/types-piece" element={<AdminTypesPiece />} />
+      <Route path="/app-admin/permissions" element={<AdminPermissions />} />
       <Route path="/secretaire/dashboard" element={<DashboardSecretaireDPAF />} />
       <Route path="/rh/dashboard" element={<DashboardRH />} />
       <Route path="/dpaf/dashboard" element={<DashboardDPAF />} />

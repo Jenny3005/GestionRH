@@ -27,7 +27,7 @@ export function normalizeRole(role) {
 
 export function getDashboardPath(role = localStorage.getItem('userRole')) {
   role = normalizeRole(role);
-  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'admin') return '/app-admin/dashboard';
   if (role === 'chef') return '/chef/dashboard';
   if (role === 'rh') return '/rh/dashboard';
   if (role === 'secretaire') return '/secretaire/dashboard';
