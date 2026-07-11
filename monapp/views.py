@@ -577,8 +577,8 @@ def smtp_test(request):
     try:
         host = getattr(settings, 'EMAIL_HOST', '')
         port = getattr(settings, 'EMAIL_PORT', 0)
-        # Utilise un timeout très court pour ne pas bloquer le worker
-        test_timeout = 5
+        # Augmente le timeout pour Brevo qui est plus lent
+        test_timeout = 15
 
         if not host or not port:
             return JsonResponse({
@@ -599,7 +599,7 @@ def smtp_test(request):
         except socket.timeout:
             return JsonResponse({
                 'success': False,
-                'error': f'Timeout after {test_timeout}s - SMTP server not responding quickly',
+                'error': f'Timeout after {test_timeout}s - SMTP server not responding. Vérifiez que EMAIL_HOST_PASSWORD est correct dans Render.',
                 'host': host,
                 'port': port,
             }, status=500)
