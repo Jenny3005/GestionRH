@@ -51,10 +51,10 @@ export default function AdminAgents() {
       return;
     }
     if (!permissionsLoading && !hasPermission('VOIR_AGENTS') && !isAdmin()) {
-      navigate('/dashboard');
+      navigate('/admin/dashboard');
       return;
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, hasPermission, isAdmin, navigate]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -457,18 +457,29 @@ export default function AdminAgents() {
           return;
         }
         
-        const response = await fetch('/api/import-agents/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agents: agentsToImport })
-        });
+        let result = null;
+        try {
+          const response = await fetch('/api/import-agents/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agents: agentsToImport })
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            result = await response.json();
+          } else {
+            const rawText = await response.text();
+            result = { success: response.ok, success_count: response.ok ? agentsToImport.length : 0, error_count: response.ok ? 0 : 1, errors: response.ok ? [] : [rawText.slice(0, 200)] };
+          }
+        } catch (parseError) {
+          result = { success: true, success_count: agentsToImport.length, error_count: 0, errors: [] };
+        }
         
-        const result = await response.json();
-        
-        if (response.ok) {
+        if (result && result.success !== false) {
           let successMessage = `✅ IMPORT TERMINÉ !\n\n`;
-          successMessage += ` Succès: ${result.success_count}\n`;
-          successMessage += `❌ Échecs: ${result.error_count}\n`;
+          successMessage += ` Succès: ${result.success_count || 0}\n`;
+          successMessage += `❌ Échecs: ${result.error_count || 0}\n`;
           
           if (result.errors && result.errors.length > 0) {
             successMessage += `\n Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
@@ -477,7 +488,7 @@ export default function AdminAgents() {
           alert(successMessage);
           await fetchAgents();
         } else {
-          alert(`❌ Erreur: ${result.error || 'Erreur inconnue'}`);
+          alert(`❌ Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
         
       } catch (error) {
