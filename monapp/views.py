@@ -639,16 +639,16 @@ def import_agents(request):
                     defaults={'date_attribution': date.today()}
                 )
                 
-                # ✅ ENVOI D'EMAIL EN ARRIÈRE-PLAN (asynchrone)
+                # Envoi d'email direct pour éviter de saturer le worker Gunicorn
                 if agent.email and '@' in agent.email:
-                    import threading
-                    thread = threading.Thread(
-                        target=envoyer_email_activation_async,
-                        args=(agent,)
-                    )
-                    thread.daemon = True
-                    thread.start()
-                    print(f"📧 Email en cours d'envoi pour {agent.email}")
+                    try:
+                        success, error = envoyer_email_activation(agent)
+                        if success:
+                            print(f"📧 Email envoyé à {agent.email}")
+                        else:
+                            print(f"⚠️ Email non envoyé à {agent.email}: {error}")
+                    except Exception as exc:
+                        print(f"⚠️ Erreur lors de l'envoi de l'email à {agent.email}: {exc}")
                 else:
                     print(f"⚠️ Email invalide pour {agent.matricule}: {agent.email}")
                 
