@@ -577,8 +577,8 @@ def smtp_test(request):
     try:
         host = getattr(settings, 'EMAIL_HOST', '')
         port = getattr(settings, 'EMAIL_PORT', 0)
-        # Augmente le timeout pour Brevo qui est plus lent
-        test_timeout = 15
+        # Max 3 secondes pour ne pas bloquer le worker Gunicorn
+        test_timeout = 3
 
         if not host or not port:
             return JsonResponse({
@@ -587,19 +587,20 @@ def smtp_test(request):
             }, status=500)
 
         try:
-            with socket.create_connection((host, port), timeout=test_timeout):
-                return JsonResponse({
-                    'success': True,
-                    'message': 'Connexion TCP au serveur SMTP réussie.',
-                    'host': host,
-                    'port': port,
-                    'timeout': test_timeout,
-                    'backend': getattr(settings, 'EMAIL_BACKEND', ''),
-                })
-        except socket.timeout:
+            sock = socket.create_connection((host, port), timeout=test_timeout)
+            sock.close()
+            return JsonResponse({
+                'success': True,
+                'message': 'Connexion TCP au serveur SMTP réussie.',
+                'host': host,
+                'port': port,
+                'timeout': test_timeout,
+                'backend': getattr(settings, 'EMAIL_BACKEND', ''),
+            })
+        except (socket.timeout, TimeoutError):
             return JsonResponse({
                 'success': False,
-                'error': f'Timeout after {test_timeout}s - SMTP server not responding. Vérifiez que EMAIL_HOST_PASSWORD est correct dans Render.',
+                'error': f'Timeout after {test_timeout}s - Serveur SMTP ne répond pas. Vérifiez EMAIL_HOST, EMAIL_PORT et les credentiels.',
                 'host': host,
                 'port': port,
             }, status=500)
