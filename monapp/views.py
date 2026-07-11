@@ -625,26 +625,36 @@ def import_agents(request):
         errors = []
 
         role_agent, _ = Role.objects.get_or_create(libelle='agent')
-        batch_size = 50
+        batch_size = 20
+
+        # Collecte initiale des doublons pour éviter des requêtes DB répétées pendant l'import.
+        existing_matricules = set(
+            Agent.objects.values_list('matricule', flat=True).filter(matricule__isnull=False)
+        )
+        existing_emails = set(
+            Agent.objects.values_list('email', flat=True).filter(email__isnull=False)
+        )
 
         for start in range(0, len(agents_data), batch_size):
             batch = agents_data[start:start + batch_size]
+            created_agents = []
+
             for agent_data in batch:
                 try:
-                    matricule = agent_data.get('matricule')
-                    email = agent_data.get('email')
+                    matricule = normalize_matricule(agent_data.get('matricule'))
+                    email = (agent_data.get('email') or '').strip().lower()
 
                     if not matricule or not email:
                         error_count += 1
                         errors.append(f"{matricule or '?'}: Matricule ou email manquant")
                         continue
 
-                    if Agent.objects.filter(matricule=matricule).exists():
+                    if matricule in existing_matricules:
                         error_count += 1
                         errors.append(f"{matricule}: Matricule existe déjà")
                         continue
 
-                    if Agent.objects.filter(email=email).exists():
+                    if email in existing_emails:
                         error_count += 1
                         errors.append(f"{matricule}: Email existe déjà")
                         continue
@@ -668,37 +678,48 @@ def import_agents(request):
                     else:
                         date_naissance = None
 
-                    agent = Agent.objects.create(
+                    agent = Agent(
                         matricule=matricule,
-                        nom=agent_data.get('nom', ''),
-                        prenom=agent_data.get('prenom', ''),
+                        nom=(agent_data.get('nom') or '').strip(),
+                        prenom=(agent_data.get('prenom') or '').strip(),
                         email=email,
-                        telephone=agent_data.get('telephone', ''),
-                        adresse=agent_data.get('adresse', 'À renseigner'),
-                        direction=agent_data.get('direction', 'À renseigner'),
-                        typecontrat=agent_data.get('typecontrat', 'APE'),
-                        poste=agent_data.get('poste', 'Agent'),
+                        telephone=(agent_data.get('telephone') or '').strip(),
+                        adresse=(agent_data.get('adresse') or 'À renseigner').strip() or 'À renseigner',
+                        direction=(agent_data.get('direction') or 'À renseigner').strip() or 'À renseigner',
+                        typecontrat=(agent_data.get('typecontrat') or 'APE').strip() or 'APE',
+                        poste=(agent_data.get('poste') or 'Agent').strip() or 'Agent',
                         date_prise_service=date_prise_service,
                         date_naissance=date_naissance,
-                        corps=agent_data.get('corps', ''),
-                        echelon=agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '',
-                        actif=0
+                        corps=(agent_data.get('corps') or '').strip(),
+                        echelon=(agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '').strip(),
+                        actif=0,
                     )
-
-                    AgentRole.objects.get_or_create(
-                        agent=agent,
-                        role=role_agent,
-                        defaults={'date_attribution': date.today()}
-                    )
-
-                    success_count += 1
-
+                    created_agents.append(agent)
+                    existing_matricules.add(matricule)
+                    existing_emails.add(email)
                 except Exception as e:
                     error_count += 1
                     errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
                     print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
 
-            # Libérer un peu de mémoire et éviter la saturation sur Render
+            if created_agents:
+                created_agents_db = Agent.objects.bulk_create(created_agents, batch_size=20)
+
+                agent_role_rows = [
+                    AgentRole(agent=agent_db, role=role_agent, date_attribution=date.today())
+                    for agent_db in created_agents_db
+                ]
+                AgentRole.objects.bulk_create(agent_role_rows, batch_size=20)
+
+                success_count += len(created_agents_db)
+
+                # Envoi non bloquant des emails d'activation.
+                for agent_db in created_agents_db:
+                    try:
+                        email_executor.submit(envoyer_email_activation, agent_db)
+                    except Exception as email_error:
+                        print(f"⚠️ Échec planification email activation {agent_db.email}: {email_error}")
+
             connection.close()
 
         return JsonResponse({
