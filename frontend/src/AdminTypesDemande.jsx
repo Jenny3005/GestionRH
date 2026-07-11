@@ -40,7 +40,7 @@ export default function AdminTypesDemande() {
       navigate('/admin/dashboard');
       return;
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, hasPermission, isAdmin, navigate]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {

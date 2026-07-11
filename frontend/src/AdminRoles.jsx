@@ -41,7 +41,7 @@ export default function AdminRoles() {
       navigate('/admin/dashboard');
       return;
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, hasPermission, isAdmin, navigate]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {

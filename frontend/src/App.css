@@ -181,7 +181,7 @@ body {
       rgba(11, 25, 44, 0.94) 0%, 
       rgba(21, 41, 66, 0.88) 100%
     ),
-    url('/unsplash3.avif') no-repeat center/cover;
+    url('/static/unsplash3.avif') no-repeat center/cover;
   
   color: white;
   padding: 130px 25px; 
@@ -868,7 +868,7 @@ body {
       rgba(11, 25, 44, 0.94) 0%, 
       rgba(21, 41, 66, 0.88) 100%
     ),
-    url('/unsplash3.avif') no-repeat center/cover;
+    url('/static/unsplash3.avif') no-repeat center/cover;
   
   color: white;
   padding: 8.5rem 2.5rem; 

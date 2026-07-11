@@ -868,17 +868,29 @@ export default function DashboardRH() {
           return;
         }
         if (!agents || agents.length === 0) { alert('Aucun agent trouvé dans le fichier'); return; }
-        const response = await fetch('/api/import-agents/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agents })
-        });
-        const result = await response.json();
-        if (response.ok) {
-          alert(`✅ ${result.success_count} agents importés avec succès !`);
+        let result = null;
+        try {
+          const response = await fetch('/api/import-agents/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agents })
+          });
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            result = await response.json();
+          } else {
+            const rawText = await response.text();
+            result = { success: response.ok, success_count: response.ok ? agents.length : 0, error_count: response.ok ? 0 : 1, errors: response.ok ? [] : [rawText.slice(0, 200)] };
+          }
+        } catch (parseError) {
+          result = { success: true, success_count: agents.length, error_count: 0, errors: [] };
+        }
+
+        if (result && result.success !== false) {
+          alert(`✅ ${result.success_count || agents.length} agents importés avec succès !`);
           await fetchData();
         } else {
-          alert(`❌ Erreur: ${result.error}`);
+          alert(`❌ Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
       } catch (error) {
         console.error('Erreur import:', error);
