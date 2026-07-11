@@ -573,45 +573,30 @@ def get_stats(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def smtp_test(request):
-    """Test simple de connexion au serveur SMTP configuré."""
+    """Vérifie que les variables d'env pour email sont configurées (sans tester connexion réseau)."""
     try:
-        host = getattr(settings, 'EMAIL_HOST', '')
-        port = getattr(settings, 'EMAIL_PORT', 0)
-        # Max 3 secondes pour ne pas bloquer le worker Gunicorn
-        test_timeout = 3
-
-        if not host or not port:
+        # Vérifie juste la présence des env vars, pas de connexion socket
+        sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', '')
+        default_from = getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+        
+        if not sendgrid_key:
             return JsonResponse({
                 'success': False,
-                'error': 'EMAIL_HOST ou EMAIL_PORT non configuré dans les variables d\'environnement.'
+                'error': 'SENDGRID_API_KEY non configuré dans les variables d\'environnement.'
             }, status=500)
-
-        try:
-            sock = socket.create_connection((host, port), timeout=test_timeout)
-            sock.close()
-            return JsonResponse({
-                'success': True,
-                'message': 'Connexion TCP au serveur SMTP réussie.',
-                'host': host,
-                'port': port,
-                'timeout': test_timeout,
-                'backend': getattr(settings, 'EMAIL_BACKEND', ''),
-            })
-        except (socket.timeout, TimeoutError):
+        
+        if not default_from:
             return JsonResponse({
                 'success': False,
-                'error': f'Timeout after {test_timeout}s - Serveur SMTP ne répond pas. Vérifiez EMAIL_HOST, EMAIL_PORT et les credentiels.',
-                'host': host,
-                'port': port,
+                'error': 'DEFAULT_FROM_EMAIL non configuré.'
             }, status=500)
-        except Exception as exc:
-            return JsonResponse({
-                'success': False,
-                'error': str(exc),
-                'host': host,
-                'port': port,
-                'backend': getattr(settings, 'EMAIL_BACKEND', ''),
-            }, status=500)
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Configuration email valide (utilise SendGrid API).',
+            'default_from': default_from,
+            'sendgrid_configured': bool(sendgrid_key),
+        })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
