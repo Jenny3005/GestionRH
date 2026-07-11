@@ -30,6 +30,9 @@ from datetime import datetime, date, timedelta
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
+# Limite le nombre de threads d'envoi d'emails pour ne pas saturer les workers.
+email_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix='email-sender')
+
 from .emails import (
     envoyer_email_activation,
     envoyer_email_rappel_avancement,
@@ -642,11 +645,7 @@ def import_agents(request):
                 # Envoi d'email en arrière-plan pour ne pas bloquer l'import massif
                 if agent.email and '@' in agent.email:
                     try:
-                        threading.Thread(
-                            target=envoyer_email_activation,
-                            args=(agent,),
-                            daemon=True
-                        ).start()
+                        email_executor.submit(envoyer_email_activation, agent)
                         print(f"📧 Email d'activation en arrière-plan pour {agent.email}")
                     except Exception as exc:
                         print(f"⚠️ Erreur lors du démarrage du thread d'email pour {agent.email}: {exc}")
