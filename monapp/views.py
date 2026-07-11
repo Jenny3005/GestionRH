@@ -308,15 +308,13 @@ def register(request):
         except Exception as e:
             print(f"⚠️ Erreur calcul avancements pour {agent.matricule}: {e}")
 
-        activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
         envoyer_email_activation(agent)
         
         return JsonResponse({
             'success': True,
             'message': 'Agent ajouté avec succès',
             'id': agent.matricule,
-            'matricule': agent.matricule,
-            'activation_link': activation_link
+            'matricule': agent.matricule
         })
         
     except json.JSONDecodeError as e:
