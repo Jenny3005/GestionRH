@@ -25,6 +25,7 @@ class SendGridEmailBackend(BaseEmailBackend):
     def send_messages(self, email_messages):
         """Envoie une liste de messages via l'API SendGrid."""
         if not self.api_key:
+            logger.error('SENDGRID_API_KEY non configurée, impossible d\'envoyer les emails via SendGrid')
             if not self.fail_silently:
                 raise ValueError("SENDGRID_API_KEY non configurée")
             return 0

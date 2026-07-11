@@ -150,6 +150,8 @@ if SENDGRID_API_KEY:
     EMAIL_BACKEND = 'monapp.email_backend.SendGridEmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    if os.environ.get('RENDER'):
+        print('⚠️ SENDGRID_API_KEY absent, les emails seront envoyés vers la console sur Render')
 
 # Configuration SMTP legacy (gardée pour compatibilité mais inutilisée avec SendGrid)
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.sendgrid.net')
