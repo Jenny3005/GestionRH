@@ -37,6 +37,7 @@ pytesseract==0.3.13
 python-bidi==0.6.11
 python-docx==1.2.0
 PyYAML==6.0.3
+requests==2.31.0
 scikit-image==0.26.0
 scipy==1.18.0
 setuptools==83.0.0
