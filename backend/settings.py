@@ -56,8 +56,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← AJOUTE CETTE LIGNE ICI
-    'monapp.middleware.IgnoreBadRequestsMiddleware',   # ← AJOUTE ICI
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'monapp.middleware.IgnoreBadRequestsMiddleware',
+    'monapp.middleware.SecurityHeadersMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -176,6 +177,13 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 CSRF_TRUSTED_ORIGINS = [
     'https://gestionrh-gnxw.onrender.com',
     'http://localhost:8000',
