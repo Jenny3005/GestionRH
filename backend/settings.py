@@ -159,7 +159,7 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@gestionrh.com').strip() or 'noreply@gestionrh.com'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'jennyhoundon@gmail.com').strip() or 'jennyhoundon@gmail.com'
 
 # URL du frontend (utilisée pour les liens d'activation par email)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://gestionrh-gnxw.onrender.com')
@@ -183,6 +183,14 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
+
+# Session configuration - persiste les sessions admin correctement
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Utilise la base de données pour les sessions
+SESSION_COOKIE_AGE = 86400 * 30  # 30 jours
+SESSION_COOKIE_SECURE = True  # HTTPS only en production
+SESSION_COOKIE_HTTPONLY = True  # Pas accessible via JS
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Persiste après fermeture
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
