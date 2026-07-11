@@ -577,7 +577,8 @@ def smtp_test(request):
     try:
         host = getattr(settings, 'EMAIL_HOST', '')
         port = getattr(settings, 'EMAIL_PORT', 0)
-        timeout = int(getattr(settings, 'EMAIL_TIMEOUT', 20))
+        # Utilise un timeout très court pour ne pas bloquer le worker
+        test_timeout = 5
 
         if not host or not port:
             return JsonResponse({
@@ -586,22 +587,28 @@ def smtp_test(request):
             }, status=500)
 
         try:
-            with socket.create_connection((host, port), timeout=timeout):
+            with socket.create_connection((host, port), timeout=test_timeout):
                 return JsonResponse({
                     'success': True,
                     'message': 'Connexion TCP au serveur SMTP réussie.',
                     'host': host,
                     'port': port,
-                    'timeout': timeout,
+                    'timeout': test_timeout,
                     'backend': getattr(settings, 'EMAIL_BACKEND', ''),
                 })
+        except socket.timeout:
+            return JsonResponse({
+                'success': False,
+                'error': f'Timeout after {test_timeout}s - SMTP server not responding quickly',
+                'host': host,
+                'port': port,
+            }, status=500)
         except Exception as exc:
             return JsonResponse({
                 'success': False,
                 'error': str(exc),
                 'host': host,
                 'port': port,
-                'timeout': timeout,
                 'backend': getattr(settings, 'EMAIL_BACKEND', ''),
             }, status=500)
     except Exception as e:
