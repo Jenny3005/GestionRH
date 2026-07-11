@@ -27,6 +27,17 @@ import tempfile
 import concurrent.futures
 import ollama
 from datetime import datetime, date, timedelta
+
+
+def normalize_matricule(value):
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        value = value.strip()
+        if not value or value.lower() in {'null', 'undefined', 'none'}:
+            return ''
+        return value
+    return str(value).strip()
 # En haut du fichier, ajoute :
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -605,97 +616,98 @@ def import_agents(request):
     try:
         data = json.loads(request.body)
         agents_data = data.get('agents', [])
-        
+
+        if not isinstance(agents_data, list):
+            return JsonResponse({'error': 'Format invalide'}, status=400)
+
         success_count = 0
         error_count = 0
         errors = []
-        
+
         role_agent, _ = Role.objects.get_or_create(libelle='agent')
-        
-        for agent_data in agents_data:
-            try:
-                # Vérifier les doublons
-                if Agent.objects.filter(matricule=agent_data.get('matricule')).exists():
-                    error_count += 1
-                    errors.append(f"{agent_data.get('matricule')}: Matricule existe déjà")
-                    continue
-                
-                if Agent.objects.filter(email=agent_data.get('email')).exists():
-                    error_count += 1
-                    errors.append(f"{agent_data.get('matricule')}: Email existe déjà")
-                    continue
-                
-                # Gérer la date de prise de service
-                date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
-                if isinstance(date_prise_service, str):
-                    try:
-                        date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
-                    except ValueError:
-                        date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
-                
-                # Gérer la date de naissance
-                date_naissance = agent_data.get('date_naissance')
-                if date_naissance and isinstance(date_naissance, str):
-                    try:
-                        if '/' in date_naissance:
-                            date_naissance = datetime.strptime(date_naissance, '%d/%m/%Y').date()
-                        else:
-                            date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
-                    except ValueError:
+        batch_size = 50
+
+        for start in range(0, len(agents_data), batch_size):
+            batch = agents_data[start:start + batch_size]
+            for agent_data in batch:
+                try:
+                    matricule = agent_data.get('matricule')
+                    email = agent_data.get('email')
+
+                    if not matricule or not email:
+                        error_count += 1
+                        errors.append(f"{matricule or '?'}: Matricule ou email manquant")
+                        continue
+
+                    if Agent.objects.filter(matricule=matricule).exists():
+                        error_count += 1
+                        errors.append(f"{matricule}: Matricule existe déjà")
+                        continue
+
+                    if Agent.objects.filter(email=email).exists():
+                        error_count += 1
+                        errors.append(f"{matricule}: Email existe déjà")
+                        continue
+
+                    date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
+                    if isinstance(date_prise_service, str):
+                        try:
+                            date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
+                        except ValueError:
+                            date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
+
+                    date_naissance = agent_data.get('date_naissance')
+                    if date_naissance and isinstance(date_naissance, str):
+                        try:
+                            if '/' in date_naissance:
+                                date_naissance = datetime.strptime(date_naissance, '%d/%m/%Y').date()
+                            else:
+                                date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
+                        except ValueError:
+                            date_naissance = None
+                    else:
                         date_naissance = None
-                else:
-                    date_naissance = None
-                
-                # Créer l'agent
-                agent = Agent.objects.create(
-                    matricule=agent_data.get('matricule'),
-                    nom=agent_data.get('nom'),
-                    prenom=agent_data.get('prenom'),
-                    email=agent_data.get('email'),
-                    telephone=agent_data.get('telephone', ''),
-                    adresse=agent_data.get('adresse', 'À renseigner'),
-                    direction=agent_data.get('direction', 'À renseigner'),
-                    typecontrat=agent_data.get('typecontrat', 'APE'),
-                    poste=agent_data.get('poste', 'Agent'),
-                    date_prise_service=date_prise_service,
-                    date_naissance=date_naissance,
-                    corps=agent_data.get('corps', ''),
-                    echelon=agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '',
-                    actif=0
-                )
-                print(f"✅ Agent créé: {agent.matricule} - {agent.nom} {agent.prenom}")
-                
-                # Ajouter le rôle 'agent'
-                AgentRole.objects.get_or_create(
-                    agent=agent,
-                    role=role_agent,
-                    defaults={'date_attribution': date.today()}
-                )
-                
-                # Envoi d'email en arrière-plan pour ne pas bloquer l'import massif
-                if agent.email and '@' in agent.email:
-                    try:
-                        email_executor.submit(envoyer_email_activation, agent)
-                        print(f"📧 Email d'activation en arrière-plan pour {agent.email}")
-                    except Exception as exc:
-                        print(f"⚠️ Erreur lors du démarrage du thread d'email pour {agent.email}: {exc}")
-                else:
-                    print(f"⚠️ Email invalide pour {agent.matricule}: {agent.email}")
-                
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
-                print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
-        
+
+                    agent = Agent.objects.create(
+                        matricule=matricule,
+                        nom=agent_data.get('nom', ''),
+                        prenom=agent_data.get('prenom', ''),
+                        email=email,
+                        telephone=agent_data.get('telephone', ''),
+                        adresse=agent_data.get('adresse', 'À renseigner'),
+                        direction=agent_data.get('direction', 'À renseigner'),
+                        typecontrat=agent_data.get('typecontrat', 'APE'),
+                        poste=agent_data.get('poste', 'Agent'),
+                        date_prise_service=date_prise_service,
+                        date_naissance=date_naissance,
+                        corps=agent_data.get('corps', ''),
+                        echelon=agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '',
+                        actif=0
+                    )
+
+                    AgentRole.objects.get_or_create(
+                        agent=agent,
+                        role=role_agent,
+                        defaults={'date_attribution': date.today()}
+                    )
+
+                    success_count += 1
+
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
+                    print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
+
+            # Libérer un peu de mémoire et éviter la saturation sur Render
+            connection.close()
+
         return JsonResponse({
             'success': True,
             'success_count': success_count,
             'error_count': error_count,
             'errors': errors[:10]
         })
-        
+
     except Exception as e:
         print(f"❌ Erreur générale dans import_agents: {str(e)}")
         import traceback
@@ -1342,6 +1354,10 @@ def valider_demande_conge(request, demande_id):
 @require_http_methods(["GET"])
 def mes_demandes(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse([], safe=False)
+
         print("=" * 50)
         print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
         
@@ -1389,7 +1405,7 @@ def mes_demandes(request, matricule):
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        return JsonResponse([], safe=False)
     except Exception as e:
         print(f"❌ ERREUR: {str(e)}")
         import traceback
@@ -1401,6 +1417,15 @@ def mes_demandes(request, matricule):
 @require_http_methods(["GET"])
 def solde_conge(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse({
+                'annee': datetime.now().year,
+                'jours_acquis': 30,
+                'jours_pris': 0,
+                'jours_restants': 30
+            })
+
         agent = Agent.objects.get(matricule=matricule)
         annee_courante = datetime.now().year
         
@@ -1436,7 +1461,12 @@ def solde_conge(request, matricule):
         })
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse({
+            'annee': datetime.now().year,
+            'jours_acquis': 30,
+            'jours_pris': 0,
+            'jours_restants': 30
+        })
     except Exception as e:
         print(f"Erreur solde_conge: {str(e)}")
         import traceback
@@ -1727,27 +1757,31 @@ def toggle_role_permission(request):
 @require_http_methods(["GET"])
 def get_user_permissions(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
         print(f"=== get_user_permissions for: {matricule}")
-        
+
+        if not matricule:
+            return JsonResponse({'matricule': matricule, 'permissions': []})
+
         agent = Agent.objects.get(matricule=matricule)
         agent_roles = AgentRole.objects.filter(agent=agent).select_related('role')
-        
+
         permissions = []
         for ar in agent_roles:
             role_perms = RolePermission.objects.filter(role=ar.role).select_related('permission')
             for rp in role_perms:
                 permissions.append(rp.permission.code)
-        
+
         permissions = list(set(permissions))
         print(f"Permissions trouvées: {permissions}")
-        
+
         return JsonResponse({'matricule': matricule, 'permissions': permissions})
-        
+
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse({'matricule': normalize_matricule(matricule), 'permissions': []})
     except Exception as e:
         print(f"Erreur: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'matricule': normalize_matricule(matricule), 'permissions': []})
 
 
 # ==================== SECRÉTARIAT ====================
@@ -4802,10 +4836,13 @@ def calculer_nouvel_echelon(echelon_actuel):
 def peut_avancer(agent, date_prevue):
     if not agent.date_naissance:
         return True
-    type_echelon = get_type_echelon(agent.echelon or 'A1-1')
-    age_retraite = get_age_retraite(type_echelon)
-    date_retraite = agent.date_naissance.replace(year=agent.date_naissance.year + age_retraite)
-    return date_prevue < date_retraite
+    try:
+        type_echelon = get_type_echelon(agent.echelon or 'A1-1')
+        age_retraite = get_age_retraite(type_echelon)
+        date_retraite = agent.date_naissance.replace(year=agent.date_naissance.year + age_retraite)
+        return date_prevue < date_retraite
+    except Exception:
+        return True
 
 
 def actualiser_avancements():
@@ -4888,20 +4925,33 @@ def calculer_et_notifier():
 @csrf_exempt
 @require_http_methods(["GET"])
 def trigger_avancements(request):
-    calculer_et_notifier()
-    return JsonResponse({'success': True})
+    try:
+        calculer_et_notifier()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        print(f"ERREUR trigger_avancements: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_avancements_agent(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse([], safe=False)
+
         agent = Agent.objects.get(matricule=matricule)
         avancements = Avancement.objects.filter(agent=agent).order_by('-date_prevue')
         result = [{'id': a.id, 'date_prevue': str(a.date_prevue), 'date_effective': str(a.date_effective) if a.date_effective else None, 'type': a.type_avancement, 'echelon_ancien': a.echelon_ancien, 'echelon_nouveau': a.echelon_nouveau} for a in avancements]
         return JsonResponse(result, safe=False)
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse([], safe=False)
+    except Exception as e:
+        print(f"ERREUR get_avancements_agent: {str(e)}")
+        return JsonResponse([], safe=False)
 
 
 @csrf_exempt
