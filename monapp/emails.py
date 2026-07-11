@@ -32,7 +32,10 @@ def _envoyer_email(sujet, template, context, destinataire):
         html_message = render_to_string(template, context)
         plain_message = strip_tags(html_message)
         backend = resolve_email_backend()
-        connection = get_connection(backend=backend)
+        connection = get_connection(
+            backend=backend,
+            timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
+        )
 
         send_mail(
             subject=sujet,
