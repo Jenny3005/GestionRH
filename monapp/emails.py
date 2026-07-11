@@ -10,12 +10,16 @@ import time
 
 
 def resolve_email_backend():
-    """Choisit le backend SMTP si les identifiants sont disponibles, sinon le backend console."""
+    """Retourne le backend email configuré, en tenant compte de SendGrid et du SMTP legacy."""
+    configured_backend = (getattr(settings, 'EMAIL_BACKEND', '') or '').strip()
+    if configured_backend:
+        return configured_backend
+
     host_user = (getattr(settings, 'EMAIL_HOST_USER', '') or '').strip()
     host_password = (getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip()
 
     if host_user and host_password:
-        return getattr(settings, 'EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+        return 'django.core.mail.backends.smtp.EmailBackend'
 
     return 'django.core.mail.backends.console.EmailBackend'
 
