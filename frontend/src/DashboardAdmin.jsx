@@ -152,8 +152,8 @@ export default function DashboardAdmin() {
         <nav className="sidebar-nav">
           {/* Tableau de bord */}
           <button 
-            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
-            onClick={() => navigateTo('/admin/dashboard')}
+            className={`sidebar-item ${window.location.pathname === '/app-admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/app-admin/dashboard')}
           >
             <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
@@ -174,8 +174,8 @@ export default function DashboardAdmin() {
               <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/agents')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/agents')}
                   >
                     <span className="sidebar-icon"><Users size={16} /></span>
                     <span className="sidebar-label">Agents</span>
@@ -183,8 +183,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/roles')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/roles')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Rôles</span>
@@ -192,8 +192,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/permissions')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/permissions')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Permissions</span>
@@ -201,8 +201,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-demande')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-demande')}
                   >
                     <span className="sidebar-icon"><FileText size={16} /></span>
                     <span className="sidebar-label">Types de demande</span>
@@ -210,8 +210,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-piece')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-piece')}
                   >
                     <span className="sidebar-icon"><FilePlus2 size={16} /></span>
                     <span className="sidebar-label">Types de pièce</span>
@@ -263,7 +263,7 @@ export default function DashboardAdmin() {
           {/* BANDEAU HERO */}
           <section className="hero-banner-intranet">
             <div className="banner-content">
-              <h2>📊 Tableau de bord Administrateur</h2>
+              <h2> Tableau de bord Administrateur</h2>
               <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les types de demande depuis cet espace.</p>
             </div>
           </section>
@@ -384,22 +384,22 @@ export default function DashboardAdmin() {
             <h3>⚡ Actions rapides</h3>
             <div className="admin-actions-grid">
               <Can permission="VOIR_AGENTS">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/agents')}>
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/agents')}>
                   ➕ Gérer les agents
                 </button>
               </Can>
               <Can permission="GERER_ROLES">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/roles')}>
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/roles')}>
                   🎯 Gérer les rôles
                 </button>
               </Can>
               <Can permission="GERE_TYPE_DEMANDE">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/types-demande')}>
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-demande')}>
                   📝 Types de demande
                 </button>
               </Can>
               <Can permission="GERER_TYPES_PIECE">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/types-piece')}>
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-piece')}>
                   📄 Types de pièce
                 </button>
               </Can>
