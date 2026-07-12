@@ -223,8 +223,10 @@ export default function AdminRoles() {
     }
   };
 
+  const normalizeRoleString = (role) => String(role || '').trim().toLowerCase();
+
   const getRoleLabel = (role) => {
-    const normalized = String(role).toLowerCase();
+    const normalized = normalizeRoleString(role);
     const labels = {
       'admin': 'Administrateur',
       'rh': 'Ressources Humaines',
@@ -235,34 +237,46 @@ export default function AdminRoles() {
       'secretaire': 'Secrétaire DPAF',
       'rh/secretaire': 'RH / Secrétaire'
     };
-    return labels[normalized] || role;
+    return labels[normalized] || role || 'Rôle inconnu';
   };
 
   const getRoleBadgeClass = (role) => {
+    const normalized = normalizeRoleString(role);
     const classes = {
       'admin': 'role-badge admin',
       'rh': 'role-badge rh',
       'chef': 'role-badge chef',
-      'agent': 'role-badge agent'
+      'agent': 'role-badge agent',
+      'dpaf': 'role-badge dpaf',
+      'dapaf': 'role-badge dapaf',
+      'secretaire': 'role-badge secretaire',
+      'rh/secretaire': 'role-badge rh-secretaire'
     };
-    return classes[role] || 'role-badge custom';
+    return classes[normalized] || 'role-badge custom';
   };
 
   const getRoleIcon = () => '';
 
   const getRoleDescription = (role) => {
+    const normalized = normalizeRoleString(role);
     const descriptions = {
       'admin': 'Accès total à toutes les fonctionnalités',
       'rh': 'Gestion des agents, validation des demandes',
       'chef': 'Supervision équipe, validation des congés',
-      'agent': 'Accès à son espace personnel uniquement'
+      'agent': 'Accès à son espace personnel uniquement',
+      'dpaf': 'Assignment des demandes aux agents RH',
+      'dapaf': 'Assignment des demandes aux agents DPAF',
+      'secretaire': 'Accès des secrétaires DPAF',
+      'rh/secretaire': 'Gestion RH + Transmission au DPAF'
     };
-    return descriptions[role] || 'Rôle personnalisé créé par l\'administrateur';
+    return descriptions[normalized] || 'Rôle personnalisé créé par l\'administrateur';
   };
 
-  const filteredRoles = roles.filter(role =>
-    role.libelle.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRoles = roles.filter(role => {
+    const search = normalizeRoleString(searchTerm);
+    return normalizeRoleString(role.libelle).includes(search) ||
+      normalizeRoleString(getRoleLabel(role.libelle)).includes(search);
+  });
 
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
@@ -433,7 +447,9 @@ export default function AdminRoles() {
                   <div className="role-card-icon" aria-hidden="true"></div>
                   <div className="role-card-content">
                     <h3>{getRoleLabel(role.libelle)}</h3>
-                    <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
+                    <div className="role-card-meta">
+                      <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
+                    </div>
                     <p className="role-description">
                       {getRoleDescription(role.libelle)}
                     </p>
