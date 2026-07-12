@@ -870,28 +870,29 @@ export default function AdminAgents() {
                 [...new Map(roles.map(role => [role.id, role])).values()].map(role => {
                   const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
                                   (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
-                return (
-                  <label key={role.id} className="role-checkbox">
-                    <input 
-                      type="checkbox" 
-                      value={role.id} 
-                      defaultChecked={isChecked} 
-                      onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} 
-                    />
-                    <span className={`role-badge ${role.libelle}`}>
-                      {getRoleLabel(role.libelle)}
-                    </span>
-                    <span className="role-description">
-                      {role.libelle === 'admin' && ' Accès total à toutes les fonctionnalités'}
-                      {role.libelle === 'agent' && ' Soumission de demandes et suivi personnel'}
-                      {role.libelle === 'chef' && ' Validation des congés de son équipe'}
-                      {role.libelle === 'dpaf' && ' Assignment des demandes aux agents RH'}
-                      {role.libelle === 'rh' && ' Gestion des agents et des demandes'}
-                      {role.libelle === 'rh/secretaire' && ' Gestion RH + Transmission au DPAF'}
-                    </span>
-                  </label>
-                );
-              })}
+                  return (
+                    <label key={role.id} className="role-checkbox">
+                      <input 
+                        type="checkbox" 
+                        value={role.id} 
+                        defaultChecked={isChecked} 
+                        onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} 
+                      />
+                      <span className={`role-badge ${role.libelle}`}>
+                        {getRoleLabel(role.libelle)}
+                      </span>
+                      <span className="role-description">
+                        {role.libelle === 'admin' && ' Accès total à toutes les fonctionnalités'}
+                        {role.libelle === 'agent' && ' Soumission de demandes et suivi personnel'}
+                        {role.libelle === 'chef' && ' Validation des congés de son équipe'}
+                        {role.libelle === 'dpaf' && ' Assignment des demandes aux agents RH'}
+                        {role.libelle === 'rh' && ' Gestion des agents et des demandes'}
+                        {role.libelle === 'rh/secretaire' && ' Gestion RH + Transmission au DPAF'}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
             </div>
             <div className="modal-buttons"><button onClick={() => setShowRoleModal(false)}>Fermer</button></div>
           </div>
