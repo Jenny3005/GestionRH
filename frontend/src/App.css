@@ -181,7 +181,7 @@ body {
       rgba(11, 25, 44, 0.94) 0%, 
       rgba(21, 41, 66, 0.88) 100%
     ),
-    url('/unsplash3.avif') no-repeat center/cover;
+    url('/unsplash.jpg') no-repeat center/cover;
   
   color: white;
   padding: 130px 25px; 
@@ -827,7 +827,8 @@ body {
   }
   
   .mnd-official-logo {
-    height: 50px !important;
+    height: 70px !important;
+    max-width: 160px;
   }
 }
 /* BARRE DE COPYRIGHT TOUT EN BAS */
@@ -1465,7 +1466,7 @@ body {
       rgba(11, 25, 44, 0.94) 0%, 
       rgba(21, 41, 66, 0.88) 100%
     ),
-    url('/unsplash3.avif') no-repeat center/cover;
+    url('/unsplash2.jpg') no-repeat center/cover;
   
   color: white;
   padding: 5.5rem 2.5rem;
@@ -12684,7 +12685,7 @@ td span[style*="#D1FAE5"] {
 /* ===== BANDEAU HERO ===== */
 .hero-banner-intranet {
   background: linear-gradient(135deg, rgba(11, 25, 44, 0.94) 0%, rgba(21, 41, 66, 0.88) 100%),
-    url('/unsplash3.avif') no-repeat center/cover;
+    url('/unsplash.jpg') no-repeat center/cover;
   color: white;
   padding: 4rem 2rem;
   width: 100%;
