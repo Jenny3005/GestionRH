@@ -86,7 +86,9 @@ export default function AdminAgents() {
       const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
-        setRoles(data);
+        setRoles(Array.isArray(data) ? data.sort((a, b) => a.libelle.localeCompare(b.libelle)) : []);
+      } else {
+        console.error('Erreur roles:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Erreur roles:', error);
@@ -838,7 +840,11 @@ export default function AdminAgents() {
               <div className="form-row">
                 <div className="form-group"><label>Rôle initial</label>
                   <select name="role_id" value={formData.role_id} onChange={handleChange}>
-                    {roles.map(role => (<option key={role.id} value={role.id}>{getRoleLabel(role.libelle)}</option>))}
+                    {roles.length === 0 ? (
+                      <option value="1">Agent</option>
+                    ) : (
+                      roles.map(role => (<option key={role.id} value={role.id}>{getRoleLabel(role.libelle)}</option>))
+                    )}
                   </select>
                 </div>
               </div>
@@ -858,9 +864,12 @@ export default function AdminAgents() {
             <h3>Gérer les rôles de {selectedAgent.prenom} {selectedAgent.nom}</h3>
             <p className="modal-info">Un agent peut avoir plusieurs rôles (ex: Agent + Chef)</p>
             <div className="roles-checkboxes">
-              {[...new Map(roles.map(role => [role.id, role])).values()].map(role => {
-                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
-                                (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
+              {roles.length === 0 ? (
+                <p>Aucun rôle chargé. Rechargez la page ou vérifiez la configuration de l'API.</p>
+              ) : (
+                [...new Map(roles.map(role => [role.id, role])).values()].map(role => {
+                  const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
+                                  (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
                 return (
                   <label key={role.id} className="role-checkbox">
                     <input 
