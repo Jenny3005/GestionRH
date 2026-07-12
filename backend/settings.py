@@ -56,9 +56,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'monapp.middleware.IgnoreBadRequestsMiddleware',
-    'monapp.middleware.SecurityHeadersMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← AJOUTE CETTE LIGNE ICI
+    'monapp.middleware.IgnoreBadRequestsMiddleware',   # ← AJOUTE ICI
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -142,30 +141,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Configuration email - Utilise SendGrid API (HTTPS sur port 443, pas de SMTP bloqué)
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '').strip()
+# Configuration email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Pour Gmail
 
-# Backend email : utilise SendGrid API si clé présente, sinon console
-if SENDGRID_API_KEY:
-    EMAIL_BACKEND = 'monapp.email_backend.SendGridEmailBackend'
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    if os.environ.get('RENDER'):
-        print('⚠️ SENDGRID_API_KEY absent, les emails seront envoyés vers la console sur Render')
-
-# Configuration SMTP legacy (gardée pour compatibilité mais inutilisée avec SendGrid)
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.sendgrid.net')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true').lower() in {'1', 'true', 'yes', 'on'}
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() in {'1', 'true', 'yes', 'on'}
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'apikey').strip()
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
-
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'jennyhoundon@gmail.com').strip() or 'jennyhoundon@gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'jennyhoundon@gmail.com'  # Remplace par ton email
+EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
+DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
 
 # URL du frontend (utilisée pour les liens d'activation par email)
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://gestionrh-gnxw.onrender.com')
+FRONTEND_URL = 'https://gestionrh-gnxw.onrender.com'   # développement
+# FRONTEND_URL = 'https://votre-domaine.gouv.bj'  # production
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
@@ -179,13 +167,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
-X_FRAME_OPTIONS = 'SAMEORIGIN'
-SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 CSRF_TRUSTED_ORIGINS = [
     'https://gestionrh-gnxw.onrender.com',
     'http://localhost:8000',
@@ -193,14 +174,6 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
-
-# Session configuration - persiste les sessions admin correctement
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Utilise la base de données pour les sessions
-SESSION_COOKIE_AGE = 86400 * 30  # 30 jours
-SESSION_COOKIE_SECURE = True  # HTTPS only en production
-SESSION_COOKIE_HTTPONLY = True  # Pas accessible via JS
-SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Persiste après fermeture
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
@@ -216,3 +189,4 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
+
