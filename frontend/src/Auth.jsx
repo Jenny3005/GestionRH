@@ -230,8 +230,13 @@ export default function Auth({ onLogin }) {
                   className={errors.password ? 'error' : ''} 
                   disabled={isLoading} 
                 />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
-                  {showPassword ? '🙈' : '👁️'}
+                <button 
+                  type="button" 
+                  className="password-toggle" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  disabled={isLoading}
+                >
+                  {showPassword ? 'Cacher' : 'Afficher'}
                 </button>
               </div>
               {errors.password && <span className="error-text">{errors.password}</span>}
