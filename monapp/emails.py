@@ -41,15 +41,17 @@ def _envoyer_email(sujet, template, context, destinataire):
             timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
         )
 
-        send_mail(
+        sent_count = send_mail(
             subject=sujet,
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[destinataire],
             html_message=html_message,
-            fail_silently=False,
+            fail_silently=True,
             connection=connection,
         )
+        if sent_count == 0:
+            return False, 'Aucun email envoyé (send_mail a échoué silencieusement)'
         return True, None
 
     except Exception as e:
