@@ -57,7 +57,7 @@ const rewriteAssetUrl = (url) => {
     return url;
   }
 
-  if (['/logo_MND.png', '/logo2.png', '/favicon.svg', '/unsplash3.avif', '/unsplash2.jpg', '/unsplash.jpg', '/icons.svg'].includes(url)) {
+  if (['/logo_MND.png', '/logo2.png', '/favicon.svg', '/icons.svg'].includes(url)) {
     return `/static${url}`;
   }
 
