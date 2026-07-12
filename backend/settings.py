@@ -142,17 +142,19 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Configuration email
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Pour Gmail
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', '')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')  # Pour Gmail
 
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'jennyhoundon@gmail.com'  # Remplace par ton email
-EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
-DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'MND <no-reply@gouv.bj>')
+
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 20))
 
 # URL du frontend (utilisée pour les liens d'activation par email)
-FRONTEND_URL = 'https://gestionrh-gnxw.onrender.com'   # développement
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://gestionrh-gnxw.onrender.com')
 # FRONTEND_URL = 'https://votre-domaine.gouv.bj'  # production
 
 STATIC_URL = '/static/'
