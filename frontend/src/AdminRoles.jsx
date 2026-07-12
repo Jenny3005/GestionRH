@@ -12,6 +12,7 @@ export default function AdminRoles() {
   const [agents, setAgents] = useState([]);
   const [filteredAgents, setFilteredAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -79,16 +80,20 @@ export default function AdminRoles() {
   };
 
   const fetchRoles = async () => {
+    setRolesLoaded(false);
     try {
       const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
-        setRoles(data);
+        setRoles(Array.isArray(data) ? data.sort((a, b) => a.libelle.localeCompare(b.libelle)) : []);
+      } else {
+        console.error('Erreur fetchRoles:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);
+      setRolesLoaded(true);
     }
   };
 
@@ -219,13 +224,18 @@ export default function AdminRoles() {
   };
 
   const getRoleLabel = (role) => {
+    const normalized = String(role).toLowerCase();
     const labels = {
       'admin': 'Administrateur',
       'rh': 'Ressources Humaines',
       'chef': 'Chef de service',
-      'agent': 'Agent'
+      'agent': 'Agent',
+      'dpaf': 'DPAF',
+      'dapaf': 'DAPAF',
+      'secretaire': 'Secrétaire DPAF',
+      'rh/secretaire': 'RH / Secrétaire'
     };
-    return labels[role] || role;
+    return labels[normalized] || role;
   };
 
   const getRoleBadgeClass = (role) => {
@@ -399,6 +409,7 @@ export default function AdminRoles() {
               />
             </div>
             <div className="action-buttons">
+              <span className="roles-count">Rôles chargés : {roles.length}</span>
               <Can permission="AJOUTER_ROLE">
                 <button className="btn-add" onClick={() => setShowModal(true)}><Plus size={16} />Ajouter un rôle personnalisé</button>
               </Can>
