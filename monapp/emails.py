@@ -38,6 +38,7 @@ def _envoyer_email(sujet, template, context, destinataire):
         backend = resolve_email_backend()
         connection = get_connection(
             backend=backend,
+            fail_silently=True,
             timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
         )
 
