@@ -18,6 +18,7 @@ RUN apt-get update \
        libreoffice-core \
        libreoffice-writer \
        unoconv \
+       pandoc \
        fonts-dejavu-core \
        fonts-liberation \
        libxml2 \
