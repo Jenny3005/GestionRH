@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import shutil
+import warnings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -177,6 +179,21 @@ CSRF_TRUSTED_ORIGINS = [
 if render_host:
     CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
 
+    
+# --- Vérification du moteur de conversion DOCX->PDF ---
+# Vérifie si `soffice` (LibreOffice) est disponible sur le PATH.
+SOFFICE_PATH = shutil.which('soffice') or shutil.which('libreoffice')
+PDF_CONVERTER_AVAILABLE = bool(SOFFICE_PATH)
+PDF_CONVERTER_PATH = SOFFICE_PATH
+if not PDF_CONVERTER_AVAILABLE:
+    warnings.warn(
+        'LibreOffice (soffice) introuvable sur le serveur. La conversion DOCX->PDF échouera.'
+        ' Installez LibreOffice ou utilisez l\'image Docker fournie.'
+    )
+    # En production, échouer immédiatement pour éviter retours DOCX
+    if not DEBUG:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured('LibreOffice (soffice) introuvable. Installer LibreOffice pour activer la conversion DOCX->PDF.')
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
