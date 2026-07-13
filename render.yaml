@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: gestionrh-web
+    env: docker
+    branch: Jenny
+    plan: starter
+    dockerfilePath: Dockerfile
+    buildCommand: ''
+    startCommand: ''
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
