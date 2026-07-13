@@ -336,12 +336,24 @@ export default function DashboardDPAF() {
         const urlBlob = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = urlBlob;
-        a.download = `Acte_Signe_${reference}.pdf`;
+        // Nom de fichier depuis headers si disponible
+        const disposition = response.headers.get('content-disposition');
+        const contentType = response.headers.get('content-type') || '';
+        let filename = `Acte_Signe_${reference}.pdf`;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename\*=UTF-8''([^\n;]+)|filename=\"?([^\"]+)\"?/);
+          if (match) filename = decodeURIComponent(match[1] || match[2]);
+        } else if (contentType.includes('wordprocessingml')) {
+          filename = `Acte_Signe_${reference}.docx`;
+        } else if (contentType.includes('pdf')) {
+          filename = `Acte_Signe_${reference}.pdf`;
+        }
         document.body.appendChild(a);
+        a.download = filename;
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(urlBlob);
-        
+
         alert('✅ Acte signé avec succès !');
         setShowSignerModal(false);
         setSelectedActe(null);
@@ -454,7 +466,7 @@ export default function DashboardDPAF() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - {getRoleLabel()}</h2>
+            <h2> Tableau de bord - {getRoleLabel()}</h2>
             <p>Gestion et assignment des demandes et attestations aux agents RH - Signature des actes</p>
           </div>
         </section>

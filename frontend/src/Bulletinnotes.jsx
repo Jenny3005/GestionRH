@@ -215,7 +215,19 @@ export default function BulletinNotes() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        // Déterminer le nom de fichier à partir des headers si fournis
+        const disposition = res.headers.get('content-disposition');
+        const contentType = res.headers.get('content-type') || '';
+        let filename = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename\*=UTF-8''([^\n;]+)|filename=\"?([^\"]+)\"?/);
+          if (match) filename = decodeURIComponent(match[1] || match[2]);
+        } else if (contentType.includes('wordprocessingml')) {
+          filename = `bulletin_notes_${matricule}_${anneeActuelle}.docx`;
+        } else if (contentType.includes('pdf')) {
+          filename = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        }
+        a.download = filename;
         a.click();
         window.URL.revokeObjectURL(url);
       } else {
