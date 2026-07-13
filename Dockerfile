@@ -13,6 +13,7 @@ FROM python:3.10-slim-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Installer dépendances système (LibreOffice + MySQL/MariaDB)
 RUN apt-get update \
     && apt-get install -y \
        libreoffice-common \
@@ -20,6 +21,9 @@ RUN apt-get update \
        libreoffice-writer \
        fonts-dejavu-core \
        fonts-liberation \
+       pkg-config \
+       default-libmysqlclient-dev \
+       build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
