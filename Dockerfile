@@ -17,11 +17,8 @@ RUN apt-get update \
        libreoffice-common \
        libreoffice-core \
        libreoffice-writer \
-       unoconv \
-       pandoc \
        fonts-dejavu-core \
        fonts-liberation \
-       libxml2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
