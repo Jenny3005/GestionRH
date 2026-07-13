@@ -64,10 +64,9 @@ import ollama
 import re
 
 try:
-    from docx2pdf import convert as docx2pdf_convert
     from docx.shared import Pt
 except ImportError:
-    docx2pdf_convert = None
+    Pt = None
 
 
 def est_chef(agent):
@@ -173,148 +172,57 @@ def _set_document_font(doc, font_name='Times New Roman', font_size_pt=12):
 
 
 def _docx_bytes_to_pdf_bytes(docx_bytes):
-    """Convertit un fichier DOCX (bytes) en PDF (bytes).
-
-    Stratégie:
-    1. Sous Windows: tenter `docx2pdf` (COM / Word).
-    2. Sinon: tenter LibreOffice (`soffice --headless --convert-to pdf`).
-    Lance une RuntimeError si aucune méthode n'a abouti.
+    """Convertit un fichier DOCX (bytes) en PDF (bytes) avec LibreOffice.
+    
+    Simple et direct : utilise LibreOffice pour la conversion.
     """
     import tempfile
     import os
-    import sys
     import subprocess
     import shutil
 
-    # 1) Essayer docx2pdf (toutes plateformes)
-    try:
-        if sys.platform.startswith('win'):
-            import pythoncom
-            pythoncom.CoInitialize()
-        from docx2pdf import convert
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
-            # docx2pdf convert(file, out) accepte path->path
-            try:
-                convert(docx_path, pdf_path)
-            except Exception:
-                # docx2pdf may accept only input path; try directory output
-                try:
-                    convert(docx_path, tmpdir)
-                except Exception:
-                    raise
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                with open(pdf_path, 'rb') as f:
-                    return f.read()
-    except Exception:
-        # tomber au fallback (LibreOffice)
-        try:
-            if sys.platform.startswith('win'):
-                pythoncom.CoUninitialize()
-        except Exception:
-            pass
-
-    # 2) Essayer LibreOffice (soffice) si présent
+    # Trouver LibreOffice
     soffice = shutil.which('soffice') or shutil.which('libreoffice')
-    if soffice:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
-            try:
-                # Convertir en PDF dans le répertoire temporaire
-                subprocess.run([soffice, '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Conversion LibreOffice échouée: {e.stderr.decode('utf-8', errors='ignore')}")
-            except subprocess.TimeoutExpired:
-                raise RuntimeError('Conversion LibreOffice expirée')
+    if not soffice:
+        raise RuntimeError('LibreOffice (soffice) introuvable sur le serveur.')
 
-            # Rechercher le PDF généré
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            if not os.path.exists(pdf_path):
-                # Parfois LibreOffice nomme différemment
-                for fname in os.listdir(tmpdir):
-                    if fname.lower().endswith('.pdf'):
-                        pdf_path = os.path.join(tmpdir, fname)
-                        break
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                with open(pdf_path, 'rb') as f:
-                    return f.read()
-
-    # 3) Essayer unoconv si disponible (alternative fiable sur Linux)
-    unoconv = shutil.which('unoconv')
-    if unoconv:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
-            try:
-                subprocess.run([unoconv, '-f', 'pdf', '-o', pdf_path, docx_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
-                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
-            except Exception:
-                pass
-
-    # 4) Essayer pandoc en ligne de commande (convertisseur universel)
-    pandoc = shutil.which('pandoc')
-    if pandoc:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
-            try:
-                # pandoc DOCX -> PDF avec meilleur rendu que LibreOffice
-                subprocess.run(
-                    [pandoc, docx_path, '-o', pdf_path, '--pdf-engine=wkhtmltopdf'],
-                    check=False,  # Essayer même si ça échoue
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=60
-                )
-                # Si wkhtmltopdf échoue, essayer sans engine
-                if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
-                    subprocess.run(
-                        [pandoc, docx_path, '-o', pdf_path],
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        timeout=60
-                    )
-                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
-            except Exception:
-                pass
-
-    # 5) Fallback: Si pandoc CLI n'a pas marché, essayer pypandoc
-    try:
-        import pypandoc
-        # Vérifier que pandoc est trouvé (ne pas le télécharger)
-        pandoc_exec = pypandoc.get_pandoc_path()
-        if pandoc_exec:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                docx_path = os.path.join(tmpdir, 'document.docx')
-                pdf_path = os.path.join(tmpdir, 'document.pdf')
-                with open(docx_path, 'wb') as f:
-                    f.write(docx_bytes)
-                try:
-                    pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_path)
-                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                        with open(pdf_path, 'rb') as f:
-                            return f.read()
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # Aucune méthode disponible ou conversion échouée
-    raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
+    # Sauvegarder le DOCX dans un fichier temporaire
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = os.path.join(tmpdir, 'document.docx')
+        pdf_path = os.path.join(tmpdir, 'document.pdf')
+        
+        # Écrire le DOCX
+        with open(docx_path, 'wb') as f:
+            f.write(docx_bytes)
+        
+        # Convertir avec LibreOffice
+        try:
+            subprocess.run(
+                [soffice, '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=60
+            )
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Conversion LibreOffice échouée: {e.stderr.decode('utf-8', errors='ignore')}")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError('Conversion LibreOffice expirée (timeout 60s)')
+        
+        # Vérifier que le PDF a été créé
+        if not os.path.exists(pdf_path):
+            # Parfois LibreOffice crée le fichier avec un nom différent
+            for fname in os.listdir(tmpdir):
+                if fname.lower().endswith('.pdf'):
+                    pdf_path = os.path.join(tmpdir, fname)
+                    break
+        
+        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+            raise RuntimeError('LibreOffice n\'a pas généré de PDF valide.')
+        
+        # Retourner le contenu du PDF
+        with open(pdf_path, 'rb') as f:
+            return f.read()
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
