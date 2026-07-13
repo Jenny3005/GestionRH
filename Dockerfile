@@ -4,7 +4,7 @@
 FROM node:18-bullseye AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install  # ← Remplace npm ci par npm install
+RUN npm install
 COPY frontend/ .
 RUN npm run build
 
@@ -12,7 +12,7 @@ RUN npm run build
 FROM python:3.10-slim-bullseye
 
 # Installer dépendances système (LibreOffice)
-ENV DEBIAN_FRONTEND=noninteractive  # ← Ajoute cette ligne pour éviter les warnings "debconf"
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y \
