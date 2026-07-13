@@ -9,17 +9,18 @@ COPY frontend/ .
 RUN npm run build
 
 # 2) Final stage: Python + LibreOffice
-FROM python:3.10-slim
+FROM python:3.10-slim-bullseye
 
-# Installer dépendances système et LibreOffice
+# Installer dépendances système
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       libreoffice \
+    && apt-get install -y \
+       libreoffice-common \
+       libreoffice-core \
        libreoffice-writer \
        unoconv \
-       libsecret-1-0 \
        fonts-dejavu-core \
-       msttcorefonts \
+       fonts-liberation \
+       libxml2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
