@@ -6907,33 +6907,6 @@ def generer_bulletin_pdf(request, matricule):
     docx_bytes = io.BytesIO()
     doc.save(docx_bytes)
     docx_bytes.seek(0)
-            '{{CLASSE_RECRUTEMENT}}': classe_recrutement,
-            '{{MATRICULE}}': agent.matricule,
-            '{{DIPLOMES}}': diplomes,
-            '{{DATE_NOMINATION}}': date_prise_service_str,
-            '{{DATE_NOMINATION_CADRE}}': date_prise_service_str,
-            '{{GRADE_CLASSE}}': agent.echelon or '-',
-            '{{DATE_PROMOTION}}': date_promotion_str,
-            '{{DUREE_INTERRUPTION}}': interruption_duree,
-            '{{CAUSE_INTERRUPTION}}': interruption_cause,
-            '{{DIALECTES}}': agent.dialectes or '-',
-            '{{DISTINCTIONS}}': distinctions,
-            '{{DATE_MARIAGE}}': date_mariage_str,
-            '{{ENFANTS}}': enfants_texte,
-            '{{ADRESSE_FAMILLE}}': agent.adresse or '-',
-            '{{DEGRE_PARENTE}}': 'Epoux(se)',
-            '{{ANS_SERVICE}}': str(ans),
-            '{{MOIS_SERVICE}}': str(mois),
-            '{{JOURS_SERVICE}}': str(jours),
-            '{{TOTAL_ANS}}': str(ans),
-            '{{TOTAL_MOIS}}': str(mois),
-            '{{TOTAL_JOURS}}': str(jours),
-            '{{PROPOSABLE}}': proposable,
-            '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-            '{{VILLE}}': 'Cotonou',
-            '{{CRITERE_1}}': criteres[0] if len(criteres) > 0 else '',
-            '{{CRITERE_2}}': criteres[1] if len(criteres) > 1 else '',
-            '{{CRITERE_3}}': criteres[2] if len(criteres) > 2 else '',
     
     # Convertir DOCX→PDF
     try:
