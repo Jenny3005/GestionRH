@@ -6857,67 +6857,56 @@ def generer_bulletin_pdf(request, matricule):
     if not os.path.exists(template_path):
         return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
     
-    # Préparer les données pour le template (utiliser docxtpl pour préserver le formatage)
-    try:
-        from docxtpl import DocxTemplate
-        
-        doc = DocxTemplate(template_path)
-        
-        # Préparer le contexte avec les MÊMES NOMS que dans le template
-        # Mais utiliser des noms sans accolades pour Jinja2
-        context = {
-            'ANNEE': str(annee),
-            'CADRE': texte_cadre,
-            'NOM_PRENOMS': f"{agent.nom} {agent.prenom}".upper(),
-            'LIEU_DATE_NAISSANCE': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
-            'PROFESSION_AVANT': profession_avant,
-            'SITUATION_MILITAIRE': situation_militaire,
-            'CLASSE_RECRUTEMENT': classe_recrutement,
-            'MATRICULE': agent.matricule,
-            'DIPLOMES': diplomes,
-            'DATE_NOMINATION': date_prise_service_str,
-            'DATE_NOMINATION_CADRE': date_prise_service_str,
-            'GRADE_CLASSE': agent.echelon or '-',
-            'DATE_PROMOTION': date_promotion_str,
-            'DUREE_INTERRUPTION': interruption_duree,
-            'CAUSE_INTERRUPTION': interruption_cause,
-            'DIALECTES': agent.dialectes or '-',
-            'DISTINCTIONS': distinctions,
-            'DATE_MARIAGE': date_mariage_str,
-            'ENFANTS': enfants_texte,
-            'ADRESSE_FAMILLE': agent.adresse or '-',
-            'DEGRE_PARENTE': 'Epoux(se)',
-            'ANS_SERVICE': str(ans),
-            'MOIS_SERVICE': str(mois),
-            'JOURS_SERVICE': str(jours),
-            'TOTAL_ANS': str(ans),
-            'TOTAL_MOIS': str(mois),
-            'TOTAL_JOURS': str(jours),
-            'PROPOSABLE': proposable,
-            'DATE_AUJOURD_HUI': datetime.now().strftime('%d/%m/%Y'),
-            'VILLE': 'Cotonou',
-            'CRITERE_1': criteres[0] if len(criteres) > 0 else '',
-            'CRITERE_2': criteres[1] if len(criteres) > 1 else '',
-            'CRITERE_3': criteres[2] if len(criteres) > 2 else '',
-            'CRITERE_4': criteres[3] if len(criteres) > 3 else '',
-        }
-        
-        # Render le template avec les données (préserve le formatage!)
-        doc.render(context)
-        
-    except ImportError:
-        # Fallback si docxtpl n'est pas disponible
-        from docx import Document
-        doc = Document(template_path)
-        
-        # Préparer les remplacements
-        replacements = {
-            '{{ANNEE}}': str(annee),
-            '{{CADRE}}': texte_cadre,
-            '{{NOM_PRENOMS}}': f"{agent.nom} {agent.prenom}".upper(),
-            '{{LIEU_DATE_NAISSANCE}}': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
-            '{{PROFESSION_AVANT}}': profession_avant,
-            '{{SITUATION_MILITAIRE}}': situation_militaire,
+    # Charger template et remplacer placeholders
+    from docxtpl import DocxTemplate
+    
+    doc = DocxTemplate(template_path)
+    
+    # Préparer les données - EXACTEMENT les noms des {{ PLACEHOLDERS }} du template
+    context = {
+        'ANNEE': str(annee),
+        'CADRE': texte_cadre,
+        'NOM_PRENOMS': f"{agent.nom} {agent.prenom}".upper(),
+        'LIEU_DATE_NAISSANCE': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
+        'PROFESSION_AVANT': profession_avant,
+        'SITUATION_MILITAIRE': situation_militaire,
+        'CLASSE_RECRUTEMENT': classe_recrutement,
+        'MATRICULE': agent.matricule,
+        'DIPLOMES': diplomes,
+        'DATE_NOMINATION': date_prise_service_str,
+        'DATE_NOMINATION_CADRE': date_prise_service_str,
+        'GRADE_CLASSE': agent.echelon or '-',
+        'DATE_PROMOTION': date_promotion_str,
+        'DUREE_INTERRUPTION': interruption_duree,
+        'CAUSE_INTERRUPTION': interruption_cause,
+        'DIALECTES': agent.dialectes or '-',
+        'DISTINCTIONS': distinctions,
+        'DATE_MARIAGE': date_mariage_str,
+        'ENFANTS': enfants_texte,
+        'ADRESSE_FAMILLE': agent.adresse or '-',
+        'DEGRE_PARENTE': 'Epoux(se)',
+        'ANS_SERVICE': str(ans),
+        'MOIS_SERVICE': str(mois),
+        'JOURS_SERVICE': str(jours),
+        'TOTAL_ANS': str(ans),
+        'TOTAL_MOIS': str(mois),
+        'TOTAL_JOURS': str(jours),
+        'PROPOSABLE': proposable,
+        'DATE_AUJOURD_HUI': datetime.now().strftime('%d/%m/%Y'),
+        'VILLE': 'Cotonou',
+        'CRITERE_1': criteres[0] if len(criteres) > 0 else '',
+        'CRITERE_2': criteres[1] if len(criteres) > 1 else '',
+        'CRITERE_3': criteres[2] if len(criteres) > 2 else '',
+        'CRITERE_4': criteres[3] if len(criteres) > 3 else '',
+    }
+    
+    # Remplacer les placeholders dans le template
+    doc.render(context)
+    
+    # Sauvegarder le DOCX rempli en mémoire
+    docx_bytes = io.BytesIO()
+    doc.save(docx_bytes)
+    docx_bytes.seek(0)
             '{{CLASSE_RECRUTEMENT}}': classe_recrutement,
             '{{MATRICULE}}': agent.matricule,
             '{{DIPLOMES}}': diplomes,
@@ -6945,30 +6934,8 @@ def generer_bulletin_pdf(request, matricule):
             '{{CRITERE_1}}': criteres[0] if len(criteres) > 0 else '',
             '{{CRITERE_2}}': criteres[1] if len(criteres) > 1 else '',
             '{{CRITERE_3}}': criteres[2] if len(criteres) > 2 else '',
-            '{{CRITERE_4}}': criteres[3] if len(criteres) > 3 else '',
-        }
-        
-        # Remplacer dans tous les paragraphes
-        for paragraph in doc.paragraphs:
-            for key, value in replacements.items():
-                if key in paragraph.text:
-                    paragraph.text = paragraph.text.replace(key, value)
-        
-        # Remplacer dans les tableaux
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        for key, value in replacements.items():
-                            if key in paragraph.text:
-                                paragraph.text = paragraph.text.replace(key, value)
     
-    # Sauvegarder en mémoire
-    docx_bytes = io.BytesIO()
-    doc.save(docx_bytes)
-    docx_bytes.seek(0)
-    
-    # Convertir en PDF
+    # Convertir DOCX→PDF
     try:
         pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes.getvalue())
     except Exception as e:
