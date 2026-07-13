@@ -4,7 +4,7 @@
 FROM node:18-bullseye AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm install  # ← Remplace npm ci par npm install
 COPY frontend/ .
 RUN npm run build
 
@@ -12,6 +12,8 @@ RUN npm run build
 FROM python:3.10-slim-bullseye
 
 # Installer dépendances système (LibreOffice)
+ENV DEBIAN_FRONTEND=noninteractive  # ← Ajoute cette ligne pour éviter les warnings "debconf"
+
 RUN apt-get update \
     && apt-get install -y \
        libreoffice-common \
@@ -38,5 +40,5 @@ RUN python manage.py collectstatic --noinput
 
 ENV PYTHONUNBUFFERED=1
 
-# Commande de démarrage (modifiée)
+# Commande de démarrage
 CMD ["sh", "-c", "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"]
