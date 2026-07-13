@@ -9,7 +9,7 @@ COPY frontend/ .
 RUN npm run build
 
 # 2) Final stage: Python + LibreOffice
-FROM python:3.12-slim-bullseye  # ← Python 3.12
+FROM python:3.12-slim-bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive
 
