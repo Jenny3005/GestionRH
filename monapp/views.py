@@ -173,34 +173,80 @@ def _set_document_font(doc, font_name='Times New Roman', font_size_pt=12):
 
 
 def _docx_bytes_to_pdf_bytes(docx_bytes):
-    """Convertit un fichier DOCX (bytes) en PDF (bytes)"""
+    """Convertit un fichier DOCX (bytes) en PDF (bytes).
+
+    Stratégie:
+    1. Sous Windows: tenter `docx2pdf` (COM / Word).
+    2. Sinon: tenter LibreOffice (`soffice --headless --convert-to pdf`).
+    Lance une RuntimeError si aucune méthode n'a abouti.
+    """
     import tempfile
     import os
     import sys
-    if sys.platform == 'win32':
-        import pythoncom
-    from docx2pdf import convert
-    
-    pythoncom.CoInitialize()
-    
-    try:
+    import subprocess
+    import shutil
+
+    # 1) Essayer docx2pdf sur Windows / macOS si disponible
+    if sys.platform.startswith('win') or sys.platform == 'darwin':
+        try:
+            if sys.platform.startswith('win'):
+                import pythoncom
+                pythoncom.CoInitialize()
+            from docx2pdf import convert
+            with tempfile.TemporaryDirectory() as tmpdir:
+                docx_path = os.path.join(tmpdir, 'document.docx')
+                pdf_path = os.path.join(tmpdir, 'document.pdf')
+                with open(docx_path, 'wb') as f:
+                    f.write(docx_bytes)
+                # docx2pdf convert(file, out) accepte path->path
+                try:
+                    convert(docx_path, pdf_path)
+                except Exception:
+                    # docx2pdf may accept only input path; try directory output
+                    try:
+                        convert(docx_path, tmpdir)
+                    except Exception:
+                        raise
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    with open(pdf_path, 'rb') as f:
+                        return f.read()
+        except Exception:
+            # tomber au fallback (LibreOffice)
+            try:
+                if sys.platform.startswith('win'):
+                    pythoncom.CoUninitialize()
+            except Exception:
+                pass
+
+    # 2) Essayer LibreOffice (soffice) si présent
+    soffice = shutil.which('soffice') or shutil.which('libreoffice')
+    if soffice:
         with tempfile.TemporaryDirectory() as tmpdir:
             docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            
             with open(docx_path, 'wb') as f:
                 f.write(docx_bytes)
-            
-            convert(docx_path, pdf_path)
-            
+            try:
+                # Convertir en PDF dans le répertoire temporaire
+                subprocess.run([soffice, '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Conversion LibreOffice échouée: {e.stderr.decode('utf-8', errors='ignore')}")
+            except subprocess.TimeoutExpired:
+                raise RuntimeError('Conversion LibreOffice expirée')
+
+            # Rechercher le PDF généré
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            if not os.path.exists(pdf_path):
+                # Parfois LibreOffice nomme différemment
+                for fname in os.listdir(tmpdir):
+                    if fname.lower().endswith('.pdf'):
+                        pdf_path = os.path.join(tmpdir, fname)
+                        break
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                 with open(pdf_path, 'rb') as f:
                     return f.read()
-            else:
-                raise RuntimeError("Conversion échouée - fichier PDF vide ou inexistant")
-    finally:
-        if sys.platform == 'win32':
-            pythoncom.CoUninitialize()
+
+    # Aucune méthode disponible ou conversion échouée
+    raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
@@ -3408,7 +3454,9 @@ def generer_acte_rh(request, demande_id):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"⚠️ ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
@@ -3728,7 +3776,9 @@ def generer_attestation_presence(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3817,7 +3867,9 @@ def generer_attestation_travail(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Travail_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3941,7 +3993,9 @@ def generer_attestation_validite_services(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Validite_Services_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -4032,7 +4086,9 @@ def generer_certificat_non_jouissance(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -6798,9 +6854,9 @@ def generer_bulletin_pdf(request, matricule):
         pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes.getvalue())
     except Exception as e:
         print(f"Erreur conversion PDF: {e}")
-        response = HttpResponse(docx_bytes.getvalue(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.docx"'
-        return response
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
     
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.pdf"'
