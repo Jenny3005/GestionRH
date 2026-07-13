@@ -4943,12 +4943,21 @@ def calculer_et_notifier():
     print("✅ Actualisation des avancements terminée.")
 
 
+def calculer_et_notifier_async():
+    try:
+        calculer_et_notifier()
+    except Exception as e:
+        print(f"ERREUR avancements asynchrone: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def trigger_avancements(request):
     try:
-        calculer_et_notifier()
-        return JsonResponse({'success': True})
+        threading.Thread(target=calculer_et_notifier_async, daemon=True).start()
+        return JsonResponse({'success': True, 'status': 'processing'})
     except Exception as e:
         print(f"ERREUR trigger_avancements: {str(e)}")
         import traceback
