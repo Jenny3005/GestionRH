@@ -6,6 +6,7 @@ Django==4.2
 django-cors-headers==4.9.0
 django-extensions==4.1
 djangorestframework==3.17.1
+docx2pdf==0.1.8
 easyocr==1.7.2
 filelock==3.29.7
 fsspec==2026.6.0
