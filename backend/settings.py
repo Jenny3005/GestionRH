@@ -187,13 +187,8 @@ PDF_CONVERTER_AVAILABLE = bool(SOFFICE_PATH)
 PDF_CONVERTER_PATH = SOFFICE_PATH
 if not PDF_CONVERTER_AVAILABLE:
     warnings.warn(
-        'LibreOffice (soffice) introuvable sur le serveur. La conversion DOCX->PDF échouera.'
-        ' Installez LibreOffice ou utilisez l\'image Docker fournie.'
+        'LibreOffice (soffice) introuvable sur le serveur. La conversion DOCX->PDF utilisera un fallback.'
     )
-    # En production, échouer immédiatement pour éviter retours DOCX
-    if not DEBUG:
-        from django.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured('LibreOffice (soffice) introuvable. Installer LibreOffice pour activer la conversion DOCX->PDF.')
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
