@@ -186,37 +186,36 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
     import subprocess
     import shutil
 
-    # 1) Essayer docx2pdf sur Windows / macOS si disponible
-    if sys.platform.startswith('win') or sys.platform == 'darwin':
+    # 1) Essayer docx2pdf (toutes plateformes)
+    try:
+        if sys.platform.startswith('win'):
+            import pythoncom
+            pythoncom.CoInitialize()
+        from docx2pdf import convert
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'document.docx')
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            with open(docx_path, 'wb') as f:
+                f.write(docx_bytes)
+            # docx2pdf convert(file, out) accepte path->path
+            try:
+                convert(docx_path, pdf_path)
+            except Exception:
+                # docx2pdf may accept only input path; try directory output
+                try:
+                    convert(docx_path, tmpdir)
+                except Exception:
+                    raise
+            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                with open(pdf_path, 'rb') as f:
+                    return f.read()
+    except Exception:
+        # tomber au fallback (LibreOffice)
         try:
             if sys.platform.startswith('win'):
-                import pythoncom
-                pythoncom.CoInitialize()
-            from docx2pdf import convert
-            with tempfile.TemporaryDirectory() as tmpdir:
-                docx_path = os.path.join(tmpdir, 'document.docx')
-                pdf_path = os.path.join(tmpdir, 'document.pdf')
-                with open(docx_path, 'wb') as f:
-                    f.write(docx_bytes)
-                # docx2pdf convert(file, out) accepte path->path
-                try:
-                    convert(docx_path, pdf_path)
-                except Exception:
-                    # docx2pdf may accept only input path; try directory output
-                    try:
-                        convert(docx_path, tmpdir)
-                    except Exception:
-                        raise
-                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
+                pythoncom.CoUninitialize()
         except Exception:
-            # tomber au fallback (LibreOffice)
-            try:
-                if sys.platform.startswith('win'):
-                    pythoncom.CoUninitialize()
-            except Exception:
-                pass
+            pass
 
     # 2) Essayer LibreOffice (soffice) si présent
     soffice = shutil.which('soffice') or shutil.which('libreoffice')
@@ -244,6 +243,22 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                 with open(pdf_path, 'rb') as f:
                     return f.read()
+
+    # 3) Essayer unoconv si disponible (alternative fiable sur Linux)
+    unoconv = shutil.which('unoconv')
+    if unoconv:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'document.docx')
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            with open(docx_path, 'wb') as f:
+                f.write(docx_bytes)
+            try:
+                subprocess.run([unoconv, '-f', 'pdf', '-o', pdf_path, docx_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    with open(pdf_path, 'rb') as f:
+                        return f.read()
+            except Exception:
+                pass
 
     # Aucune méthode disponible ou conversion échouée
     raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
