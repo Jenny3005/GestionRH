@@ -11,7 +11,7 @@ RUN npm run build
 # 2) Final stage: Python + LibreOffice
 FROM python:3.10-slim-bullseye
 
-# Installer dépendances système
+# Installer dépendances système (LibreOffice)
 RUN apt-get update \
     && apt-get install -y \
        libreoffice-common \
@@ -33,6 +33,10 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 # Copier le reste du code
 COPY . /app
 
+# Exécuter collectstatic (Django)
+RUN python manage.py collectstatic --noinput
+
 ENV PYTHONUNBUFFERED=1
 
-CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Commande de démarrage (modifiée)
+CMD ["sh", "-c", "python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT"]

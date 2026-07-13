@@ -170,59 +170,60 @@ def _set_document_font(doc, font_name='Times New Roman', font_size_pt=12):
                         except Exception:
                             pass
 
+import subprocess
+import tempfile
+import os
 
 def _docx_bytes_to_pdf_bytes(docx_bytes):
-    """Convertit un fichier DOCX (bytes) en PDF (bytes) avec LibreOffice.
+    """Convertit DOCX → PDF avec LibreOffice en mode headless"""
     
-    Simple et direct : utilise LibreOffice pour la conversion.
-    """
-    import tempfile
-    import os
-    import subprocess
-    import shutil
-
-    # Trouver LibreOffice
-    soffice = shutil.which('soffice') or shutil.which('libreoffice')
-    if not soffice:
-        raise RuntimeError('LibreOffice (soffice) introuvable sur le serveur.')
-
-    # Sauvegarder le DOCX dans un fichier temporaire
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, 'document.docx')
         pdf_path = os.path.join(tmpdir, 'document.pdf')
+        libreoffice_output_dir = os.path.join(tmpdir, 'libreoffice_output')
         
-        # Écrire le DOCX
+        # Créer le dossier de sortie pour LibreOffice
+        os.makedirs(libreoffice_output_dir, exist_ok=True)
+        
+        # Sauvegarder le DOCX
         with open(docx_path, 'wb') as f:
             f.write(docx_bytes)
         
-        # Convertir avec LibreOffice
+        # Commande LibreOffice en mode headless
+        cmd = [
+            'soffice',
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', libreoffice_output_dir,
+            docx_path
+        ]
+        
         try:
-            subprocess.run(
-                [soffice, '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=60
+            # Exécuter la conversion
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,  # 60 secondes max pour éviter les blocages
+                check=True
             )
+            
+            # Le PDF généré aura le même nom que le DOCX
+            generated_pdf = os.path.join(libreoffice_output_dir, 'document.pdf')
+            
+            # Vérifier que le PDF a bien été généré
+            if os.path.exists(generated_pdf) and os.path.getsize(generated_pdf) > 0:
+                with open(generated_pdf, 'rb') as f:
+                    return f.read()
+            else:
+                raise RuntimeError("LibreOffice n'a pas généré de PDF valide.")
+                
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Conversion LibreOffice échouée: {e.stderr.decode('utf-8', errors='ignore')}")
+            raise RuntimeError(f"Erreur LibreOffice: {e.stderr}")
         except subprocess.TimeoutExpired:
-            raise RuntimeError('Conversion LibreOffice expirée (timeout 60s)')
-        
-        # Vérifier que le PDF a été créé
-        if not os.path.exists(pdf_path):
-            # Parfois LibreOffice crée le fichier avec un nom différent
-            for fname in os.listdir(tmpdir):
-                if fname.lower().endswith('.pdf'):
-                    pdf_path = os.path.join(tmpdir, fname)
-                    break
-        
-        if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
-            raise RuntimeError('LibreOffice n\'a pas généré de PDF valide.')
-        
-        # Retourner le contenu du PDF
-        with open(pdf_path, 'rb') as f:
-            return f.read()
+            raise RuntimeError("La conversion LibreOffice a expiré (plus de 60 secondes)")
+        except Exception as e:
+            raise RuntimeError(f"Erreur inattendue lors de la conversion: {str(e)}")
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
