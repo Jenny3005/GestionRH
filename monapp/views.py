@@ -260,26 +260,7 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             except Exception:
                 pass
 
-    # 4) Essayer pandoc (convertisseur universel - meilleur rendu)
-    try:
-        import pypandoc
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
-            try:
-                # pandoc peut convertir DOCX → PDF directement
-                output = pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_path)
-                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                    with open(pdf_path, 'rb') as f:
-                        return f.read()
-            except Exception:
-                pass
-    except ImportError:
-        pass
-
-    # 5) Fallback final: si pandoc disponible en ligne de commande
+    # 4) Essayer pandoc en ligne de commande (convertisseur universel)
     pandoc = shutil.which('pandoc')
     if pandoc:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -288,12 +269,49 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             with open(docx_path, 'wb') as f:
                 f.write(docx_bytes)
             try:
-                subprocess.run([pandoc, docx_path, '-o', pdf_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                # pandoc DOCX -> PDF avec meilleur rendu que LibreOffice
+                subprocess.run(
+                    [pandoc, docx_path, '-o', pdf_path, '--pdf-engine=wkhtmltopdf'],
+                    check=False,  # Essayer même si ça échoue
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=60
+                )
+                # Si wkhtmltopdf échoue, essayer sans engine
+                if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) == 0:
+                    subprocess.run(
+                        [pandoc, docx_path, '-o', pdf_path],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=60
+                    )
                 if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
                     with open(pdf_path, 'rb') as f:
                         return f.read()
             except Exception:
                 pass
+
+    # 5) Fallback: Si pandoc CLI n'a pas marché, essayer pypandoc
+    try:
+        import pypandoc
+        # Vérifier que pandoc est trouvé (ne pas le télécharger)
+        pandoc_exec = pypandoc.get_pandoc_path()
+        if pandoc_exec:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                docx_path = os.path.join(tmpdir, 'document.docx')
+                pdf_path = os.path.join(tmpdir, 'document.pdf')
+                with open(docx_path, 'wb') as f:
+                    f.write(docx_bytes)
+                try:
+                    pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_path)
+                    if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                        with open(pdf_path, 'rb') as f:
+                            return f.read()
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
     # Aucune méthode disponible ou conversion échouée
     raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
