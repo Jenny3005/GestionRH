@@ -9,11 +9,10 @@ COPY frontend/ .
 RUN npm run build
 
 # 2) Final stage: Python + LibreOffice
-FROM python:3.10-slim-bullseye
+FROM python:3.12-slim-bullseye  # ← Python 3.12
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Installer dépendances système (LibreOffice + MySQL/MariaDB)
 RUN apt-get update \
     && apt-get install -y \
        libreoffice-common \
