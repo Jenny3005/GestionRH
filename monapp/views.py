@@ -260,6 +260,45 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             except Exception:
                 pass
 
+    # 4) Fallback: Générer un PDF simple avec ReportLab (extraction du texte DOCX)
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.units import cm
+        from docx import Document as DocxDocument
+        
+        # Extraire le texte du DOCX
+        docx_doc = DocxDocument(io.BytesIO(docx_bytes))
+        
+        # Créer le PDF avec ReportLab
+        pdf_buffer = io.BytesIO()
+        pdf_doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
+        
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Ajouter les paragraphes du DOCX au PDF
+        for para in docx_doc.paragraphs:
+            if para.text.strip():
+                try:
+                    # Respecter le style du paragraphe si possible
+                    style = styles['Normal']
+                    story.append(Paragraph(para.text, style))
+                except Exception:
+                    # Fallback simple si le texte a des caractères problématiques
+                    clean_text = para.text.replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
+                    story.append(Paragraph(clean_text, styles['Normal']))
+                story.append(Spacer(1, 0.3*cm))
+        
+        if story:
+            pdf_doc.build(story)
+            pdf_buffer.seek(0)
+            return pdf_buffer.getvalue()
+    except Exception as e:
+        # Ce fallback a échoué aussi
+        pass
+
     # Aucune méthode disponible ou conversion échouée
     raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
 
