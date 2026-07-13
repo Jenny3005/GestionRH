@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile: build frontend then build backend with LibreOffice
 
 # 1) Build stage for frontend
-FROM node:18-bullseye AS frontend-builder
+FROM node:20-bullseye AS frontend-builder  # ← Change node:18 pour node:20
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
