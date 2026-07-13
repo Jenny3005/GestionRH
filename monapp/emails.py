@@ -10,16 +10,19 @@ import time
 
 
 def resolve_email_backend():
-    """Retourne le backend email configuré, en tenant compte de SendGrid et du SMTP legacy."""
+    """Retourne le backend email configuré.
+
+    Si une clé SendGrid est configurée, on utilise le backend SendGrid par défaut.
+    Sinon, on utilise le backend explicitement défini dans EMAIL_BACKEND.
+    Sinon, on tombe sur le backend console.
+    """
+    sendgrid_key = (getattr(settings, 'SENDGRID_API_KEY', '') or '').strip()
+    if sendgrid_key:
+        return 'monapp.email_backend.SendGridEmailBackend'
+
     configured_backend = (getattr(settings, 'EMAIL_BACKEND', '') or '').strip()
     if configured_backend:
         return configured_backend
-
-    host_user = (getattr(settings, 'EMAIL_HOST_USER', '') or '').strip()
-    host_password = (getattr(settings, 'EMAIL_HOST_PASSWORD', '') or '').strip()
-
-    if host_user and host_password:
-        return 'django.core.mail.backends.smtp.EmailBackend'
 
     return 'django.core.mail.backends.console.EmailBackend'
 
@@ -41,6 +44,18 @@ def _envoyer_email(sujet, template, context, destinataire):
             fail_silently=True,
             timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
         )
+
+        if not connection.open():
+            if backend != 'django.core.mail.backends.console.EmailBackend':
+                connection = get_connection(
+                    backend='django.core.mail.backends.console.EmailBackend',
+                    fail_silently=True,
+                    timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
+                )
+                if not connection.open():
+                    return False, 'Impossible d’ouvrir la connexion email (SMTP/SendGrid et console ont échoué)'
+            else:
+                return False, 'Impossible d’ouvrir la connexion email (console)'
 
         sent_count = send_mail(
             subject=sujet,

@@ -9,12 +9,16 @@ class EmailBackendTests(SimpleTestCase):
     def test_uses_console_backend_when_smtp_credentials_missing(self):
         self.assertEqual(resolve_email_backend(), 'django.core.mail.backends.console.EmailBackend')
 
-    @override_settings(EMAIL_HOST_USER='demo@example.com', EMAIL_HOST_PASSWORD='secret', EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend')
-    def test_uses_smtp_backend_when_credentials_present(self):
-        self.assertEqual(resolve_email_backend(), 'django.core.mail.backends.smtp.EmailBackend')
-
-    @override_settings(EMAIL_BACKEND='monapp.email_backend.SendGridEmailBackend')
+    @override_settings(EMAIL_BACKEND='monapp.email_backend.SendGridEmailBackend', SENDGRID_API_KEY='SG.fakekey')
     def test_uses_sendgrid_backend_when_configured(self):
+        self.assertEqual(resolve_email_backend(), 'monapp.email_backend.SendGridEmailBackend')
+
+    @override_settings(EMAIL_HOST_USER='demo@example.com', EMAIL_HOST_PASSWORD='secret', EMAIL_BACKEND='')
+    def test_defaults_to_console_backend_when_no_backend_is_explicit(self):
+        self.assertEqual(resolve_email_backend(), 'django.core.mail.backends.console.EmailBackend')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend', SENDGRID_API_KEY='SG.fakekey')
+    def test_prefers_sendgrid_backend_when_sendgrid_key_present(self):
         self.assertEqual(resolve_email_backend(), 'monapp.email_backend.SendGridEmailBackend')
 
 
