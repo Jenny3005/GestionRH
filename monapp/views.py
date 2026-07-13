@@ -260,44 +260,40 @@ def _docx_bytes_to_pdf_bytes(docx_bytes):
             except Exception:
                 pass
 
-    # 4) Fallback: Générer un PDF simple avec ReportLab (extraction du texte DOCX)
+    # 4) Essayer pandoc (convertisseur universel - meilleur rendu)
     try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.units import cm
-        from docx import Document as DocxDocument
-        
-        # Extraire le texte du DOCX
-        docx_doc = DocxDocument(io.BytesIO(docx_bytes))
-        
-        # Créer le PDF avec ReportLab
-        pdf_buffer = io.BytesIO()
-        pdf_doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm)
-        
-        story = []
-        styles = getSampleStyleSheet()
-        
-        # Ajouter les paragraphes du DOCX au PDF
-        for para in docx_doc.paragraphs:
-            if para.text.strip():
-                try:
-                    # Respecter le style du paragraphe si possible
-                    style = styles['Normal']
-                    story.append(Paragraph(para.text, style))
-                except Exception:
-                    # Fallback simple si le texte a des caractères problématiques
-                    clean_text = para.text.replace('<', '&lt;').replace('>', '&gt;').replace('&', '&amp;')
-                    story.append(Paragraph(clean_text, styles['Normal']))
-                story.append(Spacer(1, 0.3*cm))
-        
-        if story:
-            pdf_doc.build(story)
-            pdf_buffer.seek(0)
-            return pdf_buffer.getvalue()
-    except Exception as e:
-        # Ce fallback a échoué aussi
+        import pypandoc
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'document.docx')
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            with open(docx_path, 'wb') as f:
+                f.write(docx_bytes)
+            try:
+                # pandoc peut convertir DOCX → PDF directement
+                output = pypandoc.convert_file(docx_path, 'pdf', outputfile=pdf_path)
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    with open(pdf_path, 'rb') as f:
+                        return f.read()
+            except Exception:
+                pass
+    except ImportError:
         pass
+
+    # 5) Fallback final: si pandoc disponible en ligne de commande
+    pandoc = shutil.which('pandoc')
+    if pandoc:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            docx_path = os.path.join(tmpdir, 'document.docx')
+            pdf_path = os.path.join(tmpdir, 'document.pdf')
+            with open(docx_path, 'wb') as f:
+                f.write(docx_bytes)
+            try:
+                subprocess.run([pandoc, docx_path, '-o', pdf_path], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+                    with open(pdf_path, 'rb') as f:
+                        return f.read()
+            except Exception:
+                pass
 
     # Aucune méthode disponible ou conversion échouée
     raise RuntimeError('Aucun moteur de conversion disponible ou conversion échouée (Word/LibreOffice).')
