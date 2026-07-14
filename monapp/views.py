@@ -20,10 +20,12 @@ from django.utils import timezone
 import io
 import os
 import random
+import shutil
 import socket
 import string
 import subprocess
 import tempfile
+import time
 import concurrent.futures
 import ollama
 from datetime import datetime, date, timedelta
@@ -358,17 +360,42 @@ def register(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 import base64
+import binascii
 import json
 
 def fix_base64_padding(base64_string):
     """Ajoute le padding = manquant à une chaîne base64"""
-    # Compter le nombre de caractères de padding manquants
     missing_padding = len(base64_string) % 4
     if missing_padding:
         base64_string += '=' * (4 - missing_padding)
     return base64_string
 
- 
+
+def build_safe_filename(file_name, prefix=None):
+    """Construit un nom de fichier sûr pour le stockage disque."""
+    safe_name = os.path.basename(file_name or 'document').strip()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', safe_name) or 'document'
+    if prefix:
+        safe_name = f"{prefix}_{safe_name}"
+    return safe_name
+
+
+def save_uploaded_file_bytes(file_bytes, file_name, subdir='documents', prefix=None):
+    """Sauvegarde un fichier uploadé sur disque et retourne le chemin stocké."""
+    base_dir = getattr(settings, 'MEDIA_ROOT', None) or os.path.join(os.getcwd(), 'uploads')
+    upload_dir = os.path.join(base_dir, 'pieces', subdir)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    safe_name = build_safe_filename(file_name, prefix=prefix)
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    file_path = os.path.join(upload_dir, f"{timestamp}_{safe_name}")
+
+    with open(file_path, 'wb') as handle:
+        handle.write(file_bytes)
+
+    return os.path.normpath(file_path)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def activate_account_via_email(request):
@@ -4232,6 +4259,19 @@ def upload_document(request):
         dossier, created = DossierAgent.objects.get_or_create(agent=agent, defaults={'datecreation': date.today(), 'taux_completude': 0})
         
         cleaned_base64 = file_base64.split('base64,')[1] if 'base64,' in file_base64 else file_base64
+        cleaned_base64 = cleaned_base64.strip()
+        cleaned_base64 = fix_base64_padding(cleaned_base64)
+        try:
+            file_bytes = base64.b64decode(cleaned_base64)
+        except (binascii.Error, ValueError) as e:
+            return JsonResponse({'error': f'Base64 invalide : {str(e)}'}, status=400)
+
+        stored_path = save_uploaded_file_bytes(
+            file_bytes,
+            file_name,
+            subdir=f"agent_{agent.matricule}",
+            prefix=type_piece.libelle
+        )
         
         date_expiration_str = request.POST.get('date_expiration')
         date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date() if date_expiration_str else None
@@ -4242,7 +4282,7 @@ def upload_document(request):
         
         piece = Piece.objects.create(
             dossier_agent=dossier, type_piece=type_piece, nom_fichier=file_name,
-            date_expiration=date_expiration, date_upload=date.today(), valide=1, cheminfichier=cleaned_base64
+            date_expiration=date_expiration, date_upload=date.today(), valide=1, cheminfichier=stored_path
         )
         
         cache_key = f'anomalies_{matricule}'
@@ -4279,14 +4319,22 @@ def download_document(request, piece_id):
         
         if not piece.cheminfichier:
             return JsonResponse({'error': 'Document vide'}, status=404)
-        
+
         mime_type = 'application/pdf'
         if piece.nom_fichier.lower().endswith(('.jpg', '.jpeg')):
             mime_type = 'image/jpeg'
         elif piece.nom_fichier.lower().endswith('.png'):
             mime_type = 'image/png'
+
+        stored_value = piece.cheminfichier
+        if isinstance(stored_value, str) and os.path.isfile(stored_value):
+            with open(stored_value, 'rb') as handle:
+                file_bytes = handle.read()
+            file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+        else:
+            file_base64 = stored_value
         
-        return JsonResponse({'success': True, 'file_name': piece.nom_fichier, 'file_base64': piece.cheminfichier, 'mime_type': mime_type, 'type_piece': piece.type_piece.libelle})
+        return JsonResponse({'success': True, 'file_name': piece.nom_fichier, 'file_base64': file_base64, 'mime_type': mime_type, 'type_piece': piece.type_piece.libelle})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -4635,9 +4683,44 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
         cache.delete(f'anomalies_refresh_{matricule}')
 
 
+def _ensure_ollama_running():
+    host = os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_BASE_URL') or 'http://127.0.0.1:11434'
+    model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
+
+    try:
+        client = ollama.Client(host=host)
+        client.list()
+        return client, host, model_name
+    except Exception as exc:
+        ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
+        if ollama_path:
+            try:
+                subprocess.Popen(
+                    [ollama_path, 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+                )
+            except Exception:
+                pass
+
+            for _ in range(10):
+                time.sleep(1)
+                try:
+                    client = ollama.Client(host=host)
+                    client.list()
+                    return client, host, model_name
+                except Exception:
+                    continue
+
+        raise exc
+
+
 def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
     try:
         print(f"[Ollama] Tentative d'appel...")
+        client, host, model_name = _ensure_ollama_running()
 
         statut = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
         pf_str = json.dumps(points_faibles_forces, ensure_ascii=False)
@@ -4655,8 +4738,8 @@ Complète uniquement risques et recommandations selon le contexte.
 Réponds avec ce JSON uniquement :
 {{"score":{score},"statut_global":"{statut}","resume":"2 phrases max.","points_forts":{pts_str},"points_faibles":{pf_str},"risques":[...],"recommandations":[...]}}"""
 
-        ai_response = ollama.chat(
-            model='llama3.2:3b',
+        ai_response = client.chat(
+            model=model_name,
             messages=[
                 {'role': 'system', 'content': SYSTEM_PROMPT},
                 {'role': 'user', 'content': prompt_user}
@@ -4672,7 +4755,7 @@ Réponds avec ce JSON uniquement :
 
     except Exception as e:
         print(f"[Ollama] Erreur interne : {type(e).__name__} — {e}")
-        return None
+        return fallback_analysis(score)
 
 
 @csrf_exempt
