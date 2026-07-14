@@ -4702,41 +4702,26 @@ def health(request):
 
 
 def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_BASE_URL') or 'http://127.0.0.1:11434'
-    model_name = os.getenv('OLLAMA_MODEL') or 'llama3.2:3b'
+    host = os.getenv('OLLAMA_URL', 'https://linux-pen-reproduced-industrial.trycloudflare.com')
+    model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
-    if not host.startswith(('http://', 'https://')):
-        host = f'http://{host}'
-
-    # Do not attempt to start Ollama automatically unless explicitly allowed
-    allow_auto = os.getenv('OLLAMA_AUTO_START', 'false').lower() in ('1', 'true', 'yes')
-
-    last_exc = None
-    for _ in range(3):
-        try:
-            client = ollama.Client(host=host)
-            client.list()
-            return client, host, model_name
-        except Exception as exc:
-            last_exc = exc
-            if not allow_auto:
-                time.sleep(1)
-                continue
-
-            # Attempt to start local Ollama only when explicitly allowed and host is local
-            if host.startswith('http://127.0.0.1') or host.startswith('http://localhost'):
-                ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
-                if ollama_path:
-                    try:
-                        subprocess.Popen(
-                            [ollama_path, 'serve'],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            stdin=subprocess.DEVNULL,
-                            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
-                        )
-                    except Exception:
-                        pass
+    try:
+        client = ollama.Client(host=host)
+        client.list()
+        return client, host, model_name
+    except Exception as exc:
+        ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
+        if ollama_path:
+            try:
+                subprocess.Popen(
+                    [ollama_path, 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+                )
+            except Exception:
+                pass
 
             time.sleep(2)
 
