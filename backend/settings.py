@@ -151,7 +151,7 @@ EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'MND <no-reply@gouv.bj>')
+DEFAULT_FROM_EMAIL = 'jennyhoundon@gmail.com'
 SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 20))
 
