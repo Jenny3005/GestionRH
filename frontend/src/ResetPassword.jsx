@@ -119,7 +119,7 @@ export default function ResetPassword() {
       <nav className="auth-navbar">
         <div className="auth-navbar-left">
           <a href="/" className="logo-nav-link">
-            <img src="/logo2.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/logo2.png" alt="Logo MND" className="oo" />
           </a>
         </div>
       </nav>
