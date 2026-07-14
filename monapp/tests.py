@@ -1,5 +1,6 @@
 from django.test import SimpleTestCase, override_settings
 
+from django.db import connection
 from monapp.emails import resolve_email_backend
 from monapp.views import normalize_matricule
 
@@ -33,3 +34,13 @@ class MatriculeNormalizationTests(SimpleTestCase):
     def test_normalize_matricule_preserves_valid_values(self):
         self.assertEqual(normalize_matricule('A123'), 'A123')
         self.assertEqual(normalize_matricule('  A123  '), 'A123')
+
+
+class PieceFieldTests(SimpleTestCase):
+    def test_piece_cheminfichier_column_is_text(self):
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW COLUMNS FROM piece LIKE 'cheminfichier'")
+            column = cursor.fetchone()
+
+        self.assertIsNotNone(column)
+        self.assertIn('text', column[1].lower())
