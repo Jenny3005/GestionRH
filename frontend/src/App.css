@@ -184,7 +184,7 @@ body {
     url('/unsplash.jpg') no-repeat center/cover;
   
   color: white;
-  padding: 160px 25px; 
+  padding: 160px 25px !important;
   width: 100%;
   border-bottom: 4px solid #D4AF37;
   min-height: auto; 
@@ -218,15 +218,15 @@ body {
 }
 
 .hero-banner-intranet h2 {
-  font-size: 2rem;
+  font-size: 2rem !important;
   font-weight: 800;
-  margin-bottom: 1.2rem;
+  margin-bottom: 1.2rem !important;
   width: 100%;
 }
 
 .hero-banner-intranet p {
   color: #CBD5E1;
-  font-size: 1.25rem;
+  font-size: 1.25rem !important;
   line-height: 1.7;
   width: 100%;
   margin: 0 auto; /* Évite que le paragraphe glisse sur un côté */
