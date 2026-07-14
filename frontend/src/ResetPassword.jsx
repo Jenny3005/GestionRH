@@ -269,7 +269,7 @@ export default function ResetPassword() {
               <ul>
                 <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
                 <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">

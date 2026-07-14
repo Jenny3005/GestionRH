@@ -427,7 +427,7 @@ export default function App() {
                 <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">🌐 Site Officiel du MND</a></li>
                 <li><a href="https://sigrh.gouv.bj/SIGRHWEB" target="_blank" rel="noreferrer">🖥️ Accès SIGRH National</a></li>
                 <li>
-                  <a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank" rel="noreferrer">
+                  <a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank" rel="noreferrer">
                     📜 Statut de l'Agent de l'État (Loi 2015-18)
                   </a>
                 </li>
@@ -540,7 +540,7 @@ export default function App() {
               <ul>
                 <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
                 <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
