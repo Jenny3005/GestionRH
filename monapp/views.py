@@ -28,6 +28,9 @@ import tempfile
 import time
 import concurrent.futures
 import ollama
+import builtins
+if not hasattr(builtins, 'last_exc'):
+    builtins.last_exc = None
 from datetime import datetime, date, timedelta
 
 
