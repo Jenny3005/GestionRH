@@ -197,5 +197,9 @@ urlpatterns = [
     path('verify-reset-code/', views.verify_reset_code, name='verify_reset_code'),
     path('reset-password/', views.reset_password, name='reset_password'),
 
+    # Health checks
+    path('health/ollama/', views.health_ollama, name='health_ollama'),
+    path('health/', views.health, name='health'),
+
     
 ]

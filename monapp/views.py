@@ -4683,38 +4683,65 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
         cache.delete(f'anomalies_refresh_{matricule}')
 
 
-def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_BASE_URL') or 'http://127.0.0.1:11434'
-    model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
-
+@require_http_methods(["GET"])
+def health_ollama(request):
+    """Health-check endpoint for Ollama connectivity."""
+    host = os.getenv('OLLAMA_HOST') or 'http://127.0.0.1:11434'
     try:
         client = ollama.Client(host=host)
-        client.list()
-        return client, host, model_name
-    except Exception as exc:
-        ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
-        if ollama_path:
-            try:
-                subprocess.Popen(
-                    [ollama_path, 'serve'],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
-                )
-            except Exception:
-                pass
+        models = client.list()
+        return JsonResponse({'ok': True, 'models': [m['name'] for m in models]}, status=200)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=503)
 
-            for _ in range(10):
+
+@require_http_methods(["GET"])
+def health(request):
+    """Simple application health endpoint."""
+    return JsonResponse({'ok': True, 'version': '1.0', 'ollama_host': os.getenv('OLLAMA_HOST', 'unset')})
+
+
+def _ensure_ollama_running():
+    host = os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_BASE_URL') or 'http://127.0.0.1:11434'
+    model_name = os.getenv('OLLAMA_MODEL') or 'llama3.2:3b'
+
+    if not host.startswith(('http://', 'https://')):
+        host = f'http://{host}'
+
+    # Do not attempt to start Ollama automatically unless explicitly allowed
+    allow_auto = os.getenv('OLLAMA_AUTO_START', 'false').lower() in ('1', 'true', 'yes')
+
+    last_exc = None
+    for _ in range(3):
+        try:
+            client = ollama.Client(host=host)
+            client.list()
+            return client, host, model_name
+        except Exception as exc:
+            last_exc = exc
+            if not allow_auto:
                 time.sleep(1)
-                try:
-                    client = ollama.Client(host=host)
-                    client.list()
-                    return client, host, model_name
-                except Exception:
-                    continue
+                continue
 
-        raise exc
+            # Attempt to start local Ollama only when explicitly allowed and host is local
+            if host.startswith('http://127.0.0.1') or host.startswith('http://localhost'):
+                ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
+                if ollama_path:
+                    try:
+                        subprocess.Popen(
+                            [ollama_path, 'serve'],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            stdin=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+                        )
+                    except Exception:
+                        pass
+
+            time.sleep(2)
+
+    # If we get here, no client available
+    raise last_exc if last_exc is not None else RuntimeError('Could not connect to Ollama')
 
 
 def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
@@ -4755,6 +4782,7 @@ Réponds avec ce JSON uniquement :
 
     except Exception as e:
         print(f"[Ollama] Erreur interne : {type(e).__name__} — {e}")
+        # return fallback but keep error visible in logs
         return fallback_analysis(score)
 
 

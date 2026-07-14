@@ -2,11 +2,11 @@ services:
   - type: web
     name: gestionrh-web
     env: python
-    pythonVersion: 3.10
+    pythonVersion: 3.12
     branch: Jenny
     plan: starter
-    buildCommand: 'pip install -r requirements.txt && cd frontend && npm install && npm run build && cd .. && python manage.py collectstatic --noinput'
-    startCommand: 'python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:8000'
+    buildCommand: 'pip install -r requirements.txt && cd frontend && npm ci && npm run build && cd .. && python manage.py collectstatic --noinput'
+    startCommand: 'python manage.py migrate && gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT'
     envVars:
       - key: DEBUG
         value: "False"
@@ -25,4 +25,10 @@ services:
       - key: EMAIL_HOST_USER
         sync: false
       - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: OLLAMA_HOST
+        value: "http://127.0.0.1:11434"
+        sync: false
+      - key: OLLAMA_MODEL
+        value: "llama3.2:3b"
         sync: false
