@@ -7807,7 +7807,7 @@ def forgot_password(request):
             send_mail(
                 subject,
                 plain_message,
-                'no-reply@numerique.gouv.bj',
+                settings.DEFAULT_FROM_EMAIL,
                 [agent.email],  # Envoyer à l'email de l'agent
                 html_message=html_message,
                 fail_silently=False,
@@ -7825,6 +7825,7 @@ def forgot_password(request):
             
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Données invalides'}, status=400)
+
 
 @csrf_exempt
 def verify_reset_code(request):
