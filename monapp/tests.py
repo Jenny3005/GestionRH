@@ -1,8 +1,12 @@
+import os
+import shutil
+import tempfile
+
 from django.test import SimpleTestCase, override_settings
 
 from django.db import connection
 from monapp.emails import resolve_email_backend
-from monapp.views import normalize_matricule
+from monapp.views import normalize_matricule, save_uploaded_file_bytes
 
 
 class EmailBackendTests(SimpleTestCase):
@@ -44,3 +48,18 @@ class PieceFieldTests(SimpleTestCase):
 
         self.assertIsNotNone(column)
         self.assertIn('text', column[1].lower())
+
+
+class DocumentUploadStorageTests(SimpleTestCase):
+    def test_save_uploaded_file_bytes_persists_file_to_disk(self):
+        temp_dir = tempfile.mkdtemp()
+        try:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                file_bytes = b'%PDF-1.4\n%test'
+                file_path = save_uploaded_file_bytes(file_bytes, 'test.pdf', subdir='documents', prefix='doc')
+
+                self.assertTrue(os.path.exists(file_path))
+                with open(file_path, 'rb') as handle:
+                    self.assertEqual(handle.read(), file_bytes)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
