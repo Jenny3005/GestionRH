@@ -1892,6 +1892,9 @@ export default function DashboardRH() {
                       <option value="DIPLOME">Diplôme</option>
                       <option value="ATTESTATION">Attestation de travail</option>
                       <option value="CNI">Carte d'identité</option>
+                      <option value="ETAT">État des services</option>
+                      <option value="CERTIFICAT TRAVAIL">Certificat de travail</option>
+                      <option value="DERNIER ARRET">Dernier arrêté de situation administrative</option>
                     </select>
                     <small>Maintenez Ctrl pour sélectionner plusieurs</small>
                   </div>
