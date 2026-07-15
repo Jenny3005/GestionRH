@@ -26,6 +26,7 @@ export default function RHDocuments() {
   const [analyseLoading, setAnalyseLoading] = useState(false);
   const [analysisReady, setAnalysisReady] = useState(false);
   const [analysisRetryCount, setAnalysisRetryCount] = useState(0);
+  const MAX_ANALYSIS_ATTEMPTS = 20;
 
   // État pour le diagramme
   const [chartData, setChartData] = useState(null);
@@ -97,9 +98,9 @@ export default function RHDocuments() {
         setAnalyseLoading(false);
       } else {
         setAnalyseLoading(true);
-        if (attempt < 6) {
-          setAnalysisRetryCount(attempt);
-          setTimeout(() => fetchAnomalies(attempt + 1), 1500);
+        setAnalysisRetryCount(attempt);
+        if (attempt < MAX_ANALYSIS_ATTEMPTS) {
+          setTimeout(() => fetchAnomalies(attempt + 1), 2000);
         } else {
           setAnalyseLoading(false);
         }
