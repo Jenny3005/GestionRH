@@ -5305,7 +5305,7 @@ def postes_vacants(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
-            description = _validate_max_length('Description de l’annonce', data.get('description'), 255)
+            description = data.get('description')
             profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
             direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
             diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
@@ -6430,7 +6430,7 @@ def upload_piece_candidature(request, candidature_id):
 def update_poste_vacant(request, poste_id):
     try:
         data = json.loads(request.body)
-        description = _validate_max_length('Description de l’annonce', data.get('description'), 255)
+        description = data.get('description')
         profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
         direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
         diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
