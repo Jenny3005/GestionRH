@@ -5580,25 +5580,17 @@ def check_candidature_status(request, candidature_id):
 
 def _ocr_image_bytes(img_bytes):
     """OCR d'une image en bytes en utilisant EasyOCR puis pytesseract en fallback."""
-    try:
-        if getattr(extraire_texte_piece, 'reader', None):
-            try:
-                from PIL import Image
-                import numpy as np
-                with Image.open(io.BytesIO(img_bytes)) as img:
-                    img = img.convert('RGB')
-                    image_array = np.array(img)
-                result = extraire_texte_piece.reader.readtext(image_array)
-                return ' '.join([r[1] for r in result if len(r) >= 2])
-            except Exception as e:
-                print(f"⚠️ EasyOCR OCR failed: {e}")
-
-    except Exception as e:
-        print(f"⚠️ EasyOCR reader check failed: {e}")
+    # EasyOCR est désactivé pour éviter le téléchargement de modèles et le blocage de l'analyse en tâche de fond.
+    # Nous utilisons uniquement pytesseract si Tesseract est disponible.
 
     try:
         import pytesseract
         from PIL import Image
+        import shutil
+
+        if not shutil.which('tesseract'):
+            print('⚠️ pytesseract est installé mais tesseract n\'est pas trouvé dans le PATH')
+            return ''
         with Image.open(io.BytesIO(img_bytes)) as img:
             text = pytesseract.image_to_string(img, lang='fra+eng')
             return text.replace('\n', ' ').strip()
@@ -5629,18 +5621,11 @@ def extraire_texte_piece(piece_id):
         from docx import Document
         import io
         import PyPDF2
-        import easyocr
         from PIL import Image
         
-        # Initialiser EasyOCR une seule fois
-        if not hasattr(extraire_texte_piece, 'reader'):
-            print("📥 Initialisation d'EasyOCR...")
-            try:
-                extraire_texte_piece.reader = easyocr.Reader(['fr', 'en'], gpu=False)
-                print("✅ EasyOCR prêt")
-            except Exception as e:
-                extraire_texte_piece.reader = None
-                print(f"⚠️ EasyOCR initialisation échouée: {e}")
+        # EasyOCR est volontairement désactivé pour éviter les téléchargements de modèles
+        # et les blocages d'exécution en tâche de fond.
+        extraire_texte_piece.reader = None
         
         with connection.cursor() as cursor:
             cursor.execute("SELECT cheminfichier, nom_fichier FROM piece WHERE id = %s", [piece_id])
