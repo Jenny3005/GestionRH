@@ -5799,40 +5799,81 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     def _clean_text(text):
         return ' '.join(str(text or '').lower().split())
 
+    def _extract_degree_related_text(text):
+        if not text:
+            return ''
+        lower_text = text.lower()
+        degree_markers = [
+            'education', 'formation', 'diplômes', 'diplomes', 'degree', 'graduated',
+            'year of graduation', 'année de graduation', 'certificat', 'certification',
+            'études', 'etudes', 'studies', 'field of study', 'major', 'academic',
+            'university', 'institution', 'school', 'éducation', 'école',
+            'master en', 'master informatique', 'master réseau', 'master télécom', 'master telecom',
+            'diplôme en', 'licence en', 'diplômé en', 'diplome en', 'titre d\'ingénieur', 'titre d\'ingenieur',
+            'mastère', 'master professionnel'
+        ]
+        positions = [lower_text.find(marker) for marker in degree_markers if marker in lower_text]
+        if not positions:
+            return text
+        start = min(positions)
+        end = len(text)
+        stop_markers = [
+            'experience', 'professional experience', 'work experience', 'expérience professionnelle',
+            'compétences', 'skills', 'contact', 'expertise', 'summary', 'profil', 'projects', 'projets',
+            'certifications', 'certifications', 'accomplishments', 'réalisations', 'realizations'
+        ]
+        for marker in stop_markers:
+            idx = lower_text.find(marker, start + 1)
+            if idx != -1:
+                end = min(end, idx)
+        return text[start:end]
+
     def _find_diplome_in_text(text):
         if not text:
             return '', []
-        text_lower = _clean_text(text)
+        target_text = _extract_degree_related_text(text)
+        text_lower = _clean_text(target_text)
+        if not text_lower:
+            return '', []
+
         diplome_matches = []
         diplomes_niveaux = [
-            ('doctorat', 'Doctorat'),
-            ('phd', 'Doctorat'),
-            ('doctorate', 'Doctorat'),
-            ('dr.', 'Doctorat'),
-            ('doctor of', 'Doctorat'),
-            ('master 2', 'Master 2'),
-            ('master 1', 'Master 1'),
             ('master of science', 'Master'),
             ('master of arts', 'Master'),
             ('master in', 'Master'),
+            ('master en', 'Master'),
+            ('master de', 'Master'),
             ('master of', 'Master'),
             ('m.sc', 'Master'),
             ('msc', 'Master'),
             ('mba', 'Master'),
+            ('master professionnel', 'Master'),
             ('master', 'Master'),
-            ('ingénieur', 'Ingénieur'),
-            ('ingenieur', 'Ingénieur'),
-            ('licence', 'Licence'),
             ('bachelor of science', 'Bachelor'),
             ('bachelor of arts', 'Bachelor'),
             ("bachelor's in", 'Bachelor'),
             ('bachelor in', 'Bachelor'),
             ('bachelor', 'Bachelor'),
+            ('doctor of', 'Doctorat'),
+            ('dr.', 'Doctorat'),
+            ('phd', 'Doctorat'),
+            ('doctorate', 'Doctorat'),
+            ('doctorat', 'Doctorat'),
+            ('ingénieur', 'Ingénieur'),
+            ('ingenieur', 'Ingénieur'),
+            ('titre d\'ingénieur', 'Ingénieur'),
+            ('titre d\'ingenieur', 'Ingénieur'),
+            ('licence en', 'Licence'),
+            ('licence', 'Licence'),
+            ('bac+5', 'Bac+5'),
+            ('bac+4', 'Bac+4'),
             ('bac+3', 'Bac+3'),
             ('bac+2', 'Bac+2'),
             ('bts', 'BTS'),
             ('dut', 'DUT'),
             ('bac', 'Baccalauréat'),
+            ('diplôme en', 'Diplôme'),
+            ('diplome en', 'Diplôme'),
             ('diploma', 'Diplôme'),
             ('degree', 'Diplôme'),
             ('engineer', 'Ingénieur'),
@@ -5841,12 +5882,12 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             if term in text_lower:
                 diplome_matches.append(label)
 
-        # Si le texte ne contient pas un mot clé explicite de diplôme,
-        # vérifier si le bloc Education est présent et renvoyer une correspondance plus large.
-        if not diplome_matches and any(keyword in text_lower for keyword in ['education', 'institution', 'year of graduation', 'année de graduation', 'année', 'graduated', 'diplôme']):
-            for term, label in diplomes_niveaux:
-                if term in text_lower:
-                    diplome_matches.append(label)
+        if not diplome_matches:
+            full_text_lower = _clean_text(text)
+            if any(keyword in full_text_lower for keyword in ['education', 'institution', 'university', 'college', 'school', 'graduated', 'année de graduation', 'graduation', 'formation', 'diplôme']):
+                for term, label in diplomes_niveaux:
+                    if term in full_text_lower:
+                        diplome_matches.append(label)
 
         diplome_unique = []
         for label in diplome_matches:
@@ -5866,16 +5907,26 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             ('doctorate', 'Doctorat'),
             ('master 2', 'Master 2'),
             ('master 1', 'Master 1'),
+            ('master en', 'Master'),
+            ('master de', 'Master'),
+            ('master professionnel', 'Master'),
             ('master', 'Master'),
             ('ingénieur', 'Ingénieur'),
             ('ingenieur', 'Ingénieur'),
+            ('titre d\'ingénieur', 'Ingénieur'),
+            ('titre d\'ingenieur', 'Ingénieur'),
+            ('licence en', 'Licence'),
             ('licence', 'Licence'),
             ('bachelor', 'Bachelor'),
+            ('bac+5', 'Bac+5'),
+            ('bac+4', 'Bac+4'),
             ('bac+3', 'Bac+3'),
             ('bac+2', 'Bac+2'),
             ('bts', 'BTS'),
             ('dut', 'DUT'),
             ('bac', 'Baccalauréat'),
+            ('diplôme en', 'Diplôme'),
+            ('diplome en', 'Diplôme'),
             ('diploma', 'Diplôme'),
             ('degree', 'Diplôme'),
             ('engineer', 'Ingénieur'),
