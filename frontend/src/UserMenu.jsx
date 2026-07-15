@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getDashboardPath, getRoleLabel, normalizeRole } from './PortalNav';
 import './App.css';
 
-export default function UserMenu({ showDocuments = true, additionalLinks = [] }) {
+export default function UserMenu({ showDocuments = true, additionalLinks = [], onLogout }) {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dashboardSubmenuOpen, setDashboardSubmenuOpen] = useState(false);
@@ -20,11 +20,6 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
 
     const currentRole = localStorage.getItem('userRole');
     const savedRoles = localStorage.getItem('userRoles');
-
-    // 🔍 AJOUTE ICI
-    console.log('=== DEBUG USERMENU ===');
-    console.log('currentRole:', currentRole);
-    console.log('savedRoles:', savedRoles);
 
     let parsedRoles = [];
     try {
@@ -51,7 +46,7 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
       setUserRoles(['agent']);
       setUserRole('agent');
     }
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -67,7 +62,11 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [] })
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/');
+    if (onLogout) {
+      onLogout();
+      return;
+    }
+    window.location.href = '/';
   };
 
   const handleRoleChange = (role) => {
