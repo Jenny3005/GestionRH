@@ -377,7 +377,7 @@ export default function RHDocuments() {
                 <p style={{ marginTop: '10px', color: '#666' }}>
                   {analysisReady
                     ? 'Analyse IA terminée.'
-                    : `Analyse IA en cours. Résultat initial disponible${analysisRetryCount ? ` (réessai ${analysisRetryCount}/6)` : ''}.`}
+                    : `Analyse IA en cours.`}
                 </p>
               </div>
             ) : chartData ? (
