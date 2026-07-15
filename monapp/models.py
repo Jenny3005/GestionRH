@@ -228,7 +228,7 @@ class Notification(models.Model):
 
 class Permission(models.Model):
     code = models.CharField(unique=True, max_length=20)
-    description = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
 
     class Meta:
         managed = False
