@@ -5308,7 +5308,7 @@ def postes_vacants(request):
             description = data.get('description')
             profil_recherche = data.get('profil_recherche', '')
             direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
-            diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
+            diplome_requis = data.get('diplomeRequis', '')
             pieces_requises_json = json.dumps(data.get('pieces_requises', []))
             with connection.cursor() as cursor:
                 cursor.execute("""INSERT INTO poste_vacant (intitule, description, profil_recherche, date_publication, date_cloture, statut, directionDemande, diplomeRequis, pieces_requises) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -6433,7 +6433,7 @@ def update_poste_vacant(request, poste_id):
         description = data.get('description')
         profil_recherche = data.get('profil_recherche', '')
         direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
-        diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
+        diplome_requis = data.get('diplomeRequis', '')
         pieces_requises_json = json.dumps(data.get('pieces_requises', []))
         with connection.cursor() as cursor:
             cursor.execute("""UPDATE poste_vacant SET intitule = %s, description = %s, profil_recherche = %s, date_publication = %s, date_cloture = %s, directionDemande = %s, diplomeRequis = %s, pieces_requises = %s WHERE id = %s""",
