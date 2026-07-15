@@ -258,7 +258,7 @@ class PosteVacant(models.Model):
     date_cloture = models.DateField(blank=True, null=True)
     statut = models.CharField(max_length=50)
     directiondemande = models.CharField(db_column='directionDemande', max_length=100, blank=True, null=True)  # Field name made lowercase.
-    diplomerequis = models.CharField(db_column='diplomeRequis', max_length=100, blank=True, null=True)  # Field name made lowercase.
+    diplomerequis = models.TextField(db_column='diplomeRequis', blank=True, null=True)  # Field name made lowercase.
     pieces_requises = models.JSONField(blank=True, null=True)
 
     class Meta:
