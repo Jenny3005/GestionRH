@@ -54,3 +54,4 @@ whitenoise==6.12.0
 groupdocs-viewer-net==26.4.0
 pypandoc==1.13
 django-sendgrid-v5==1.2.0
+httpx
