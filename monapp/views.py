@@ -5861,19 +5861,21 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             ('doctorat', 'Doctorat'),
             ('ingénieur', 'Ingénieur'),
             ('ingenieur', 'Ingénieur'),
-            ('titre d\'ingénieur', 'Ingénieur'),
-            ('titre d\'ingenieur', 'Ingénieur'),
+            ("titre d'ingenieur", 'Ingénieur'),
+            ("titre d'ingénieur", 'Ingénieur'),
             ('licence en', 'Licence'),
             ('licence', 'Licence'),
+            ('baccalauréat', 'Baccalauréat'),
             ('bac+5', 'Bac+5'),
             ('bac+4', 'Bac+4'),
             ('bac+3', 'Bac+3'),
             ('bac+2', 'Bac+2'),
             ('bts', 'BTS'),
             ('dut', 'DUT'),
-            ('bac', 'Baccalauréat'),
+            ('\bbac\b', 'Baccalauréat'),
             ('diplôme en', 'Diplôme'),
             ('diplome en', 'Diplôme'),
+            ('high school diploma', 'Diplôme'),
             ('diploma', 'Diplôme'),
             ('degree', 'Diplôme'),
             ('engineer', 'Ingénieur'),
@@ -5884,10 +5886,40 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
 
         if not diplome_matches:
             full_text_lower = _clean_text(text)
-            if any(keyword in full_text_lower for keyword in ['education', 'institution', 'university', 'college', 'school', 'graduated', 'année de graduation', 'graduation', 'formation', 'diplôme']):
+            if any(keyword in full_text_lower for keyword in ['education', 'institution', 'university', 'college', 'school', 'graduated', 'année de graduation', 'graduation', 'formation', 'diplôme', 'certificat', 'certification']):
                 for term, label in diplomes_niveaux:
                     if term in full_text_lower:
                         diplome_matches.append(label)
+
+        if not diplome_matches:
+            # dernière chance : chercher des expressions de type diplôme dans le CV
+            for pattern in [
+                r'\bbachelor[^\n]{0,50}\b',
+                r'\bmaster[^\n]{0,50}\b',
+                r'\blicence[^\n]{0,50}\b',
+                r'\bdiploma[^\n]{0,50}\b',
+                r'\bdegree[^\n]{0,50}\b',
+                r'\bdoctorat[^\n]{0,50}\b',
+                r'\bphd\b',
+                r'\bingénieur[^\n]{0,50}\b',
+            ]:
+                for match in re.findall(pattern, text_lower):
+                    if 'bachelor' in match:
+                        diplome_matches.append('Bachelor')
+                    elif 'master' in match:
+                        diplome_matches.append('Master')
+                    elif 'licence' in match:
+                        diplome_matches.append('Licence')
+                    elif 'diploma' in match:
+                        diplome_matches.append('Diplôme')
+                    elif 'degree' in match:
+                        diplome_matches.append('Diplôme')
+                    elif 'doctorat' in match or 'phd' in match:
+                        diplome_matches.append('Doctorat')
+                    elif 'ingénieur' in match or 'ingenieur' in match or 'engineer' in match:
+                        diplome_matches.append('Ingénieur')
+                if diplome_matches:
+                    break
 
         diplome_unique = []
         for label in diplome_matches:
@@ -5949,6 +5981,9 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             return 0, [], ''
 
         import re
+        from datetime import datetime
+
+        # Chercher les durées explicites en années
         annees_experience = 0
         patterns_experience = [
             r'(\d+)\s*(?:ans|années|année)',
@@ -5965,15 +6000,57 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
                 except ValueError:
                     pass
 
+        # Chercher des plages de dates pour calculer l'expérience
+        months = {
+            'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'mai': 5, 'juin': 6,
+            'juillet': 7, 'août': 8, 'aout': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
+        }
+
+        def parse_date(token):
+            token = token.strip().lower()
+            for month, num in months.items():
+                if token.startswith(month):
+                    year_match = re.search(r'(\d{4})', token)
+                    if year_match:
+                        return num, int(year_match.group(1))
+            year_match = re.search(r'(\d{4})', token)
+            if year_match:
+                return 1, int(year_match.group(1))
+            if 'present' in token or 'présent' in token:
+                now = datetime.now()
+                return now.month, now.year
+            return None
+
+        total_months = 0
+        date_ranges = re.findall(r'([A-Za-zéûôäïçàèêù]+\s+\d{4})\s*[-–]\s*([A-Za-zéûôäïçàèêù]+\s+\d{4}|présent|present)', text_lower)
+        for start_token, end_token in date_ranges:
+            start_date = parse_date(start_token)
+            end_date = parse_date(end_token)
+            if start_date and end_date:
+                start_month, start_year = start_date
+                end_month, end_year = end_date
+                months_diff = (end_year - start_year) * 12 + (end_month - start_month)
+                if months_diff > 0:
+                    total_months += months_diff
+        if total_months > 0:
+            annees_experience = max(annees_experience, round(total_months / 12))
+
         experience_phrases = []
-        experience_keywords = ['responsable', 'manager', 'superviseur', 'directeur', 'chef', 'lead', 'architect', 'consultant', 'coordonnateur', 'project']
+        experience_keywords = [
+            'responsable', 'manager', 'superviseur', 'directeur', 'chef', 'lead',
+            'architect', 'consultant', 'coordonnateur', 'project', 'développement',
+            'support', 'technicien', 'intern', 'stage', 'assistant', 'assisté',
+            'gestion', 'administration', 'réseau', 'network', 'cybersecurity', 'cloud'
+        ]
         for sentence in re.split(r'[\.\n\r]', text):
             sentence_lower = sentence.lower()
             if any(keyword in sentence_lower for keyword in experience_keywords):
                 phrase = sentence.strip()
                 if phrase and phrase not in experience_phrases:
                     experience_phrases.append(phrase)
-            if len(experience_phrases) >= 5:
+            if len(experience_phrases) >= 7:
                 break
 
         return annees_experience, experience_phrases, text_lower
@@ -5994,12 +6071,23 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     lettre_requise = 'LM' in pieces_requises
     legal_name_parts = [p for p in [agent_nom, agent_prenom] if p]
 
+    # Diplôme réel vs CV utilisé pour déduction de diplôme
+    diplome_piece_text = diplome_text
+    has_diplome_piece = bool(diplome_piece_text and diplome_piece_text.strip())
+    diplome_text_for_scoring = diplome_piece_text if has_diplome_piece else (cv_text or '')
+
     # ============================================================
     # 1. VÉRIFICATION DES PIÈCES OBLIGATOIRES
     # ============================================================
     pieces_manquantes = [p for p in pieces_requises if p not in pieces_fournies_set]
     if pieces_manquantes:
-        return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
+        # Si seule la pièce diplôme est manquante, on peut utiliser le CV pour inférer le diplôme
+        if pieces_manquantes == ['DIPLOME'] and cv_text:
+            diplome_trouve, diplome_list = _find_diplome_in_text(cv_text)
+            if diplome_list:
+                pieces_manquantes = []
+        if pieces_manquantes:
+            return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
     
     # ============================================================
     # 2. DÉTECTION DE FRAUDE - VÉRIFICATION DES DOCUMENTS
@@ -6028,7 +6116,7 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     if legal_name_parts:
         source_texts = {
             'CV': cv_text,
-            'Diplôme': diplome_text,
+            'Diplôme': diplome_piece_text if has_diplome_piece else None,
             'CNI': cni_text,
         }
         for doc_name, doc_text in source_texts.items():
@@ -6047,45 +6135,44 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
                         'severite': 'faible'
                     })
 
-    # 2.3 Vérifier si le diplôme est authentique (recherche de mots clés)
-
-    # 2.3 Vérifier si le diplôme est authentique (recherche de mots clés)
-    if diplome_text:
-        # Vérifier si c'est vraiment un diplôme (français + anglais)
-        mots_authentiques = [
-            'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
-            'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
-            'obtention', 'promotion', 'annee', 'année', 'etudes', 'études',
-            # English
-            'degree', 'diploma', 'university', 'college', 'bachelor', 'master', 'phd', 'doctorate', 'engineer', 'graduat', 'obtained'
-        ]
-        
-        mots_trouves = 0
-        for mot in mots_authentiques:
-            if mot.lower() in diplome_text.lower():
-                mots_trouves += 1
-        
-        if mots_trouves < 3:
-            fraudes_detectees.append({
-                'type': 'document_suspect',
-                'description': 'Le document "diplôme" ne semble pas être un diplôme authentique (peu de mots-clés académiques)',
-                'severite': 'haute'
-            })
-        
-        # Vérifier si c'est une simple image/photo au hasard
-        if len(diplome_text) < 50:
-            fraudes_detectees.append({
-                'type': 'document_illisible',
-                'description': 'Le diplôme semble illisible ou contient très peu de texte (peut être une photo non pertinente)',
-                'severite': 'haute'
-            })
+    # 2.3 Vérifier si le diplôme est authentique (recherche de mots clés) uniquement si une pièce diplôme existe
+    if has_diplome_piece:
+        if diplome_piece_text:
+            # Vérifier si c'est vraiment un diplôme (français + anglais)
+            mots_authentiques = [
+                'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
+                'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
+                'obtention', 'promotion', 'annee', 'année', 'etudes', 'études',
+                # English
+                'degree', 'diploma', 'university', 'college', 'bachelor', 'master', 'phd', 'doctorate', 'engineer', 'graduat', 'obtained'
+            ]
+            
+            mots_trouves = 0
+            for mot in mots_authentiques:
+                if mot.lower() in diplome_piece_text.lower():
+                    mots_trouves += 1
+            
+            if mots_trouves < 3:
+                fraudes_detectees.append({
+                    'type': 'document_suspect',
+                    'description': 'Le document "diplôme" ne semble pas être un diplôme authentique (peu de mots-clés académiques)',
+                    'severite': 'haute'
+                })
+            
+            # Vérifier si c'est une simple image/photo au hasard
+            if len(diplome_piece_text) < 50:
+                fraudes_detectees.append({
+                    'type': 'document_illisible',
+                    'description': 'Le diplôme semble illisible ou contient très peu de texte (peut être une photo non pertinente)',
+                    'severite': 'haute'
+                })
     
-    # 2.3 Vérifier la cohérence CV vs Diplôme
-    if cv_text and diplome_text:
+    # 2.3 Vérifier la cohérence CV vs Diplôme uniquement si une pièce diplôme existe
+    if cv_text and has_diplome_piece and diplome_piece_text:
         # Extraire les années du CV
         import re
         annees_cv = re.findall(r'\b(19|20)\d{2}\b', cv_text)
-        annees_diplome = re.findall(r'\b(19|20)\d{2}\b', diplome_text)
+        annees_diplome = re.findall(r'\b(19|20)\d{2}\b', diplome_piece_text)
         
         # Vérifier si les années sont cohérentes
         if annees_cv and annees_diplome:
@@ -6118,8 +6205,8 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     }
     
     # 3.1 Analyse du DIPLÔME (0-40 points)
-    if diplome_text:
-        diplome_trouve, diplome_list = _find_diplome_in_text(diplome_text)
+    if diplome_text_for_scoring:
+        diplome_trouve, diplome_list = _find_diplome_in_text(diplome_text_for_scoring)
         if diplome_list:
             score_diplome = 0
             if 'Doctorat' in diplome_list:
@@ -6152,7 +6239,7 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             details_analyse['diplome']['trouve'] = 'Non spécifié'
 
         # Vérifier la correspondance avec le diplôme requis
-        if diplome_requis and diplome_requis.lower() in diplome_text.lower():
+        if diplome_requis and diplome_requis.lower() in diplome_text_for_scoring.lower():
             details_analyse['diplome']['points'] = min(40, details_analyse['diplome']['points'] + 5)
             details_analyse['diplome']['details'] = f"Diplôme correspond au requis: {diplome_requis}"
         else:
@@ -6163,43 +6250,7 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     # 3.2 Analyse de l'EXPÉRIENCE (0-30 points)
     if cv_text:
         cv_lower = cv_text.lower()
-        import re
-        
-        # Extraire les années d'expérience (FR + EN)
-        annees_experience = 0
-        patterns_experience = [
-            r'(\d+)\s*(?:ans|années|année)',
-            r'(\d+)\s*(?:ans|années|année)\s*(?:d\'expérience|d\'experience)',
-            r'expérience\s*(?:de|d\'|)\s*(\d+)',
-            r'experience\s*(?:de|d\'|)\s*(\d+)',
-            # English patterns
-            r'(\d+)\s*(?:years|yrs|year)',
-            r'experience\s*(?:of|of\s)?(\d+)\s*(?:years|yrs|year)',
-            r'\b(\d+)\+\s*years\b'
-        ]
-        
-        for pattern in patterns_experience:
-            matches = re.findall(pattern, cv_lower)
-            if matches:
-                annees = max([int(m) for m in matches if m.isdigit()])
-                annees_experience = max(annees_experience, annees)
-        
-        # Extraire des phrases sur les expériences professionnelles
-        experience_phrases = []
-        experience_keywords = [
-            'responsable', 'manager', 'superviseur', 'directeur', 'chef', 'lead', 'leadership',
-            'architect', 'architecte', 'consultant', 'coordonnateur', 'project', 'gestionnaire',
-            'développement', 'development', 'soutien', 'support', 'conduite', 'management'
-        ]
-        for sentence in re.split(r'[\.\n\r]', cv_text):
-            sentence_lower = sentence.lower()
-            if any(keyword in sentence_lower for keyword in experience_keywords):
-                phrase = sentence.strip()
-                if phrase and phrase not in experience_phrases:
-                    experience_phrases.append(phrase)
-            if len(experience_phrases) >= 5:
-                break
-
+        annees_experience, experience_phrases, _ = _extract_experience_info(cv_text)
         if annees_experience >= 10:
             points_exp = 30
             qualif_exp = 'excellent'
@@ -6481,10 +6532,9 @@ def analyser_candidature(request, candidature_id):
                 print("⚠️ ATTENTION: Aucun texte extrait des documents!")
                 print("   L'analyse IA risque de ne pas être pertinente")
 
-            # Si aucun texte de diplôme séparé n'est disponible, utiliser le CV comme source secondaire
+            # Si aucun texte de diplôme séparé n'est disponible, on utilisera le CV comme source secondaire pour l'analyse IA
             if not diplome_text and cv_text:
-                diplome_text = cv_text
-                print("⚠️ Aucun diplôme séparé trouvé; fallback sur le CV pour l'analyse du diplôme")
+                print("⚠️ Aucun diplôme séparé trouvé; le CV sera utilisé comme source secondaire pour l'analyse du diplôme")
             
             # 7. Analyser avec IA
             print("\n🤖 Appel de l'IA pour analyse...")
