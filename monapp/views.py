@@ -4714,7 +4714,9 @@ def _ensure_ollama_running():
             for _ in range(10):
                 time.sleep(1)
                 try:
-                    client = ollama.Client(host=host)
+                    import httpx
+                    http_client = httpx.Client(headers={"ngrok-skip-browser-warning": "true"})
+                    client = ollama.Client(host=host, http_client=http_client)
                     client.list()
                     return client, host, model_name
                 except Exception:
