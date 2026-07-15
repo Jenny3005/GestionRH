@@ -5425,6 +5425,16 @@ def postuler(request):
                 upload_dir = f'uploads/pieces/candidature_{candidature_id}'
                 os.makedirs(upload_dir, exist_ok=True)
                 
+                # Récupérer la date d'expiration si elle est fournie
+                date_expiration_str = request.POST.get('date_expiration')
+                if date_expiration_str:
+                    try:
+                        date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        return JsonResponse({'error': 'date_expiration invalide, format attendu: YYYY-MM-DD'}, status=400)
+                else:
+                    date_expiration = date.today()
+
                 # Mapping des fichiers
                 fichiers = [
                     ('CV', cv_file),
@@ -5458,9 +5468,9 @@ def postuler(request):
                             
                             # Insérer la pièce
                             cursor.execute("""
-                                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier) 
-                                VALUES (%s, %s, %s, %s, %s, %s)
-                            """, [candidature_id, type_piece_id, fichier.name, date.today(), 1, file_path])
+                                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier, date_expiration) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """, [candidature_id, type_piece_id, fichier.name, date.today(), 1, file_path, date_expiration])
                             
                             uploaded_count += 1
                             print(f"✅ {type_document} uploadé")
@@ -6351,22 +6361,22 @@ def upload_piece_candidature(request, candidature_id):
                 with open(file_path, 'wb') as f:
                     f.write(file_data)
                 
-                    original_filename = file_name
+                original_filename = file_name
                 print(f"✅ Fichier sauvegardé: {file_path}")
             
-        # ========== EXTRACTION DE LA DATE D'EXPIRATION ==========
-        date_expiration_str = None
-        if request.content_type and 'multipart/form-data' in request.content_type:
-            date_expiration_str = request.POST.get('date_expiration')
-        else:
-            date_expiration_str = data.get('date_expiration')
+            # ========== EXTRACTION DE LA DATE D'EXPIRATION ==========
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                date_expiration_str = request.POST.get('date_expiration')
+            else:
+                date_expiration_str = data.get('date_expiration')
 
-        date_expiration = None
-        if date_expiration_str:
-            try:
-                date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
-            except ValueError:
-                return JsonResponse({'error': 'date_expiration invalide, format attendu: YYYY-MM-DD'}, status=400)
+            if date_expiration_str:
+                try:
+                    date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({'error': 'date_expiration invalide, format attendu: YYYY-MM-DD'}, status=400)
+            else:
+                date_expiration = date.today()
 
             # ========== GESTION DU TYPE DE PIÈCE ==========
             cursor.execute("SELECT id FROM type_piece WHERE libelle = %s", [type_document])
