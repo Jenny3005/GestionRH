@@ -5808,12 +5808,25 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
             ('doctorat', 'Doctorat'),
             ('phd', 'Doctorat'),
             ('doctorate', 'Doctorat'),
+            ('dr.', 'Doctorat'),
+            ('doctor of', 'Doctorat'),
             ('master 2', 'Master 2'),
             ('master 1', 'Master 1'),
+            ('master of science', 'Master'),
+            ('master of arts', 'Master'),
+            ('master in', 'Master'),
+            ('master of', 'Master'),
+            ('m.sc', 'Master'),
+            ('msc', 'Master'),
+            ('mba', 'Master'),
             ('master', 'Master'),
             ('ingénieur', 'Ingénieur'),
             ('ingenieur', 'Ingénieur'),
             ('licence', 'Licence'),
+            ('bachelor of science', 'Bachelor'),
+            ('bachelor of arts', 'Bachelor'),
+            ("bachelor's in", 'Bachelor'),
+            ('bachelor in', 'Bachelor'),
             ('bachelor', 'Bachelor'),
             ('bac+3', 'Bac+3'),
             ('bac+2', 'Bac+2'),
@@ -5827,6 +5840,14 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         for term, label in diplomes_niveaux:
             if term in text_lower:
                 diplome_matches.append(label)
+
+        # Si le texte ne contient pas un mot clé explicite de diplôme,
+        # vérifier si le bloc Education est présent et renvoyer une correspondance plus large.
+        if not diplome_matches and any(keyword in text_lower for keyword in ['education', 'institution', 'year of graduation', 'année de graduation', 'année', 'graduated', 'diplôme']):
+            for term, label in diplomes_niveaux:
+                if term in text_lower:
+                    diplome_matches.append(label)
+
         diplome_unique = []
         for label in diplome_matches:
             if label not in diplome_unique:
