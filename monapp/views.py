@@ -4687,7 +4687,7 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
 
 
 def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_URL', 'https://rocket-exhibit-visited-negotiation.trycloudflare.com')
+    host = os.getenv('OLLAMA_URL', 'https://kudos-garbage-path.ngrok-free.dev')
     model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
     try:
