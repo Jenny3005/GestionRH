@@ -68,6 +68,14 @@ import base64
 import ollama
 import re
 
+def _validate_max_length(field_name, value, max_length):
+    if value is None:
+        return None
+    value = str(value)
+    if len(value) > max_length:
+        raise ValueError(f"{field_name} trop long ({len(value)} caractères), maximum {max_length}.")
+    return value
+
 try:
     from docx.shared import Pt
 except ImportError:
@@ -1761,13 +1769,15 @@ def add_permission(request):
     try:
         data = json.loads(request.body)
         code = data.get('code')
-        description = data.get('description')
+        description = _validate_max_length('Description de permission', data.get('description'), 255)
         
         if Permission.objects.filter(code=code).exists():
             return JsonResponse({'error': 'Cette permission existe déjà'}, status=400)
         
         permission = Permission.objects.create(code=code, description=description)
         return JsonResponse({'success': True, 'code': permission.code})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -5295,16 +5305,22 @@ def postes_vacants(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
+            description = _validate_max_length('Description de l’annonce', data.get('description'), 255)
+            profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
+            direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
+            diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
             pieces_requises_json = json.dumps(data.get('pieces_requises', []))
             with connection.cursor() as cursor:
                 cursor.execute("""INSERT INTO poste_vacant (intitule, description, profil_recherche, date_publication, date_cloture, statut, directionDemande, diplomeRequis, pieces_requises) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    [data.get('intitule'), data.get('description'), data.get('profil_recherche', ''), data.get('date_publication'), data.get('date_cloture'), 'publie', data.get('directionDemande'), data.get('diplomeRequis', ''), pieces_requises_json])
+                    [data.get('intitule'), description, profil_recherche, data.get('date_publication'), data.get('date_cloture'), 'publie', direction_demande, diplome_requis, pieces_requises_json])
                 poste_id = cursor.lastrowid
             with connection.cursor() as cursor:
                 cursor.execute("SELECT matricule FROM agent WHERE actif = 1")
                 for agent in cursor.fetchall():
                     cursor.execute("INSERT INTO notification (agent_id, message, type_notification, date_envoi, lue) VALUES (%s, %s, %s, %s, %s)", [agent[0], f"📢 Nouvelle annonce : {data.get('intitule')}", 'NOUVELLE_ANNONCE', date.today(), 0])
             return JsonResponse({'success': True, 'id': poste_id, 'message': 'Annonce créée'})
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
@@ -6414,11 +6430,17 @@ def upload_piece_candidature(request, candidature_id):
 def update_poste_vacant(request, poste_id):
     try:
         data = json.loads(request.body)
+        description = _validate_max_length('Description de l’annonce', data.get('description'), 255)
+        profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
+        direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
+        diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
         pieces_requises_json = json.dumps(data.get('pieces_requises', []))
         with connection.cursor() as cursor:
             cursor.execute("""UPDATE poste_vacant SET intitule = %s, description = %s, profil_recherche = %s, date_publication = %s, date_cloture = %s, directionDemande = %s, diplomeRequis = %s, pieces_requises = %s WHERE id = %s""",
-                [data.get('intitule'), data.get('description'), data.get('profil_recherche', ''), data.get('date_publication'), data.get('date_cloture'), data.get('directionDemande'), data.get('diplomeRequis', ''), pieces_requises_json, poste_id])
+                [data.get('intitule'), description, profil_recherche, data.get('date_publication'), data.get('date_cloture'), direction_demande, diplome_requis, pieces_requises_json, poste_id])
         return JsonResponse({'success': True, 'message': 'Annonce modifiée'})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
