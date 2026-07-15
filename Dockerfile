@@ -14,16 +14,18 @@ FROM python:3.12-slim-bullseye
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y \
-       libreoffice-common \
-       libreoffice-core \
-       libreoffice-writer \
-       fonts-dejavu-core \
-       fonts-liberation \
-       pkg-config \
-       default-libmysqlclient-dev \
-       build-essential \
-    && rm -rf /var/lib/apt/lists/*
+     && apt-get install -y \
+         libreoffice-common \
+         libreoffice-core \
+         libreoffice-writer \
+         fonts-dejavu-core \
+         fonts-liberation \
+         pkg-config \
+         default-libmysqlclient-dev \
+         build-essential \
+         tesseract-ocr \
+         tesseract-ocr-fra \
+     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
