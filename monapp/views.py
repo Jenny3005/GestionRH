@@ -6372,27 +6372,28 @@ def analyser_candidature(request, candidature_id):
                 texte = extraire_texte_piece(piece_id)
                 type_piece_code = _normaliser_type_piece(type_libelle)
                 textes_par_piece[type_piece_code] = texte
+                print(f"   ✅ Normalized type: {type_piece_code}")
                 print(f"   📝 Texte extrait: {len(texte)} caractères")
                 if len(texte) > 0 and len(texte) < 500:
                     print(f"   📝 Contenu: {texte[:200]}...")
                 
-                if type_libelle == 'CV':
+                if type_piece_code == 'CV':
                     cv_text = texte
                     print(f"   ✅ Assigné à CV")
-                elif type_libelle == 'LM':
+                elif type_piece_code == 'LM':
                     lettre_text = texte
                     print(f"   ✅ Assigné à Lettre de motivation")
-                elif 'DIPLOME' in type_libelle.upper():
+                elif type_piece_code == 'DIPLOME':
                     diplome_text = texte
                     print(f"   ✅ Assigné à Diplôme")
-                elif 'CNI' in type_libelle.upper():
+                elif type_piece_code == 'CNI':
                     cni_text = texte
                     # Ne pas ignorer la CNI : ajouter son texte à l'analyse générale
                     if texte:
                         cv_text = (cv_text or '') + ' ' + texte
                     print(f"   ✅ Assigné à CNI (inclus dans l'analyse)")
                 else:
-                    print(f"   ⚠️ Type non reconnu: {type_libelle}")
+                    print(f"   ⚠️ Type non reconnu: {type_libelle} (code normalisé: {type_piece_code})")
             
             # 5. Résumé des textes extraits
             print("\n" + "-" * 50)
@@ -6407,6 +6408,11 @@ def analyser_candidature(request, candidature_id):
             if len(cv_text) == 0 and len(lettre_text) == 0 and len(diplome_text) == 0:
                 print("⚠️ ATTENTION: Aucun texte extrait des documents!")
                 print("   L'analyse IA risque de ne pas être pertinente")
+
+            # Si aucun texte de diplôme séparé n'est disponible, utiliser le CV comme source secondaire
+            if not diplome_text and cv_text:
+                diplome_text = cv_text
+                print("⚠️ Aucun diplôme séparé trouvé; fallback sur le CV pour l'analyse du diplôme")
             
             # 7. Analyser avec IA
             print("\n🤖 Appel de l'IA pour analyse...")
