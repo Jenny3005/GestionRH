@@ -21,6 +21,9 @@ export default function DashboardAgent() {
     typecontrat: ''
   });
   const [demandesRecentes, setDemandesRecentes] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
   const [soldeConge, setSoldeConge] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +143,7 @@ export default function DashboardAgent() {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          const formatted = data.slice(0, 5).map(d => {
+          const formatted = data.map(d => {
             let statutAffichage = d.statut;
             if (d.statut === 'valide') statutAffichage = 'Approuvée';
             else if (d.statut === 'refuse') statutAffichage = 'Rejetée';
@@ -275,6 +278,22 @@ export default function DashboardAgent() {
   const estComplete = (niveauRequis) => niveauActuel >= niveauRequis;
   const estActive = (niveauRequis) => niveauActuel === niveauRequis - 1;
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredDemandes = demandesRecentes.filter((d) => {
+    if (!normalizedSearchQuery) return true;
+    return [d.type, d.periode, d.date, d.statut]
+      .filter(Boolean)
+      .some(field => field.toLowerCase().includes(normalizedSearchQuery));
+  });
+
+  const pageCount = Math.max(1, Math.ceil(filteredDemandes.length / rowsPerPage));
+  const currentPageClamped = Math.min(Math.max(currentPage, 1), pageCount);
+  const startIndex = (currentPageClamped - 1) * rowsPerPage;
+  const currentRows = filteredDemandes.slice(startIndex, startIndex + rowsPerPage);
+
+  const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
+  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, pageCount));
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
@@ -316,7 +335,18 @@ export default function DashboardAgent() {
           {/* Demandes récentes */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>Demandes récentes</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0 }}>Demandes récentes</h3>
+                <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                    placeholder="Recherche..."
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  />
+                </div>
+              </div>
               <button className="agent-card-btn" onClick={() => navigate('/demarches')}>Voir tout →</button>
             </div>
             <div className="agent-table-container">
@@ -331,14 +361,14 @@ export default function DashboardAgent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {demandesRecentes.length === 0 ? (
+                  {filteredDemandes.length === 0 ? (
                     <tr>
                       <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
-                        Aucune demande récente
+                        Aucune demande trouvée
                       </td>
                     </tr>
                   ) : (
-                    demandesRecentes.map((d) => {
+                    currentRows.map((d) => {
                       let badgeClass = 'rejected';
                       if (['Approuvée', 'Acte généré', 'Acte remis', 'Signé', 'Terminé'].includes(d.statut)) {
                         badgeClass = 'approved';
@@ -366,6 +396,31 @@ export default function DashboardAgent() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0 0 0' }}>
+              <div style={{ fontSize: '0.95rem', color: '#4b5563' }}>
+                {filteredDemandes.length === 0
+                  ? 'Aucun résultat'
+                  : `Affichage ${startIndex + 1} à ${Math.min(startIndex + rowsPerPage, filteredDemandes.length)} sur ${filteredDemandes.length}`}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="agent-card-btn"
+                  style={{ padding: '0.5rem 0.75rem', minWidth: '120px' }}
+                  onClick={goToPrevPage}
+                  disabled={currentPageClamped === 1}
+                >
+                  ← Précédent
+                </button>
+                <button
+                  className="agent-card-btn"
+                  style={{ padding: '0.5rem 0.75rem', minWidth: '120px' }}
+                  onClick={goToNextPage}
+                  disabled={currentPageClamped === pageCount || filteredDemandes.length === 0}
+                >
+                  Suivant →
+                </button>
+              </div>
             </div>
           </div>
 

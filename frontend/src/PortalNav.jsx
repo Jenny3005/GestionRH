@@ -58,7 +58,7 @@ export default function PortalNav() {
   const [userRole, setUserRole] = useState('');
   const [userRoles, setUserRoles] = useState([]);
 
-  useEffect(() => {
+  const refreshUserState = () => {
     setIsLoggedIn(Boolean(localStorage.getItem('userMatricule')));
     setUserRole(normalizeRole(localStorage.getItem('userRole')));
 
@@ -73,7 +73,22 @@ export default function PortalNav() {
       parsedRoles = [];
     }
     setUserRoles(parsedRoles);
-  }, []);
+  };
+
+  useEffect(() => {
+    refreshUserState();
+
+    const handleStorageChange = () => {
+      refreshUserState();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('localstoragechange', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localstoragechange', handleStorageChange);
+    };
+  }, [location.pathname]);
 
   const dashboardPath = userRoles.length > 1 ? '/dashboard' : getDashboardPath(userRole);
 

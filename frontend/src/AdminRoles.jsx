@@ -423,7 +423,6 @@ export default function AdminRoles() {
               />
             </div>
             <div className="action-buttons">
-              <span className="roles-count">Rôles chargés : {roles.length}</span>
               <Can permission="AJOUTER_ROLE">
                 <button className="btn-add" onClick={() => setShowModal(true)}><Plus size={16} />Ajouter un rôle personnalisé</button>
               </Can>

@@ -17,7 +17,14 @@ export default function App() {
   const [selectedPoste, setSelectedPoste] = useState(null);
   const [showPosteModal, setShowPosteModal] = useState(false);
   const navigate = useNavigate();
-
+  const handleLogout = () => {
+    localStorage.clear();
+    setIsLoggedIn(false);
+    setUserName('');
+    setUserEmail('');
+    window.dispatchEvent(new Event('localstoragechange'));
+    navigate('/');
+  };
   // Vérifier si l'utilisateur est connecté au chargement
   useEffect(() => {
     const savedMatricule = localStorage.getItem('userMatricule');
@@ -173,7 +180,7 @@ export default function App() {
 
         <div className="nav-right">
           {isLoggedIn ? (
-            <UserMenu />
+            <UserMenu onLogout={handleLogout} />
           ) : (
             <button className="btn-login-main" onClick={() => navigate('/auth')}>
               Se connecter / S'inscrire
