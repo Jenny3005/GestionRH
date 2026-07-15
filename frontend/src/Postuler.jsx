@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserMenu from './UserMenu';
 import './App.css';
@@ -20,6 +20,8 @@ export default function Postuler() {
   const [piecesRequises, setPiecesRequises] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [isPolling, setIsPolling] = useState(false);
+  const isMounted = useRef(true);
 
   useEffect(() => {
     const matricule = localStorage.getItem('userMatricule');
@@ -40,6 +42,8 @@ export default function Postuler() {
     setPoste({ intitule: selectedPosteIntitule, id: selectedPosteId });
     
     fetchPosteDetails(selectedPosteId);
+
+    return () => { isMounted.current = false; };
   }, [navigate]);
 
   const fetchPosteDetails = async (id) => {
@@ -234,21 +238,68 @@ export default function Postuler() {
       
       setMessage({ 
         type: 'success', 
-        text: '✅ Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan. Vous recevrez une notification une fois terminée.' 
+        text: '✅ Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan.' 
       });
-      
-      // Nettoyer et rediriger après 3 secondes
+      setIsPolling(true);
+      pollCandidatureStatus(candidatureId);
+
+      // Nettoyer et rediriger après 10 secondes si l'utilisateur n'est pas déjà parti
       setTimeout(() => {
-        localStorage.removeItem('selectedPosteId');
-        localStorage.removeItem('selectedPosteIntitule');
-        navigate('/');
-      }, 3000);
+        if (isMounted.current) {
+          localStorage.removeItem('selectedPosteId');
+          localStorage.removeItem('selectedPosteIntitule');
+          navigate('/');
+        }
+      }, 10000);
 
     } catch (error) {
       console.error('❌ Erreur globale:', error);
       setMessage({ type: 'error', text: 'Erreur de connexion au serveur: ' + error.message });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const pollCandidatureStatus = async (candidatureId, attempt = 1) => {
+    const MAX_ATTEMPTS = 15;
+    try {
+      const response = await fetch(`/api/candidatures/${candidatureId}/status/`);
+      if (!response.ok) {
+        throw new Error(`Statut indisponible (${response.status})`);
+      }
+      const statusData = await response.json();
+      const analyseComplete = statusData.analyse_terminee;
+      const score = statusData.score;
+      if (analyseComplete) {
+        if (!isMounted.current) return;
+        setIsPolling(false);
+        setMessage({
+          type: 'success',
+          text: `✅ Analyse IA terminée. Score: ${score}/100. Vous pouvez consulter votre dossier.`
+        });
+        return;
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        setTimeout(() => pollCandidatureStatus(candidatureId, attempt + 1), 2000);
+      } else {
+        if (!isMounted.current) return;
+        setIsPolling(false);
+        setMessage({
+          type: 'info',
+          text: '⚠️ Analyse IA toujours en cours. Vous serez notifié lorsque le résultat sera prêt.'
+        });
+      }
+    } catch (error) {
+      if (!isMounted.current) return;
+      if (attempt < MAX_ATTEMPTS) {
+        setTimeout(() => pollCandidatureStatus(candidatureId, attempt + 1), 2000);
+      } else {
+        setIsPolling(false);
+        setMessage({
+          type: 'info',
+          text: '⚠️ Impossible de vérifier le statut de l\'analyse pour le moment. L\'analyse se poursuivra en arrière-plan.'
+        });
+      }
     }
   };
 

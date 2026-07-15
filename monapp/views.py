@@ -6,8 +6,7 @@ from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from django.db import connection
-from django.db import models
+from django.db import connection, models, close_old_connections
 from django.db.models import Sum
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
@@ -43,7 +42,6 @@ def normalize_matricule(value):
             return ''
         return value
     return str(value).strip()
-# En haut du fichier, ajoute :
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
@@ -5524,15 +5522,24 @@ def lancer_analyse_async(candidature_id):
         # Attendre un peu que tous les fichiers soient bien enregistrés
         import time
         time.sleep(2)
-        
-        from .views import analyser_candidature
-        from django.test import RequestFactory
-        
-        factory = RequestFactory()
-        request = factory.post(f'/api/candidatures/{candidature_id}/analyser/')
-        
-        print(f"📡 Appel de analyser_candidature...")
-        result = analyser_candidature(request, candidature_id)
+
+        close_old_connections()
+        print(f"📡 Appel de l'analyse worker pour candidature {candidature_id}...")
+        result = analyser_candidature_worker(candidature_id)
+
+        if result is None:
+            print(f"❌ [ASYNC] Analyse worker a retourné None pour candidature {candidature_id}")
+            return
+
+        if hasattr(result, 'status_code') and result.status_code != 200:
+            try:
+                payload = json.loads(result.content.decode('utf-8'))
+                error_message = payload.get('error') or payload.get('message') or f"HTTP {result.status_code}"
+            except Exception:
+                error_message = f"HTTP {result.status_code}"
+            print(f"❌ [ASYNC] Analyse échouée pour candidature {candidature_id}: {error_message}")
+            return
+
         print(f"✅ [ASYNC] Analyse terminée pour candidature {candidature_id}")
         
     except Exception as e:
@@ -5559,16 +5566,62 @@ def check_candidature_status(request, candidature_id):
             if not result:
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
             
+            analyse_ia = result[3]
             return JsonResponse({
                 'candidature_id': result[0],
                 'statut': result[1],
-                'score': result[2] or 0,
-                'analyse': result[3] or '',
+                'score': result[2] if result[2] is not None else 0,
+                'analyse': analyse_ia if analyse_ia else '',
                 'nb_pieces': result[4] or 0,
-                'analyse_terminee': result[2] is not None and result[2] > 0
+                'analyse_terminee': analyse_ia is not None and analyse_ia != ''
             })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+def _ocr_image_bytes(img_bytes):
+    """OCR d'une image en bytes en utilisant EasyOCR puis pytesseract en fallback."""
+    try:
+        if getattr(extraire_texte_piece, 'reader', None):
+            try:
+                from PIL import Image
+                import numpy as np
+                with Image.open(io.BytesIO(img_bytes)) as img:
+                    img = img.convert('RGB')
+                    image_array = np.array(img)
+                result = extraire_texte_piece.reader.readtext(image_array)
+                return ' '.join([r[1] for r in result if len(r) >= 2])
+            except Exception as e:
+                print(f"⚠️ EasyOCR OCR failed: {e}")
+
+    except Exception as e:
+        print(f"⚠️ EasyOCR reader check failed: {e}")
+
+    try:
+        import pytesseract
+        from PIL import Image
+        with Image.open(io.BytesIO(img_bytes)) as img:
+            text = pytesseract.image_to_string(img, lang='fra+eng')
+            return text.replace('\n', ' ').strip()
+    except Exception as e:
+        print(f"⚠️ pytesseract fallback failed: {e}")
+    return ""
+
+
+def analyser_candidature_worker(candidature_id):
+    """Travailleur de fond pour l'analyse de candidature sans requête HTTP."""
+    try:
+        close_old_connections()
+        from django.test import RequestFactory
+        factory = RequestFactory()
+        request = factory.post('/')
+        response = analyser_candidature(request, candidature_id)
+        if hasattr(response, 'status_code') and response.status_code != 200:
+            print(f"❌ [WORKER] analyse échouée (HTTP {response.status_code}) pour candidature {candidature_id}")
+        return response
+    except Exception as e:
+        print(f"❌ [WORKER] erreur interne: {type(e).__name__} - {e}")
+        return None
+
 
 def extraire_texte_piece(piece_id):
     """Extrait le texte d'un fichier uploadé (PDF, DOCX, Image) avec EasyOCR - Version OPTIMISÉE"""
@@ -5582,8 +5635,12 @@ def extraire_texte_piece(piece_id):
         # Initialiser EasyOCR une seule fois
         if not hasattr(extraire_texte_piece, 'reader'):
             print("📥 Initialisation d'EasyOCR...")
-            extraire_texte_piece.reader = easyocr.Reader(['fr', 'en'], gpu=False)
-            print("✅ EasyOCR prêt")
+            try:
+                extraire_texte_piece.reader = easyocr.Reader(['fr', 'en'], gpu=False)
+                print("✅ EasyOCR prêt")
+            except Exception as e:
+                extraire_texte_piece.reader = None
+                print(f"⚠️ EasyOCR initialisation échouée: {e}")
         
         with connection.cursor() as cursor:
             cursor.execute("SELECT cheminfichier, nom_fichier FROM piece WHERE id = %s", [piece_id])
@@ -5616,37 +5673,34 @@ def extraire_texte_piece(piece_id):
                         if len(texte) > 200:
                             print(f"📄 PDF texte extrait: {len(texte)} caractères")
                             return texte[:3000]
+                    
+                    print(f"⚠️ PDF scanné, OCR en cours...")
+                    try:
+                        import fitz
+                        doc = fitz.open(fichier_path)
+                        texte_ocr = ""
                         
-                        # PDF scanné - utilisation OCR rapide
-                        print(f"⚠️ PDF scanné, OCR en cours...")
-                        try:
-                            import fitz
-                            doc = fitz.open(fichier_path)
-                            texte_ocr = ""
-                            
-                            # Limiter à 2 pages max pour la vitesse
-                            max_pages = min(len(doc), 2)
-                            
-                            for page_num in range(max_pages):
-                                page = doc.load_page(page_num)
-                                # Résolution réduite pour être plus rapide
-                                zoom = 1.5  # Réduit de 3.0 à 1.5
-                                mat = fitz.Matrix(zoom, zoom)
-                                pix = page.get_pixmap(matrix=mat)
-                                img_bytes = pix.tobytes("png")
-                                
-                                result = extraire_texte_piece.reader.readtext(img_bytes)
-                                page_text = ' '.join([r[1] for r in result])
-                                texte_ocr += page_text + " "
-                                print(f"   Page {page_num + 1}: {len(page_text)} caractères")
-                            
-                            doc.close()
-                            print(f"📄 PDF OCR: {len(texte_ocr)} caractères")
-                            return texte_ocr[:3000] if texte_ocr else ""
-                        except ImportError:
-                            print("⚠️ PyMuPDF non installé, impossible d'OCR le PDF")
-                            return ""
+                        # Limiter à 2 pages max pour la vitesse
+                        max_pages = min(len(doc), 2)
                         
+                        for page_num in range(max_pages):
+                            page = doc.load_page(page_num)
+                            # Résolution réduite pour être plus rapide
+                            zoom = 1.5  # Réduit de 3.0 à 1.5
+                            mat = fitz.Matrix(zoom, zoom)
+                            pix = page.get_pixmap(matrix=mat)
+                            img_bytes = pix.tobytes("png")
+                            
+                            page_text = _ocr_image_bytes(img_bytes)
+                            texte_ocr += page_text + " "
+                            print(f"   Page {page_num + 1}: {len(page_text)} caractères")
+                        
+                        doc.close()
+                        print(f"📄 PDF OCR: {len(texte_ocr)} caractères")
+                        return texte_ocr[:3000] if texte_ocr else ""
+                    except ImportError:
+                        print("⚠️ PyMuPDF non installé, impossible d'OCR le PDF")
+                        return ""
                 except Exception as e:
                     print(f"Erreur PDF: {e}")
                     return ""
@@ -5673,9 +5727,7 @@ def extraire_texte_piece(piece_id):
                     img_bytes = img_bytes.getvalue()
                     
                     # OCR
-                    result = extraire_texte_piece.reader.readtext(img_bytes)
-                    texte = ' '.join([r[1] for r in result])
-                    
+                    texte = _ocr_image_bytes(img_bytes)
                     print(f"🖼️ OCR: {len(texte)} caractères")
                     return texte[:3000] if texte else ""
                     
