@@ -4705,11 +4705,14 @@ def health(request):
 
 
 def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_URL', 'https://linux-pen-reproduced-industrial.trycloudflare.com')
+    host = os.getenv('OLLAMA_URL', 'https://kudos-garbage-path.ngrok-free.dev')
     model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
     try:
-        client = ollama.Client(host=host)
+        import httpx
+
+        http_client = httpx.Client(headers={"ngrok-skip-browser-warning": "true"})
+        client = ollama.Client(host=host, http_client=http_client)
         client.list()
         return client, host, model_name
     except Exception as exc:
@@ -4726,10 +4729,18 @@ def _ensure_ollama_running():
             except Exception:
                 pass
 
-            time.sleep(2)
+            for _ in range(10):
+                time.sleep(1)
+                try:
+                    import httpx
+                    http_client = httpx.Client(headers={"ngrok-skip-browser-warning": "true"})
+                    client = ollama.Client(host=host, http_client=http_client)
+                    client.list()
+                    return client, host, model_name
+                except Exception:
+                    continue
 
-    # If we get here, no client available
-    raise last_exc if last_exc is not None else RuntimeError('Could not connect to Ollama')
+        raise exc
 
 
 def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
