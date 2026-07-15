@@ -5306,7 +5306,7 @@ def postes_vacants(request):
         try:
             data = json.loads(request.body)
             description = data.get('description')
-            profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
+            profil_recherche = data.get('profil_recherche', '')
             direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
             diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
             pieces_requises_json = json.dumps(data.get('pieces_requises', []))
@@ -6431,7 +6431,7 @@ def update_poste_vacant(request, poste_id):
     try:
         data = json.loads(request.body)
         description = data.get('description')
-        profil_recherche = _validate_max_length('Profil recherché', data.get('profil_recherche', ''), 255)
+        profil_recherche = data.get('profil_recherche', '')
         direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
         diplome_requis = _validate_max_length('Diplôme requis', data.get('diplomeRequis', ''), 100)
         pieces_requises_json = json.dumps(data.get('pieces_requises', []))
