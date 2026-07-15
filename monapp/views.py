@@ -4709,10 +4709,7 @@ def _ensure_ollama_running():
     model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
     try:
-        import httpx
-
-        http_client = httpx.Client(headers={"ngrok-skip-browser-warning": "true"})
-        client = ollama.Client(host=host, http_client=http_client)
+        client = ollama.Client(host=host)
         client.list()
         return client, host, model_name
     except Exception as exc:
@@ -4732,9 +4729,7 @@ def _ensure_ollama_running():
             for _ in range(10):
                 time.sleep(1)
                 try:
-                    import httpx
-                    http_client = httpx.Client(headers={"ngrok-skip-browser-warning": "true"})
-                    client = ollama.Client(host=host, http_client=http_client)
+                    client = ollama.Client(host=host)
                     client.list()
                     return client, host, model_name
                 except Exception:
@@ -4764,16 +4759,26 @@ Complète uniquement risques et recommandations selon le contexte.
 Réponds avec ce JSON uniquement :
 {{"score":{score},"statut_global":"{statut}","resume":"2 phrases max.","points_forts":{pts_str},"points_faibles":{pf_str},"risques":[...],"recommandations":[...]}}"""
 
-        ai_response = client.chat(
-            model=model_name,
-            messages=[
-                {'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user', 'content': prompt_user}
-            ],
-            options={'temperature': 0.1, 'num_predict': 500, 'stop': ['```']}
+        # ✅ Utiliser requests directement avec le header
+        import requests
+        response = requests.post(
+            f"{host}/api/chat",
+            json={
+                "model": model_name,
+                "messages": [
+                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'user', 'content': prompt_user}
+                ],
+                "options": {'temperature': 0.1, 'num_predict': 500, 'stop': ['```']}
+            },
+            headers={
+                "ngrok-skip-browser-warning": "true",
+                "User-Agent": "OllamaApp/1.0"
+            },
+            timeout=120
         )
-
-        raw = ai_response['message']['content']
+        
+        raw = response.json()['message']['content']
         print(f"[Ollama] Réponse brute : {repr(raw)}")
         parsed = safe_parse_ai(raw, score)
         print(f"[Ollama] Parsed : {parsed}")
