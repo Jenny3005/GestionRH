@@ -5834,11 +5834,13 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     
     # 2.2 Vérifier si le diplôme est authentique (recherche de mots clés)
     if diplome_text:
-        # Vérifier si c'est vraiment un diplôme
+        # Vérifier si c'est vraiment un diplôme (français + anglais)
         mots_authentiques = [
             'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
             'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
-            'obtention', 'promotion', 'annee', 'année', 'etudes', 'études'
+            'obtention', 'promotion', 'annee', 'année', 'etudes', 'études',
+            # English
+            'degree', 'diploma', 'university', 'college', 'bachelor', 'master', 'phd', 'doctorate', 'engineer', 'graduat', 'obtained'
         ]
         
         mots_trouves = 0
@@ -5939,13 +5941,17 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         cv_lower = cv_text.lower()
         import re
         
-        # Extraire les années d'expérience
+        # Extraire les années d'expérience (FR + EN)
         annees_experience = 0
         patterns_experience = [
             r'(\d+)\s*(?:ans|années|année)',
             r'(\d+)\s*(?:ans|années|année)\s*(?:d\'expérience|d\'experience)',
             r'expérience\s*(?:de|d\'|)\s*(\d+)',
             r'experience\s*(?:de|d\'|)\s*(\d+)',
+            # English patterns
+            r'(\d+)\s*(?:years|yrs|year)',
+            r'experience\s*(?:of|of\s)?(\d+)\s*(?:years|yrs|year)',
+            r'\b(\d+)\+\s*years\b'
         ]
         
         for pattern in patterns_experience:
@@ -5981,12 +5987,12 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         # 3.3 Analyse des COMPÉTENCES (0-20 points)
         competences_trouvees = []
         competences_techniques = {
-            'programmation': ['python', 'java', 'php', 'javascript', 'c++', 'c#', 'ruby', 'golang'],
-            'bases_donnees': ['sql', 'mysql', 'postgresql', 'mongodb', 'oracle', 'nosql'],
-            'web': ['html', 'css', 'react', 'angular', 'vue', 'laravel', 'symfony', 'django'],
-            'devops': ['docker', 'kubernetes', 'aws', 'azure', 'cloud', 'ci/cd'],
-            'analyse': ['analyse', 'data', 'excel', 'power bi', 'statistiques', 'machine learning'],
-            'gestion': ['gestion', 'management', 'équipe', 'projet', 'agile', 'scrum', 'leadership'],
+            'programmation': ['python', 'java', 'php', 'javascript', 'js', 'c++', 'c#', 'ruby', 'golang', 'node', 'typescript'],
+            'bases_donnees': ['sql', 'mysql', 'postgresql', 'postgres', 'mongodb', 'oracle', 'nosql'],
+            'web': ['html', 'css', 'react', 'angular', 'vue', 'laravel', 'symfony', 'django', 'flask'],
+            'devops': ['docker', 'kubernetes', 'k8s', 'aws', 'azure', 'gcp', 'cloud', 'ci/cd', 'jenkins', 'gitlab-ci'],
+            'analyse': ['analyse', 'data', 'excel', 'power bi', 'powerbi', 'statistiques', 'machine learning', 'ml', 'data science'],
+            'gestion': ['gestion', 'management', 'équipe', 'equipa', 'projet', 'project', 'agile', 'scrum', 'leadership'],
         }
         
         for categorie, mots in competences_techniques.items():
@@ -6206,7 +6212,10 @@ def analyser_candidature(request, candidature_id):
                     print(f"   ✅ Assigné à Diplôme")
                 elif 'CNI' in type_libelle.upper():
                     cni_text = texte
-                    print(f"   ℹ️ CNI ignorée pour l'analyse IA")
+                    # Ne pas ignorer la CNI : ajouter son texte à l'analyse générale
+                    if texte:
+                        cv_text = (cv_text or '') + ' ' + texte
+                    print(f"   ✅ Assigné à CNI (inclus dans l'analyse)")
                 else:
                     print(f"   ⚠️ Type non reconnu: {type_libelle}")
             
