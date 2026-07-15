@@ -5586,11 +5586,16 @@ def _ocr_image_bytes(img_bytes):
     try:
         import pytesseract
         from PIL import Image
-        import shutil
+        import shutil, os
 
-        if not shutil.which('tesseract'):
-            print('⚠️ pytesseract est installé mais tesseract n\'est pas trouvé dans le PATH')
+        # Allow explicit tesseract path via environment variable (helpful in containers)
+        tesseract_cmd = os.environ.get('TESSERACT_CMD')
+        if tesseract_cmd:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        elif not shutil.which('tesseract'):
+            print("⚠️ pytesseract installé mais tesseract non trouvé dans le PATH et TESSERACT_CMD non défini")
             return ''
+
         with Image.open(io.BytesIO(img_bytes)) as img:
             text = pytesseract.image_to_string(img, lang='fra+eng')
             return text.replace('\n', ' ').strip()
@@ -6242,16 +6247,22 @@ def analyser_candidature(request, candidature_id):
             print(f"✅ Candidature mise à jour avec score {score_ia}")
             
             # 9. Mettre à jour le rang
-            cursor.execute("""
-                UPDATE candidature c
-                SET c.rang = (
-                    SELECT COUNT(*) + 1 FROM candidature c2 
-                    WHERE c2.poste_vacant_id = c.poste_vacant_id 
-                    AND c2.score_eligibilite > c.score_eligibilite
+            # Calculer le rang côté application pour éviter l'erreur MySQL 1093
+            # (You can't specify target table 'c' for update in FROM clause)
+            cursor.execute("SELECT poste_vacant_id FROM candidature WHERE id = %s", [candidature_id])
+            row = cursor.fetchone()
+            poste_vacant_id = row[0] if row else None
+            if poste_vacant_id is not None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM candidature WHERE poste_vacant_id = %s AND score_eligibilite > %s",
+                    [poste_vacant_id, score_ia]
                 )
-                WHERE c.id = %s
-            """, [candidature_id])
-            print("✅ Rang mis à jour")
+                count_higher = cursor.fetchone()[0] or 0
+                new_rank = count_higher + 1
+                cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(new_rank), candidature_id])
+                print(f"✅ Rang mis à jour (nouveau rang: {new_rank})")
+            else:
+                print("⚠️ Impossible de récupérer poste_vacant_id pour calcul du rang")
             
             # 10. Notifier l'agent
             cursor.execute("""
