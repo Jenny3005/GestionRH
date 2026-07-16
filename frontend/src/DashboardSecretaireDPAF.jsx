@@ -734,7 +734,7 @@ export default function DashboardSecretaire() {
                             className="btn-remettre"
                             onClick={() => handleRemettreActe(acte.reference)}
                           >
-                            📋 Remettre à l'agent
+                           Remettre à l'agent
                           </button>
                         </div>
                       </td>

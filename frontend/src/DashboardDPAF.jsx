@@ -450,6 +450,21 @@ export default function DashboardDPAF() {
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
 
+  // Normalisation du statut en niveau (1-7) pour le timeline
+  const getNiveauStatut = (statut) => {
+    const niveaux = {
+      'soumise': 1, 'en_attente_chef': 1, 'Demande soumise': 1,
+      'valide': 2, 'Approuvée': 2,
+      'transmise_dpaf': 3, 'transmise_dapaf': 3, 'Transmise au DPAF': 3, 'Transmise au DAPAF': 3,
+      'assignee_rh': 4, 'Assignée au RH': 4,
+      'en_cours_traitement': 5, 'En traitement': 5,
+      'acte_genere': 6, 'Acte généré': 6,
+      'remis': 7, 'signe': 7, 'Signé': 7, 'Acte remis': 7, 'Terminé': 7, 'termine': 7
+    };
+    return niveaux[statut] || 1;
+  };
+
+
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
   }
@@ -1136,7 +1151,14 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : ''}`}>
+                  {(() => {
+                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const niveau = getNiveauStatut(statutReel);
+                    const estComplete = (niveauRequis) => niveau >= niveauRequis;
+                    return (
+                      <div className={`timeline-modern-step ${estComplete(4) ? 'completed' : ''}`}>
+                    );
+                  })()}
                     <div className="timeline-modern-marker">
                       <div className="marker-dot"></div>
                       <div className="marker-line"></div>
@@ -1151,8 +1173,17 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  {selectedDemande.statut !== 'soumise' && selectedDemande.statut !== 'transmise_dpaf' && selectedDemande.statut !== 'transmise_dapaf' && (
-                    <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
+                  {(() => {
+                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const niveau = getNiveauStatut(statutReel);
+                    const estComplete = (niveauRequis) => niveau >= niveauRequis;
+                    const estActive = (niveauRequis) => niveau === niveauRequis - 1;
+                    return (
+                      niveau > 3 && (
+                        <div className={`timeline-modern-step ${estComplete(5) ? 'completed' : estActive(5) ? 'active' : ''}`}>
+                      )
+                    );
+                  })()}
                       <div className="timeline-modern-marker">
                         <div className="marker-dot"></div>
                         <div className="marker-line"></div>
@@ -1168,8 +1199,13 @@ export default function DashboardDPAF() {
                     </div>
                   )}
 
-                  {(selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe') && (
-                    <div className="timeline-modern-step completed">
+                  {(() => {
+                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const niveau = getNiveauStatut(statutReel);
+                    return niveau >= 6 ? (
+                      <div className="timeline-modern-step completed">
+                    ) : null;
+                  })()}
                       <div className="timeline-modern-marker">
                         <div className="marker-dot"></div>
                         <div className="marker-line"></div>
@@ -1185,8 +1221,13 @@ export default function DashboardDPAF() {
                     </div>
                   )}
 
-                  {(selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis') && (
-                    <div className="timeline-modern-step completed">
+                  {(() => {
+                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const niveau = getNiveauStatut(statutReel);
+                    return niveau >= 7 ? (
+                      <div className="timeline-modern-step completed">
+                    ) : null;
+                  })()}
                       <div className="timeline-modern-marker">
                         <div className="marker-dot"></div>
                         <div className="marker-line"></div>
