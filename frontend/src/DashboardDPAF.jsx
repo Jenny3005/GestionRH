@@ -387,13 +387,22 @@ export default function DashboardDPAF() {
     try {
       setLoading(true);
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
-      
+
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setPreviewTitle(`${acte.type_acte} - ${reference}`);
-        setShowPreviewModal(true);
+
+        // Essayer d'ouvrir dans un nouvel onglet (évite les problèmes d'iframe bloqué)
+        const opened = window.open(url);
+        if (opened) {
+          opened.focus();
+        } else {
+          setPreviewUrl(url);
+          setPreviewTitle(`${acte.type_acte} - ${reference}`);
+          setShowPreviewModal(true);
+        }
       } else {
         alert('Erreur lors du chargement de l\'acte');
       }

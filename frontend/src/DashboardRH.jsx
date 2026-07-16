@@ -743,11 +743,18 @@ export default function DashboardRH() {
       setLoading(true);
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setPreviewTitle(`Acte ${reference}`);
-        setShowPreviewModal(true);
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewUrl(url);
+          setPreviewTitle(`Acte ${reference}`);
+          setShowPreviewModal(true);
+        }
       } else {
         alert('Erreur lors du chargement de l\'acte');
       }

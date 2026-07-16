@@ -119,20 +119,27 @@ export default function Documents() {
     if (!reference) {
       showNotification('Référence de l\'acte non disponible', 'error');
       return;
-    }
-    
     try {
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
-      
+
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewActeUrl(url);
-        setPreviewActeTitle(`Acte ${reference}`);
-        setShowActePreviewModal(true);
-      } else {
-        showNotification('Erreur lors du chargement de l\'acte', 'error');
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewActeUrl(url);
+          setPreviewActeTitle(`Acte ${reference}`);
+          setShowActePreviewModal(true);
+        }
       }
+    } catch (error) {
+      console.error('Erreur:', error);
+      showNotification('Erreur lors du chargement de l\'acte', 'error');
+    }
     } catch (error) {
       console.error('Erreur:', error);
       showNotification('Erreur de connexion', 'error');
