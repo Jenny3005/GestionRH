@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import UserMenu from './UserMenu';
 import './App.css';
 
+const parseDate = (s) => {
+  if (!s) return null;
+  // backend renvoie 'DD/MM/YYYY'
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+  return new Date(s);
+};
+
 export default function ArchivagePage() {
   const navigate = useNavigate();
   const [actes, setActes] = useState([]);
@@ -131,7 +141,7 @@ export default function ArchivagePage() {
   const actesArchivesFiltres = actesArchives.filter(a => {
     if (!a.date_generation) return false;
 
-    const dateActe = new Date(a.date_generation);
+    const dateActe = parseDate(a.date_generation);
     const anneeActe = dateActe.getFullYear().toString();
     const moisActe = (dateActe.getMonth() + 1).toString();
 
@@ -268,7 +278,7 @@ export default function ArchivagePage() {
                       <td>{acte.type_acte}</td>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.agent_direction}</td>
-                      <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
@@ -351,7 +361,7 @@ export default function ArchivagePage() {
                       <td>{acte.type_acte}</td>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.agent_direction}</td>
-                      <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
                           👁️ Voir
