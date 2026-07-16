@@ -1647,10 +1647,23 @@ def get_types_demande(request):
 def add_type_demande(request):
     try:
         data = json.loads(request.body)
+        libelle = data.get('libelle')
+        duree = data.get('duree_traitement_moyenne')
+        acte_generable = data.get('acte_generable', 0)
+
+        if not libelle:
+            return JsonResponse({'error': 'Libellé requis'}, status=400)
+        if duree is None or duree == '':
+            return JsonResponse({'error': 'Durée de traitement requise'}, status=400)
+        try:
+            duree_int = int(duree)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Durée de traitement invalide'}, status=400)
+
         type_demande = TypeDemande.objects.create(
-            libelle=data.get('libelle'),
-            duree_traitement_moyenne=data.get('duree_traitement_moyenne'),
-            acte_generable=data.get('acte_generable', 0)
+            libelle=libelle,
+            duree_traitement_moyenne=duree_int,
+            acte_generable=acte_generable
         )
         return JsonResponse({'success': True, 'id': type_demande.id})
     except Exception as e:
@@ -1676,9 +1689,23 @@ def edit_type_demande(request, type_id):
     try:
         data = json.loads(request.body)
         type_demande = TypeDemande.objects.get(id=type_id)
-        type_demande.libelle = data.get('libelle')
-        type_demande.duree_traitement_moyenne = data.get('duree_traitement_moyenne')
-        type_demande.acte_generable = data.get('acte_generable', 0)
+
+        libelle = data.get('libelle')
+        duree = data.get('duree_traitement_moyenne')
+        acte_generable = data.get('acte_generable', 0)
+
+        if not libelle:
+            return JsonResponse({'error': 'Libellé requis'}, status=400)
+        if duree is None or duree == '':
+            return JsonResponse({'error': 'Durée de traitement requise'}, status=400)
+        try:
+            duree_int = int(duree)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Durée de traitement invalide'}, status=400)
+
+        type_demande.libelle = libelle
+        type_demande.duree_traitement_moyenne = duree_int
+        type_demande.acte_generable = acte_generable
         type_demande.save()
         return JsonResponse({'success': True})
     except TypeDemande.DoesNotExist:
@@ -7451,14 +7478,16 @@ def demande_attestation(request):
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Utiliser le type d'attestation comme libellé du TypeDemande
+        # ✅ Normaliser le type d'attestation pour éviter les suffixes d'année
+        type_attestation_canonique = _type_acte_canonique(type_attestation)
+
         type_demande_obj, created = TypeDemande.objects.get_or_create(
-            libelle=type_attestation,  # ← Utilise le nom exact de l'attestation
+            libelle=type_attestation_canonique,
             defaults={'acte_generable': 1}
         )
         
         if created:
-            print(f"✅ Nouveau type de demande créé: {type_attestation}")
+            print(f"✅ Nouveau type de demande créé: {type_attestation_canonique}")
         
         numerosuivi = f"ATT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         
@@ -7494,7 +7523,7 @@ def demande_attestation(request):
         
         Notification.objects.create(
             agent_id=agent.matricule,
-            message=f"✅ Votre demande d'attestation \"{type_attestation}\" a été transmise au secrétariat.",
+            message=f"✅ Votre demande d'attestation \"{type_attestation_canonique}\" a été transmise au secrétariat.",
             type_notification='demande_attestation_envoyee',
             date_envoi=datetime.now().date(),
             lue=0
