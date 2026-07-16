@@ -1216,14 +1216,17 @@ export default function DashboardDPAF() {
                             </div>
                             <div className="timeline-modern-content">
                               <div className="step-header">
-                          <span className="step-icon">✍️</span>
-                          <span className="step-title">Signature</span>
-                          <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
-                        </div>
-                        <p className="step-description">Acte signé avec cachet officiel</p>
-                      </div>
-                    </div>
-                  )}
+                                <span className="step-icon">✍️</span>
+                                <span className="step-title">Signature</span>
+                                <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
+                              </div>
+                              <p className="step-description">Acte signé avec cachet officiel</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {selectedDemande.statut === 'remis' && (
                     <div className="timeline-modern-step completed">
@@ -1240,6 +1243,7 @@ export default function DashboardDPAF() {
                       </div>
                     </div>
                   )}
+                
                 </div>
               </div>
 
