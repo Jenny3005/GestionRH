@@ -13,6 +13,15 @@ function addYears(date, years) {
   return newDate;
 }
 
+const parseDate = (s) => {
+  if (!s) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+  return new Date(s);
+};
+
 export default function DashboardRH() {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
@@ -1445,7 +1454,7 @@ export default function DashboardRH() {
                           <td>{acte.agent_nom} {acte.agent_prenom}</td>
                           <td>{acte.type_acte}</td>
                           <td><code>{acte.reference}</code></td>
-                          <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <div className="action-buttons-cell">
                               <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}> Voir l'acte</button>

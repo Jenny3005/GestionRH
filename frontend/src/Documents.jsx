@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
 import './App.css';
 
+const parseDate = (s) => {
+  if (!s) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+  return new Date(s);
+};
+
 export default function Documents() {
   const navigate = useNavigate();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -804,7 +813,7 @@ export default function Documents() {
                     <div className="acte-card-body">
                       <h4>{acte.type_acte}</h4>
                       <p className="acte-reference">Réf: {acte.reference}</p>
-                      <p className="acte-date">Date: {new Date(acte.date_generation).toLocaleDateString('fr-FR')}</p>
+                      <p className="acte-date">Date: {acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</p>
                     </div>
                     <div className="acte-card-footer">
                       <button className="btn-view-acte" onClick={() => handleVoirActe(acte.reference)}>
