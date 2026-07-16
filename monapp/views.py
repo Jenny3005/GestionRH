@@ -4063,7 +4063,7 @@ def generer_certificat_non_jouissance(request):
         data = json.loads(request.body)
         matricule = data.get('matricule')
         demande_id = data.get('demande_id')  # ✅ AJOUTÉ
-        annee = data.get('annee', datetime.now().year)
+        annee = data.get('annee')
         
         agent = Agent.objects.get(matricule=matricule)
         
@@ -4071,7 +4071,26 @@ def generer_certificat_non_jouissance(request):
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
-        
+
+        # Si l'année n'a pas été fournie, essayer de l'extraire depuis la demande
+        if not annee and demande:
+            try:
+                import re
+                type_libelle = demande.type_demande.libelle if demande.type_demande else ''
+                m = re.search(r"(20\d{2})", type_libelle)
+                if m:
+                    annee = int(m.group(1))
+                elif demande.commentaire:
+                    m2 = re.search(r"(20\d{2})", demande.commentaire)
+                    if m2:
+                        annee = int(m2.group(1))
+            except Exception:
+                annee = None
+
+        # Par défaut, utiliser l'année courante si toujours non fournie
+        if not annee:
+            annee = datetime.now().year
+
         conges_valides = Demande.objects.filter(
             agent=agent,
             type_demande__libelle='Congé',
@@ -7791,11 +7810,29 @@ def generer_attestation_rh(request, demande_id):
         from django.test import RequestFactory
         factory = RequestFactory()
         
+        # Extraire l'année si le type contient un suffixe (ex: "Certificat de non-jouissance de congé - 2025")
+        annee_extraite = None
+        try:
+            import re
+            # Cherche un nombre 4-chiffres commençant par 20xx dans le libellé
+            m = re.search(r"(20\d{2})", type_libelle)
+            if m:
+                annee_extraite = int(m.group(1))
+            # Si non trouvé dans le libellé, essayer dans le commentaire
+            if not annee_extraite and demande.commentaire:
+                m2 = re.search(r"(20\d{2})", demande.commentaire)
+                if m2:
+                    annee_extraite = int(m2.group(1))
+        except Exception:
+            annee_extraite = None
+
         new_data = {
             'matricule': demande.agent.matricule,
             'rh_matricule': rh_matricule,
-            'demande_id': demande.id
+            'demande_id': demande.id,
         }
+        if annee_extraite:
+            new_data['annee'] = annee_extraite
         new_request = factory.post(
             request.path,
             data=json.dumps(new_data),
