@@ -1155,85 +1155,67 @@ export default function DashboardDPAF() {
                     const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
                     const niveau = getNiveauStatut(statutReel);
                     const estComplete = (niveauRequis) => niveau >= niveauRequis;
-                    return (
-                      <div className={`timeline-modern-step ${estComplete(4) ? 'completed' : ''}`}>
-                    );
-                  })()}
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">👥</span>
-                        <span className="step-title">Assignation RH</span>
-                        <span className="step-status">{selectedDemande.agent_rh_nom || 'En attente'}</span>
-                      </div>
-                      <p className="step-description">Assignée à un agent RH</p>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
-                    const niveau = getNiveauStatut(statutReel);
-                    const estComplete = (niveauRequis) => niveau >= niveauRequis;
                     const estActive = (niveauRequis) => niveau === niveauRequis - 1;
+
                     return (
-                      niveau > 3 && (
-                        <div className={`timeline-modern-step ${estComplete(5) ? 'completed' : estActive(5) ? 'active' : ''}`}>
-                      )
-                    );
-                  })()}
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
-                          <span className="step-icon">⚙️</span>
-                          <span className="step-title">Traitement RH</span>
-                          <span className="step-status">En cours</span>
+                      <>
+                        <div className={`timeline-modern-step ${estComplete(4) ? 'completed' : ''}`}>
+                          <div className="timeline-modern-marker">
+                            <div className="marker-dot"></div>
+                            <div className="marker-line"></div>
+                          </div>
+                          <div className="timeline-modern-content">
+                            <div className="step-header">
+                              <span className="step-icon">👥</span>
+                              <span className="step-title">Assignation RH</span>
+                              <span className="step-status">{selectedDemande.agent_rh_nom || 'En attente'}</span>
+                            </div>
+                            <p className="step-description">Assignée à un agent RH</p>
+                          </div>
                         </div>
-                        <p className="step-description">L'agent RH traite la demande</p>
-                      </div>
-                    </div>
-                  )}
 
-                  {(() => {
-                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
-                    const niveau = getNiveauStatut(statutReel);
-                    return niveau >= 6 ? (
-                      <div className="timeline-modern-step completed">
-                    ) : null;
-                  })()}
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
-                          <span className="step-icon">📄</span>
-                          <span className="step-title">Acte généré</span>
-                          <span className="step-status">Par l'agent RH</span>
-                        </div>
-                        <p className="step-description">Acte généré et envoyé</p>
-                      </div>
-                    </div>
-                  )}
+                        {niveau > 3 && (
+                          <div className={`timeline-modern-step ${estComplete(5) ? 'completed' : estActive(5) ? 'active' : ''}`}>
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
+                                <span className="step-icon">⚙️</span>
+                                <span className="step-title">Traitement RH</span>
+                                <span className="step-status">En cours</span>
+                              </div>
+                              <p className="step-description">L'agent RH traite la demande</p>
+                            </div>
+                          </div>
+                        )}
 
-                  {(() => {
-                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
-                    const niveau = getNiveauStatut(statutReel);
-                    return niveau >= 7 ? (
-                      <div className="timeline-modern-step completed">
-                    ) : null;
-                  })()}
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
+                        {niveau >= 6 && (
+                          <div className="timeline-modern-step completed">
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
+                                <span className="step-icon">📄</span>
+                                <span className="step-title">Acte généré</span>
+                                <span className="step-status">Par l'agent RH</span>
+                              </div>
+                              <p className="step-description">Acte généré et envoyé</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {niveau >= 7 && (
+                          <div className="timeline-modern-step completed">
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
                           <span className="step-icon">✍️</span>
                           <span className="step-title">Signature</span>
                           <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
