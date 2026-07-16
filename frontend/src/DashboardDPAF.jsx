@@ -126,6 +126,24 @@ export default function DashboardDPAF() {
     return attestationTypes.includes(type);
   };
 
+  const isAdministrativeAct = (type) => {
+    return type === 'Autorisation de jouissance de congé administratif';
+  };
+
+  const shouldSkipChefValidation = (type) => {
+    return isAttestationType(type) || isAdministrativeAct(type);
+  };
+
+  const getEffectiveStatutForTimeline = (type, statut) => {
+    if (!shouldSkipChefValidation(type)) {
+      return statut;
+    }
+    if (statut === 'valide' || statut === 'en_attente_chef') {
+      return getStatutTransmis(type);
+    }
+    return statut;
+  };
+
   useEffect(() => {
     if (!matricule) {
       navigate('/auth');
@@ -146,6 +164,7 @@ export default function DashboardDPAF() {
         if (response.ok) {
           const allAgents = await response.json();
           const agentsRHFiltered = allAgents.filter(agent => {
+            if (!agent.actif) return false;
             if (agent.role !== 'rh') return false;
             if (agent.matricule === matricule) return false;
             return true;
@@ -156,6 +175,7 @@ export default function DashboardDPAF() {
       } else {
         const agentsRHData = await response.json();
         const agentsRHFiltered = agentsRHData.filter(agent => {
+          if (!agent.actif) return false;
           if (agent.matricule === matricule) return false;
           return true;
         });
@@ -1152,7 +1172,9 @@ export default function DashboardDPAF() {
                   </div>
 
                   {(() => {
-                    const statutReel = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const typeDemande = selectedDemande.type_attestation || selectedDemande.type_demande;
+                    const statutBrut = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const statutReel = getEffectiveStatutForTimeline(typeDemande, statutBrut);
                     const niveau = getNiveauStatut(statutReel);
                     const estComplete = (niveauRequis) => niveau >= niveauRequis;
                     const estActive = (niveauRequis) => niveau === niveauRequis - 1;
