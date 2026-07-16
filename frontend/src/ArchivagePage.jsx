@@ -110,10 +110,17 @@ export default function ArchivagePage() {
     try {
       const res = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (res.ok) {
-        const blob = await res.blob();
+        const arrayBuffer = await res.arrayBuffer();
+        const contentType = res.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setShowPreviewModal(true);
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewUrl(url);
+          setShowPreviewModal(true);
+        }
       }
     } catch (error) {
       console.error('Erreur:', error);
