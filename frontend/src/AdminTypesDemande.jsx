@@ -87,13 +87,26 @@ export default function AdminTypesDemande() {
 
   const validateForm = () => {
     const errors = {};
+    const dureeValue = formData.duree_traitement_moyenne !== '' ? Number(formData.duree_traitement_moyenne) : NaN;
+
     if (!formData.libelle) errors.libelle = "Libellé requis";
-    if (!formData.duree_traitement_moyenne) errors.duree_traitement_moyenne = "Durée requise";
-    if (formData.duree_traitement_moyenne && (formData.duree_traitement_moyenne < 1 || formData.duree_traitement_moyenne > 30)) {
+    if (formData.duree_traitement_moyenne === '' || Number.isNaN(dureeValue)) {
+      errors.duree_traitement_moyenne = "Durée requise";
+    } else if (dureeValue < 1 || dureeValue > 30) {
       errors.duree_traitement_moyenne = "Durée entre 1 et 30 jours";
     }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const buildTypeDemandePayload = () => {
+    const duration = Number(formData.duree_traitement_moyenne);
+    return {
+      libelle: formData.libelle,
+      duree_traitement_moyenne: Number.isNaN(duration) ? null : parseInt(formData.duree_traitement_moyenne, 10),
+      acte_generable: formData.acte_generable
+    };
   };
 
   const handleAddType = async (e) => {
@@ -111,11 +124,7 @@ export default function AdminTypesDemande() {
       const response = await fetch('/api/types-demande/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          libelle: formData.libelle,
-          duree_traitement_moyenne: parseInt(formData.duree_traitement_moyenne),
-          acte_generable: formData.acte_generable
-        })
+        body: JSON.stringify(buildTypeDemandePayload())
       });
 
       if (response.ok) {
@@ -159,11 +168,7 @@ export default function AdminTypesDemande() {
       const response = await fetch(`/api/types-demande/${selectedType.id}/edit/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          libelle: formData.libelle,
-          duree_traitement_moyenne: parseInt(formData.duree_traitement_moyenne),
-          acte_generable: formData.acte_generable
-        })
+        body: JSON.stringify(buildTypeDemandePayload())
       });
 
       if (response.ok) {
