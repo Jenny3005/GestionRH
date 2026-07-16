@@ -348,7 +348,7 @@ export default function App() {
                             target="_blank" 
                             rel="noopener noreferrer"
                           >
-                             Télécharger le PDF →
+                             Télécharger le PDF 
                           </a>
                         )}
                         {note.contenu && (

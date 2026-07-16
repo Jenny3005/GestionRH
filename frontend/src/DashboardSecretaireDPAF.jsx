@@ -116,7 +116,7 @@ export default function DashboardSecretaire() {
       let transmisesDAPAFData = [];
       if (transmisesDAPAFRes.ok) {
         transmisesDAPAFData = await transmisesDAPAFRes.json();
-        console.log('📤 Demandes transmises au DAPAF:', transmisesDAPAFData);
+        console.log(' Demandes transmises au DAPAF:', transmisesDAPAFData);
         setDemandesTransmisesDAPAF(transmisesDAPAFData);
       }
 
@@ -134,7 +134,7 @@ export default function DashboardSecretaire() {
       let actesDAPAFData = [];
       if (actesDAPAFRes.ok) {
         actesDAPAFData = await actesDAPAFRes.json();
-        console.log('📄 Actes à transmettre au DAPAF:', actesDAPAFData);
+        console.log(' Actes à transmettre au DAPAF:', actesDAPAFData);
         setActesATransmettreDAPAF(actesDAPAFData);
       }
 
@@ -143,7 +143,7 @@ export default function DashboardSecretaire() {
       let actesARemettreData = [];
       if (actesARemettreRes.ok) {
         actesARemettreData = await actesARemettreRes.json();
-        console.log('📄 Actes à remettre aux agents:', actesARemettreData);
+        console.log(' Actes à remettre aux agents:', actesARemettreData);
         setActesARemettre(actesARemettreData);
       }
 
@@ -152,7 +152,7 @@ export default function DashboardSecretaire() {
       let attestationsData = [];
       if (attestationsRes.ok) {
         attestationsData = await attestationsRes.json();
-        console.log('📄 Attestations soumises:', attestationsData);
+        console.log(' Attestations soumises:', attestationsData);
         setAttestationsSoumises(attestationsData);
       }
 
@@ -161,7 +161,7 @@ export default function DashboardSecretaire() {
       let attestationsTransmisesData = [];
       if (attestationsTransmisesRes.ok) {
         attestationsTransmisesData = await attestationsTransmisesRes.json();
-        console.log('📤 Attestations transmises:', attestationsTransmisesData);
+        console.log(' Attestations transmises:', attestationsTransmisesData);
         setAttestationsTransmises(attestationsTransmisesData);
       }
 
@@ -301,13 +301,20 @@ export default function DashboardSecretaire() {
     try {
       setLoading(true);
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
-      
+
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setPreviewTitle(`Acte ${reference}`);
-        setShowPreviewModal(true);
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewUrl(url);
+          setPreviewTitle(`Acte ${reference}`);
+          setShowPreviewModal(true);
+        }
       } else {
         alert('Erreur lors du chargement de l\'acte');
       }
@@ -321,13 +328,13 @@ export default function DashboardSecretaire() {
 
   const getStatusBadge = (statut) => {
     const badges = {
-      'valide': <span className="badge-success">✅ Validée par le chef</span>,
-      'transmise_dpaf': <span className="badge-warning">📤 Transmise au DPAF</span>,
-      'transmise_dapaf': <span className="badge-warning">📤 Transmise au DAPAF</span>,
-      'acte_genere': <span className="badge-info">📄 Acte généré</span>,
-      'envoye_secretaire': <span className="badge-warning">📤 Reçu du RH</span>,
-      'signe': <span className="badge-success">✅ Signé</span>,
-      'soumise': <span className="badge-info">📋 Soumise par l'agent</span>
+      'valide': <span className="badge-success"> Validée par le chef</span>,
+      'transmise_dpaf': <span className="badge-warning"> Transmise au DPAF</span>,
+      'transmise_dapaf': <span className="badge-warning"> Transmise au DAPAF</span>,
+      'acte_genere': <span className="badge-info"> Acte généré</span>,
+      'envoye_secretaire': <span className="badge-warning"> Reçu du RH</span>,
+      'signe': <span className="badge-success"> Signé</span>,
+      'soumise': <span className="badge-info"> Soumise par l'agent</span>
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
@@ -403,23 +410,23 @@ export default function DashboardSecretaire() {
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
             <div className="stat-number">{stats.a_transmettre_dpaf}</div>
-            <div className="stat-label">📋 Demandes à transmettre au DPAF</div>
+            <div className="stat-label"> Demandes à transmettre au DPAF</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{stats.a_transmettre_dapaf}</div>
-            <div className="stat-label">📋 Demandes à transmettre au DAPAF</div>
+            <div className="stat-label"> Demandes à transmettre au DAPAF</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
             <div className="stat-number">{stats.actes_a_transmettre_dpaf + stats.actes_a_transmettre_dapaf}</div>
-            <div className="stat-label">📄 Actes à transmettre</div>
+            <div className="stat-label"> Actes à transmettre</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{stats.actes_a_remettre}</div>
-            <div className="stat-label">📋 Actes à remettre</div>
+            <div className="stat-label"> Actes à remettre</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{stats.attestations_a_transmettre}</div>
-            <div className="stat-label">📄 Attestations à transmettre</div>
+            <div className="stat-label"> Attestations à transmettre</div>
           </div>
         </div>
 
@@ -436,13 +443,13 @@ export default function DashboardSecretaire() {
             borderRadius: '8px'
           }}>
             <div style={{ flex: 1, borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
-              <strong>📤 Transmission au DPAF :</strong>
+              <strong> Transmission au DPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Absences, Reprise de service
               </p>
             </div>
             <div style={{ flex: 1, borderLeft: '4px solid #10B981', paddingLeft: '10px' }}>
-              <strong>📤 Transmission au DAPAF :</strong>
+              <strong> Transmission au DAPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Congés, Autorisations de congé
               </p>
@@ -488,7 +495,7 @@ export default function DashboardSecretaire() {
                             color: destinataire === 'DPAF' ? '#3B82F6' : '#10B981',
                             fontWeight: 'bold'
                           }}>
-                            (→{destinataire})
+                            ({destinataire})
                           </span>
                         </td>
                         <td>{d.date_debut ? `${d.date_debut} - ${d.date_fin}` : '-'}</td>
@@ -561,7 +568,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 3: Actes à transmettre au DAPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DAPAF</h3>
+          <h3> Actes reçus des RH - À transmettre au DAPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -594,7 +601,6 @@ export default function DashboardSecretaire() {
                             className="btn-transmettre btn-transmettre-dapaf"
                             onClick={() => openTransmettreActeModal(acte, 'DAPAF')}
                           >
-                            <span className="icon">📤</span>
                             Transmettre au DAPAF
                           </button>
                         </div>
@@ -609,7 +615,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 4: Attestations à transmettre */}
         <div className="admin-section">
-          <h3>📄 Attestations demandées par les agents - À transmettre</h3>
+          <h3> Attestations demandées par les agents - À transmettre</h3>
           
           <div style={{ 
             display: 'flex',
@@ -620,13 +626,13 @@ export default function DashboardSecretaire() {
             borderRadius: '8px'
           }}>
             <div style={{ flex: 1, borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
-              <strong>📤 Transmission au DPAF :</strong>
+              <strong> Transmission au DPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Attestation de travail
               </p>
             </div>
             <div style={{ flex: 1, borderLeft: '4px solid #10B981', paddingLeft: '10px' }}>
-              <strong>📤 Transmission au DAPAF :</strong>
+              <strong> Transmission au DAPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Attestation de présence, validité de services, certificat
               </p>
@@ -652,7 +658,7 @@ export default function DashboardSecretaire() {
                   </tr>
                 ) : attestationsSoumises.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center">📭 Aucune attestation à transmettre</td>
+                    <td colSpan="6" className="text-center"> Aucune attestation à transmettre</td>
                   </tr>
                 ) : (
                   attestationsSoumises.map((att) => {
@@ -671,7 +677,7 @@ export default function DashboardSecretaire() {
                             color: destinataire === 'DPAF' ? '#3B82F6' : '#10B981',
                             fontWeight: 'bold'
                           }}>
-                            (→{destinataire})
+                            ({destinataire})
                           </span>
                         </td>
                         <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
@@ -831,7 +837,7 @@ export default function DashboardSecretaire() {
                   <div className="transmettre-info-item">
                     <span className="label">Destinataire</span>
                     <span className={`destinataire-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
-                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                      {destinataireType === 'DPAF' ? ' DPAF' : ' DAPAF'}
                     </span>
                   </div>
                 </div>
@@ -903,7 +909,7 @@ export default function DashboardSecretaire() {
                   <div className="modal-transmettre-info-item">
                     <span className="label">Destinataire</span>
                     <span className={`dest-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
-                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                      {destinataireType === 'DPAF' ? ' DPAF' : ' DAPAF'}
                     </span>
                   </div>
                 </div>
@@ -987,7 +993,7 @@ export default function DashboardSecretaire() {
                   <div className="modal-transmettre-attestation-info-item">
                     <span className="label">Destinataire</span>
                     <span className={`dest-badge ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}>
-                      {destinataireType === 'DPAF' ? '📤 DPAF' : '📤 DAPAF'}
+                      {destinataireType === 'DPAF' ? ' DPAF' : ' DAPAF'}
                     </span>
                   </div>
                 </div>
