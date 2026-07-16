@@ -119,6 +119,8 @@ export default function Documents() {
     if (!reference) {
       showNotification('Référence de l\'acte non disponible', 'error');
       return;
+    }
+
     try {
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
 
@@ -135,14 +137,12 @@ export default function Documents() {
           setPreviewActeTitle(`Acte ${reference}`);
           setShowActePreviewModal(true);
         }
+      } else {
+        showNotification('Erreur lors du chargement de l\'acte', 'error');
       }
     } catch (error) {
       console.error('Erreur:', error);
       showNotification('Erreur lors du chargement de l\'acte', 'error');
-    }
-    } catch (error) {
-      console.error('Erreur:', error);
-      showNotification('Erreur de connexion', 'error');
     }
   };
 
