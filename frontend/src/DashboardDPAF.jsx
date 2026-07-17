@@ -174,11 +174,8 @@ export default function DashboardDPAF() {
         }
       } else {
         const agentsRHData = await response.json();
-        const agentsRHFiltered = agentsRHData.filter(agent => {
-          if (!agent.actif) return false;
-          if (agent.matricule === matricule) return false;
-          return true;
-        });
+        // endpoint /api/agents/rh/ already returns only RHs; just exclude current user
+        const agentsRHFiltered = agentsRHData.filter(agent => agent.matricule !== matricule);
         setAgentsRH(agentsRHFiltered);
       }
     } catch (error) {
