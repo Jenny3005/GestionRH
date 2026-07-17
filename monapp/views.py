@@ -4173,7 +4173,7 @@ def generer_certificat_non_jouissance(request):
             fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
         )
         
-        return _create_pdf_response(pdf_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+        return _create_pdf_response(pdf_bytes, 'certificat_non_jouissance')
         
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
