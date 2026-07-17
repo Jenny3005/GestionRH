@@ -4074,18 +4074,29 @@ def generer_certificat_non_jouissance(request):
 
         # Si l'année n'a pas été fournie, essayer de l'extraire depuis la demande
         if not annee and demande:
-            try:
-                import re
-                type_libelle = demande.type_demande.libelle if demande.type_demande else ''
-                m = re.search(r"(20\d{2})", type_libelle)
-                if m:
-                    annee = int(m.group(1))
-                elif demande.commentaire:
-                    m2 = re.search(r"(20\d{2})", demande.commentaire)
-                    if m2:
-                        annee = int(m2.group(1))
-            except Exception:
-                annee = None
+                try:
+                    import re
+                    type_libelle = demande.type_demande.libelle if demande.type_demande else ''
+                    # 1) chercher année dans le libellé
+                    m = re.search(r"(20\d{2})", type_libelle)
+                    if m:
+                        annee = int(m.group(1))
+                    else:
+                        # 2) chercher dans le champ commentaire de la demande
+                        if demande.commentaire:
+                            m2 = re.search(r"(20\d{2})", demande.commentaire)
+                            if m2:
+                                annee = int(m2.group(1))
+                        # 3) chercher dans la Validation.commentaire (format TYPE_ATTESTATION:...||COMMENTAIRE:...)
+                        if not annee:
+                            from .models import Validation
+                            val = Validation.objects.filter(demande=demande).order_by('-id').first()
+                            if val and val.commentaire:
+                                m3 = re.search(r"(20\d{2})", val.commentaire)
+                                if m3:
+                                    annee = int(m3.group(1))
+                except Exception:
+                    annee = None
 
         # Par défaut, utiliser l'année courante si toujours non fournie
         if not annee:
@@ -7818,11 +7829,19 @@ def generer_attestation_rh(request, demande_id):
             m = re.search(r"(20\d{2})", type_libelle)
             if m:
                 annee_extraite = int(m.group(1))
-            # Si non trouvé dans le libellé, essayer dans le commentaire
-            if not annee_extraite and demande.commentaire:
-                m2 = re.search(r"(20\d{2})", demande.commentaire)
-                if m2:
-                    annee_extraite = int(m2.group(1))
+            # Si non trouvé dans le libellé, essayer dans la Validation.commentaire
+            if not annee_extraite:
+                from .models import Validation
+                val = Validation.objects.filter(demande=demande).order_by('-id').first()
+                if val and val.commentaire:
+                    m2 = re.search(r"(20\d{2})", val.commentaire)
+                    if m2:
+                        annee_extraite = int(m2.group(1))
+            # Si toujours non trouvé, essayer dans le champ commentaire de la demande
+            if not annee_extraite and getattr(demande, 'commentaire', None):
+                m3 = re.search(r"(20\d{2})", demande.commentaire)
+                if m3:
+                    annee_extraite = int(m3.group(1))
         except Exception:
             annee_extraite = None
 
