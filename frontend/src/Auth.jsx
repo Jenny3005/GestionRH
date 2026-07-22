@@ -97,7 +97,7 @@ export default function Auth({ onLogin }) {
             }
           }
         } catch (error) {
-          console.error("❌ Erreur:", error);
+          console.error(" Erreur:", error);
           setErrors({ general: 'Impossible de se connecter au serveur.' });
         }
       }
@@ -193,17 +193,17 @@ export default function Auth({ onLogin }) {
             </h1>
           </div>
 
-          {/* ✅ Message de succès */}
+          {/*  Message de succès */}
           {errors.success && (
             <div className="auth-success-message">
-              ✅ {errors.success}
+               {errors.success}
             </div>
           )}
 
-          {/* ✅ Message d'erreur général */}
+          {/*  Message d'erreur général */}
           {errors.general && (
             <div className="auth-error-message">
-              ❌ {errors.general}
+               {errors.general}
             </div>
           )}
 
@@ -279,7 +279,7 @@ export default function Auth({ onLogin }) {
               {errors.password && <span className="error-text">{errors.password}</span>}
             </div>
 
-            {/* ✅ MOT DE PASSE OUBLIÉ - UNIQUEMENT EN MODE CONNEXION */}
+            {/*  MOT DE PASSE OUBLIÉ - UNIQUEMENT EN MODE CONNEXION */}
             {isLogin && (
               <div className="forgot-password-link">
                 <Link to="/reset-password" className="forgot-password-btn">
@@ -325,7 +325,7 @@ export default function Auth({ onLogin }) {
           {/* Message info */}
           {showRegistrationInfo && (
             <div className="auth-info-message">
-              <div className="info-icon">ℹ️</div>
+              <div className="info-icon">ℹ</div>
               <div className="info-content">
                 <h4>Matricule non trouvé</h4>
                 <p>Votre matricule n'existe pas dans notre base de données.</p>
@@ -378,9 +378,9 @@ export default function Auth({ onLogin }) {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

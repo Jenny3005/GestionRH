@@ -102,7 +102,7 @@ export default function PortalNav() {
     links.push({ href: '/demarches', label: ' Démarches RH' });
     links.push({ href: '/documents', label: ' Documents' });
 
-    // ✅ Candidatures - Exclure les rôles qui ne sont pas des agents "purs"
+    //  Candidatures - Exclure les rôles qui ne sont pas des agents "purs"
     const rolesExclus = ['dpaf', 'dapaf', 'admin', 'rh', 'chef', 'secretaire', 'rh/secretaire'];
     const hasExcluRole = rolesExclus.some(r => userRole === r || userRoles.includes(r));
     

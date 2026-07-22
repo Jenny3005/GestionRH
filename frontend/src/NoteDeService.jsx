@@ -18,7 +18,7 @@ function NoteDeService({ note, onBack, isLoading }) {
         return (
             <div className="ns-page-container">
                 <div className="ns-card error-card">
-                    <p>❌ Note non trouvée</p>
+                    <p> Note non trouvée</p>
                     <button onClick={onBack}>← Retour</button>
                 </div>
             </div>

@@ -4,6 +4,7 @@ import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
+import { MapPin, Phone, Mail, FileText, Send } from 'lucide-react';
 import './App.css';
 
 export default function DashboardSecretaire() {
@@ -53,7 +54,7 @@ export default function DashboardSecretaire() {
   const typesPourDPAF = ['Absence', 'Reprise de service'];
   const typesPourDAPAF = ['Congé', 'Autorisation de jouissance de congé administratif'];
   
-  // ✅ Types d'attestations selon destinataire
+  //  Types d'attestations selon destinataire
   const typesAttestationDPAF = ['Attestation de travail'];
   const typesAttestationDAPAF = [
     'Attestation de présence au poste',
@@ -73,7 +74,7 @@ export default function DashboardSecretaire() {
     fetchData();
   }, []);
 
-  // ✅ Fonction pour déterminer le destinataire d'une attestation (avec gestion de l'année)
+  //  Fonction pour déterminer le destinataire d'une attestation (avec gestion de l'année)
   const getDestinataireAttestation = (typeAttestation) => {
     if (!typeAttestation) return null;
     
@@ -83,7 +84,7 @@ export default function DashboardSecretaire() {
     // Vérifier DAPAF (exact ou avec année)
     for (const type of typesAttestationDAPAF) {
       if (typeAttestation === type) return 'DAPAF';
-      // ✅ Pour "Certificat de non-jouissance de congé - 2025"
+      //  Pour "Certificat de non-jouissance de congé - 2025"
       if (typeAttestation.startsWith(type + ' - ')) return 'DAPAF';
     }
     
@@ -98,7 +99,7 @@ export default function DashboardSecretaire() {
       let valideesData = [];
       if (valideesRes.ok) {
         valideesData = await valideesRes.json();
-        console.log('📋 Demandes validées:', valideesData);
+        console.log(' Demandes validées:', valideesData);
         setDemandesValidees(valideesData);
       }
 
@@ -107,7 +108,7 @@ export default function DashboardSecretaire() {
       let transmisesDPAFData = [];
       if (transmisesDPAFRes.ok) {
         transmisesDPAFData = await transmisesDPAFRes.json();
-        console.log('📤 Demandes transmises au DPAF:', transmisesDPAFData);
+        console.log(' Demandes transmises au DPAF:', transmisesDPAFData);
         setDemandesTransmisesDPAF(transmisesDPAFData);
       }
 
@@ -125,7 +126,7 @@ export default function DashboardSecretaire() {
       let actesDPAFData = [];
       if (actesDPAFRes.ok) {
         actesDPAFData = await actesDPAFRes.json();
-        console.log('📄 Actes à transmettre au DPAF:', actesDPAFData);
+        console.log(' Actes à transmettre au DPAF:', actesDPAFData);
         setActesATransmettreDPAF(actesDPAFData);
       }
 
@@ -147,7 +148,7 @@ export default function DashboardSecretaire() {
         setActesARemettre(actesARemettreData);
       }
 
-      // 7. ✅ Attestations soumises par les agents (statut = 'soumise')
+      // 7.  Attestations soumises par les agents (statut = 'soumise')
       const attestationsRes = await fetch(`/api/secretaire/demandes-attestations/${matricule}/`);
       let attestationsData = [];
       if (attestationsRes.ok) {
@@ -156,7 +157,7 @@ export default function DashboardSecretaire() {
         setAttestationsSoumises(attestationsData);
       }
 
-      // 8. ✅ Attestations déjà transmises
+      // 8.  Attestations déjà transmises
       const attestationsTransmisesRes = await fetch(`/api/secretaire/attestations-transmises/${matricule}/`);
       let attestationsTransmisesData = [];
       if (attestationsTransmisesRes.ok) {
@@ -201,7 +202,7 @@ export default function DashboardSecretaire() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(`✅ Demande transmise au ${result.destinataire} avec succès`);
+        alert(` Demande transmise au ${result.destinataire} avec succès`);
         setShowTransmettreModal(false);
         setSelectedDemande(null);
         setCommentaire('');
@@ -230,7 +231,7 @@ export default function DashboardSecretaire() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(`✅ Acte transmis au ${result.destinataire} pour signature`);
+        alert(` Acte transmis au ${result.destinataire} pour signature`);
         setShowTransmettreActeModal(false);
         setSelectedActe(null);
         setCommentaire('');
@@ -259,7 +260,7 @@ export default function DashboardSecretaire() {
       });
       
       if (response.ok) {
-        alert(`✅ Attestation transmise au ${destinataire} avec succès`);
+        alert(` Attestation transmise au ${destinataire} avec succès`);
         setShowTransmettreAttestationModal(false);
         setSelectedAttestation(null);
         setCommentaire('');
@@ -285,7 +286,7 @@ export default function DashboardSecretaire() {
       });
       
       if (response.ok) {
-        alert('✅ Acte remis à l\'agent avec succès');
+        alert(' Acte remis à l\'agent avec succès');
         fetchData();
       } else {
         const error = await response.json();
@@ -472,11 +473,11 @@ export default function DashboardSecretaire() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" className="text-center">⏳ Chargement...</td>
+                    <td colSpan="7" className="text-center"> Chargement...</td>
                   </tr>
                 ) : demandesValidees.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="text-center">📭 Aucune demande validée à transmettre</td>
+                    <td colSpan="7" className="text-center"> Aucune demande validée à transmettre</td>
                   </tr>
                 ) : (
                   demandesValidees.map((d) => {
@@ -506,7 +507,7 @@ export default function DashboardSecretaire() {
                             className="btn-transmettre"
                             onClick={() => openTransmettreModal(d)}
                           >
-                            📤 Transmettre au {destinataire}
+                             Transmettre au {destinataire}
                           </button>
                         </td>
                       </tr>
@@ -520,7 +521,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 2: Actes à transmettre au DPAF */}
         <div className="admin-section">
-          <h3>📄 Actes reçus des RH - À transmettre au DPAF</h3>
+          <h3> Actes reçus des RH - À transmettre au DPAF</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -535,7 +536,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesATransmettreDPAF.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à transmettre au DPAF</td>
+                    <td colSpan="5" className="text-center"><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucun acte à transmettre au DPAF</td>
                   </tr>
                 ) : (
                   actesATransmettreDPAF.map((acte) => (
@@ -547,13 +548,13 @@ export default function DashboardSecretaire() {
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
-                            👁️ Voir
+                             Voir
                           </button>
                           <button 
                             className="btn-transmettre btn-transmettre-dpaf"
                             onClick={() => openTransmettreActeModal(acte, 'DPAF')}
                           >
-                            <span className="icon">📤</span>
+                            <span className="icon"><FileText size={16} /></span>
                             Transmettre au DPAF
                           </button>
                         </div>
@@ -583,7 +584,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesATransmettreDAPAF.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à transmettre au DAPAF</td>
+                    <td colSpan="5" className="text-center"><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucun acte à transmettre au DAPAF</td>
                   </tr>
                 ) : (
                   actesATransmettreDAPAF.map((acte) => (
@@ -595,7 +596,7 @@ export default function DashboardSecretaire() {
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
-                            👁️ Voir
+                             Voir
                           </button>
                           <button 
                             className="btn-transmettre btn-transmettre-dapaf"
@@ -654,7 +655,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="text-center">⏳ Chargement...</td>
+                    <td colSpan="6" className="text-center"> Chargement...</td>
                   </tr>
                 ) : attestationsSoumises.length === 0 ? (
                   <tr>
@@ -687,7 +688,7 @@ export default function DashboardSecretaire() {
                             className="btn-transmettre"
                             onClick={() => openTransmettreAttestationModal(att)}
                           >
-                            📤 Transmettre au {destinataire}
+                             Transmettre au {destinataire}
                           </button>
                         </td>
                       </tr>
@@ -701,7 +702,7 @@ export default function DashboardSecretaire() {
 
         {/* SECTION 5: Actes signés à remettre aux agents */}
         <div className="admin-section">
-          <h3>✅ Actes signés - À remettre aux agents</h3>
+          <h3> Actes signés - À remettre aux agents</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -716,7 +717,7 @@ export default function DashboardSecretaire() {
               <tbody>
                 {actesARemettre.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center">📭 Aucun acte à remettre</td>
+                    <td colSpan="5" className="text-center"> Aucun acte à remettre</td>
                   </tr>
                 ) : (
                   actesARemettre.map((acte) => (
@@ -728,7 +729,7 @@ export default function DashboardSecretaire() {
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
-                            👁️ Voir
+                             Voir
                           </button>
                           <button 
                             className="btn-remettre"
@@ -755,12 +756,12 @@ export default function DashboardSecretaire() {
           }}>
             <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header preview-modal-header">
-                <h3>📄 {previewTitle}</h3>
+                <h3> {previewTitle}</h3>
                 <button className="modal-close" onClick={() => {
                   setShowPreviewModal(false);
                   if (previewUrl) URL.revokeObjectURL(previewUrl);
                   setPreviewUrl('');
-                }}>✕</button>
+                }}><X size={18} /></button>
               </div>
               <div className="modal-body preview-modal-body">
                 {previewUrl ? (
@@ -771,7 +772,7 @@ export default function DashboardSecretaire() {
                     frameBorder="0"
                   />
                 ) : (
-                  <div className="loading-preview">⏳ Chargement de l'aperçu...</div>
+                  <div className="loading-preview"> Chargement de l'aperçu...</div>
                 )}
               </div>
               <div className="modal-footer preview-modal-footer">
@@ -784,7 +785,7 @@ export default function DashboardSecretaire() {
                     link.click();
                   }}
                 >
-                  ⬇️ Télécharger
+                   Télécharger
                 </button>
                 <button className="btn-close" onClick={() => {
                   setShowPreviewModal(false);
@@ -804,19 +805,19 @@ export default function DashboardSecretaire() {
             <div className="transmettre-modal-header">
               <div className="transmettre-modal-header-left">
                 <div className="transmettre-modal-icon-wrapper">
-                  <span className="icon">📤</span>
+                  <span className="icon"><Send size={16} /></span>
                 </div>
                 <div className="transmettre-modal-title-section">
                   <h3>Transmettre au {destinataireType}</h3>
                   <span className="subtitle">Confirmez la transmission de cette demande</span>
                 </div>
               </div>
-              <button className="transmettre-modal-close" onClick={() => setShowTransmettreModal(false)}>✕</button>
+              <button className="transmettre-modal-close" onClick={() => setShowTransmettreModal(false)}><X size={18} /></button>
             </div>
 
             <div className="transmettre-modal-body">
               <div className="transmettre-info-card">
-                <div className="card-title">📋 Détails de la demande</div>
+                <div className="card-title"> Détails de la demande</div>
                 <div className="transmettre-info-grid">
                   <div className="transmettre-info-item">
                     <span className="label">Agent</span>
@@ -845,7 +846,7 @@ export default function DashboardSecretaire() {
 
               <div className="transmettre-commentaire-section">
                 <div className="label-with-optional">
-                  <span className="label">💬 Instructions pour le {destinataireType}</span>
+                  <span className="label"> Instructions pour le {destinataireType}</span>
                   <span className="optional-badge">Optionnel</span>
                 </div>
                 <textarea
@@ -865,7 +866,7 @@ export default function DashboardSecretaire() {
                 className={`btn-transmettre-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
                 onClick={() => handleTransmettreDemande(selectedDemande.id, destinataireType)}
               >
-                <span className="icon">📤</span>
+                <span className="icon"><Send size={16} /></span>
                 Transmettre au {destinataireType}
               </button>
             </div>
@@ -880,19 +881,19 @@ export default function DashboardSecretaire() {
             <div className="modal-transmettre-header">
               <div className="modal-transmettre-header-left">
                 <div className="modal-transmettre-icon-wrapper">
-                  <span className="icon">📤</span>
+                  <span className="icon"><Send size={16} /></span>
                 </div>
                 <div className="modal-transmettre-title">
                   <h3>Transmettre l'acte</h3>
                   <span className="subtitle">Envoyer au {destinataireType} pour signature</span>
                 </div>
               </div>
-              <button className="modal-transmettre-close" onClick={() => setShowTransmettreActeModal(false)}>✕</button>
+              <button className="modal-transmettre-close" onClick={() => setShowTransmettreActeModal(false)}><X size={18} /></button>
             </div>
 
             <div className="modal-transmettre-body">
               <div className="modal-transmettre-info">
-                <div className="card-label">📋 Détails de l'acte</div>
+                <div className="card-label"> Détails de l'acte</div>
                 <div className="modal-transmettre-info-grid">
                   <div className="modal-transmettre-info-item">
                     <span className="label">Agent</span>
@@ -917,7 +918,7 @@ export default function DashboardSecretaire() {
 
               <div className="modal-transmettre-commentaire">
                 <div className="label-row">
-                  <span className="label">💬 Instructions</span>
+                  <span className="label"> Instructions</span>
                   <span className="optional">Optionnel</span>
                 </div>
                 <textarea
@@ -937,7 +938,7 @@ export default function DashboardSecretaire() {
                 className={`btn-modal-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
                 onClick={() => handleTransmettreActe(selectedActe.reference, destinataireType)}
               >
-                <span className="icon">📤</span>
+                <span className="icon"><Send size={16} /></span>
                 Transmettre au {destinataireType}
               </button>
             </div>
@@ -952,19 +953,19 @@ export default function DashboardSecretaire() {
             <div className="modal-transmettre-attestation-header">
               <div className="modal-transmettre-attestation-header-left">
                 <div className="modal-transmettre-attestation-icon-wrapper">
-                  <span className="icon">📄</span>
+                  <span className="icon"><FileText size={16} /></span>
                 </div>
                 <div className="modal-transmettre-attestation-title">
                   <h3>Transmettre l'attestation</h3>
                   <span className="subtitle">Envoyer au {destinataireType} pour traitement</span>
                 </div>
               </div>
-              <button className="modal-transmettre-attestation-close" onClick={() => setShowTransmettreAttestationModal(false)}>✕</button>
+              <button className="modal-transmettre-attestation-close" onClick={() => setShowTransmettreAttestationModal(false)}><X size={18} /></button>
             </div>
 
             <div className="modal-transmettre-attestation-body">
               <div className="modal-transmettre-attestation-info">
-                <div className="card-label">📋 Détails de l'attestation</div>
+                <div className="card-label"> Détails de l'attestation</div>
                 <div className="modal-transmettre-attestation-info-grid">
                   <div className="modal-transmettre-attestation-info-item">
                     <span className="label">Agent</span>
@@ -978,7 +979,7 @@ export default function DashboardSecretaire() {
                     <span className="label">Type d'attestation</span>
                     <span className="value">
                       <span className="attestation-type-badge">
-                        📄 {selectedAttestation.type_attestation}
+                         {selectedAttestation.type_attestation}
                       </span>
                     </span>
                   </div>
@@ -1000,7 +1001,7 @@ export default function DashboardSecretaire() {
                 
                 {selectedAttestation.commentaire && (
                   <div className="agent-commentaire">
-                    <div className="label">📝 Commentaire de l'agent</div>
+                    <div className="label"> Commentaire de l'agent</div>
                     <div className="value">{selectedAttestation.commentaire}</div>
                   </div>
                 )}
@@ -1008,7 +1009,7 @@ export default function DashboardSecretaire() {
 
               <div className="modal-transmettre-attestation-commentaire">
                 <div className="label-row">
-                  <span className="label">💬 Instructions pour le {destinataireType}</span>
+                  <span className="label"> Instructions pour le {destinataireType}</span>
                   <span className="optional">Optionnel</span>
                 </div>
                 <textarea
@@ -1028,7 +1029,7 @@ export default function DashboardSecretaire() {
                 className={`btn-modal-submit ${destinataireType === 'DPAF' ? 'dpaf' : 'dapaf'}`}
                 onClick={() => handleTransmettreAttestation(selectedAttestation.id, destinataireType)}
               >
-                <span className="icon">📤</span>
+                <span className="icon"><Send size={16} /></span>
                 Transmettre au {destinataireType}
               </button>
             </div>
@@ -1062,9 +1063,9 @@ export default function DashboardSecretaire() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

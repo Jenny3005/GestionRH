@@ -118,7 +118,7 @@ export default function AdminTypesPiece() {
       });
 
       if (response.ok) {
-        alert(`✅ Type de pièce "${formData.libelle}" ajouté avec succès !`);
+        alert(` Type de pièce "${formData.libelle}" ajouté avec succès !`);
         setShowModal(false);
         resetForm();
         fetchTypes();
@@ -162,7 +162,7 @@ export default function AdminTypesPiece() {
       });
 
       if (response.ok) {
-        alert('✅ Type de pièce modifié avec succès !');
+        alert(' Type de pièce modifié avec succès !');
         setShowEditModal(false);
         resetForm();
         fetchTypes();
@@ -191,7 +191,7 @@ export default function AdminTypesPiece() {
         method: 'DELETE'
       });
       if (response.ok) {
-        alert('✅ Type de pièce supprimé avec succès');
+        alert(' Type de pièce supprimé avec succès');
         fetchTypes();
       } else {
         alert('Erreur lors de la suppression');
@@ -201,7 +201,7 @@ export default function AdminTypesPiece() {
     }
   };
 
-  const getRequiredLabel = (value) => (value === 1 ? '✅ Oui' : '❌ Non');
+  const getRequiredLabel = (value) => (value === 1 ? ' Oui' : ' Non');
 
   const columns = [
     {
@@ -548,9 +548,9 @@ export default function AdminTypesPiece() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

@@ -139,7 +139,7 @@ export default function AdminRoles() {
       });
 
       if (response.ok) {
-        alert('✅ Rôle ajouté avec succès');
+        alert(' Rôle ajouté avec succès');
         setShowModal(false);
         setFormData({ libelle: '' });
         fetchRoles();
@@ -168,7 +168,7 @@ export default function AdminRoles() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(result.message || `✅ Rôle attribué avec succès !`);
+        alert(result.message || ` Rôle attribué avec succès !`);
         fetchAgents();
         fetchRoles();
         const updatedFiltered = filteredAgents.filter(agent => agent.matricule !== agentMatricule);
@@ -190,7 +190,7 @@ export default function AdminRoles() {
     }
     
     if (SYSTEM_ROLES.includes(roleLibelle)) {
-      alert(`⚠️ Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
+      alert(` Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
       return;
     }
     
@@ -200,7 +200,7 @@ export default function AdminRoles() {
     });
     
     if (agentsWithRole.length > 0) {
-      alert(`⚠️ Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
+      alert(` Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
       return;
     }
     
@@ -210,7 +210,7 @@ export default function AdminRoles() {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Rôle supprimé');
+          alert(' Rôle supprimé');
           fetchRoles();
         } else {
           const error = await response.json();
@@ -432,10 +432,10 @@ export default function AdminRoles() {
           {/* CARDS DES RÔLES */}
           <div className="roles-cards-grid">
             {loading ? (
-              <p>⏳ Chargement...</p>
+              <p> Chargement...</p>
             ) : filteredRoles.length === 0 ? (
               <div className="empty-state">
-                <p>📭 Aucun rôle trouvé</p>
+                <p> Aucun rôle trouvé</p>
                 <Can permission="AJOUTER_ROLE">
                   <button className="btn-add" onClick={() => setShowModal(true)}>Créer un rôle</button>
                 </Can>
@@ -563,9 +563,9 @@ export default function AdminRoles() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>
@@ -612,7 +612,7 @@ export default function AdminRoles() {
             <div className="assign-search-box">
               <input
                 type="text"
-                placeholder="🔍 Rechercher un agent par nom ou prénom..."
+                placeholder=" Rechercher un agent par nom ou prénom..."
                 value={agentSearchTerm}
                 onChange={(e) => setAgentSearchTerm(e.target.value)}
                 className="search-input"

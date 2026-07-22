@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { FileText, CheckCircle2, PencilLine } from 'lucide-react';
 import './App.css';
 
 const CRITERES_PAR_CATEGORIE = {
@@ -285,7 +286,10 @@ export default function BulletinNotes() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📋 Bulletin Individuel de Notes</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <FileText size={32} />
+              <h2>Bulletin Individuel de Notes</h2>
+            </div>
             <p>Vérifiez vos informations et téléchargez votre bulletin — Année {anneeActuelle}</p>
           </div>
         </section>
@@ -297,7 +301,7 @@ export default function BulletinNotes() {
             <div className="agent-card-header">
               <h3>Informations administratives</h3>
               <span style={{ fontSize: '12px', color: '#10B981', background: '#D1FAE5', padding: '3px 10px', borderRadius: '12px' }}>
-                ✓ Récupérées automatiquement
+                <CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />Récupérées automatiquement
               </span>
             </div>
             <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -335,7 +339,7 @@ export default function BulletinNotes() {
                     <strong>{i + 1}.</strong> {enfant.nom} {enfant.prenom} — {formatDate(enfant.date_naissance)}
                   </span>
                   <button onClick={() => handleSupprimerEnfant(enfant.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '13px' }}>
-                    🗑️ Supprimer
+                     Supprimer
                   </button>
                 </div>
               ))}
@@ -371,7 +375,7 @@ export default function BulletinNotes() {
             <div className="agent-card-header">
               <h3>Informations complémentaires</h3>
               <span style={{ fontSize: '12px', color: '#F59E0B', background: '#FEF3C7', padding: '3px 10px', borderRadius: '12px' }}>
-                ✏️ Ces champs apparaîtront dans le bulletin
+                <PencilLine size={14} style={{ marginRight: '6px', color: '#D4AF37' }} />Ces champs apparaîtront dans le bulletin
               </span>
             </div>
             <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -428,7 +432,7 @@ export default function BulletinNotes() {
 
           {/* BOUTONS */}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            {saveSuccess && <span style={{ color: '#10B981', fontSize: '14px' }}>✓ Informations sauvegardées</span>}
+            {saveSuccess && <span style={{ color: '#10B981', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><CheckCircle2 size={14} />Informations sauvegardées</span>}
             <button onClick={handleSaveInfos} disabled={saving} className="btn-close-modal" style={{ padding: '12px 24px' }}>{saving ? 'Enregistrement...' : '💾 Sauvegarder'}</button>
             <button onClick={handleGenererPDF} disabled={generating} className="btn-demander-conge" style={{ padding: '12px 28px' }}>{generating ? 'Génération...' : '📥 Télécharger mon bulletin'}</button>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserMenu from './UserMenu';
+import { AlertCircle, X } from 'lucide-react';
 import './App.css';
 
 const parseDate = (s) => {
@@ -63,7 +64,7 @@ export default function ArchivagePage() {
         fetchActes();
         setSelectedActes([]);
       } else {
-        alert('❌ Erreur lors de l\'archivage');
+        alert('Erreur lors de l\'archivage');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -137,7 +138,7 @@ export default function ArchivagePage() {
     }
   };
 
-  // ✅ Filtrage par date UNIQUEMENT pour les actes archivés
+  //  Filtrage par date UNIQUEMENT pour les actes archivés
   const actesArchivesFiltres = actesArchives.filter(a => {
     if (!a.date_generation) return false;
 
@@ -223,7 +224,7 @@ export default function ArchivagePage() {
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{actesArchives.length}</div>
-            <div className="stat-label">✅ Actes archivés</div>
+            <div className="stat-label"> Actes archivés</div>
           </div>
         </div>
 
@@ -237,7 +238,7 @@ export default function ArchivagePage() {
                  Archiver la sélection ({selectedActes.length})
               </button>
               <button className="btn-rh-secondary" onClick={handleToutArchiver}>
-                📥 Tout archiver
+                 Tout archiver
               </button>
             </div>
           )}
@@ -282,10 +283,10 @@ export default function ArchivagePage() {
                       <td>
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
-                            👁️ Voir
+                             Voir
                           </button>
                           <button className="btn-view" onClick={() => handleArchiverUn(acte.reference)} style={{ background: '#F59E0B', color: '#fff' }}>
-                            🗄️ Archiver
+                             Archiver
                           </button>
                         </div>
                       </td>
@@ -297,7 +298,7 @@ export default function ArchivagePage() {
           </div>
         </div>
 
-        {/* ✅ Tableau des actes archivés AVEC filtres année/mois */}
+        {/*  Tableau des actes archivés AVEC filtres année/mois */}
         <div className="admin-section" style={{ marginTop: '30px' }}>
           <h3> Actes archivés ({actesArchivesFiltres.length})</h3>
           
@@ -337,7 +338,7 @@ export default function ArchivagePage() {
               }}
               style={{ padding: '8px 15px' }}
             >
-              🔄 Réinitialiser
+               Réinitialiser
             </button>
           </div>
 
@@ -364,7 +365,7 @@ export default function ArchivagePage() {
                       <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
-                          👁️ Voir
+                           Voir
                         </button>
                       </td>
                     </tr>
@@ -384,7 +385,7 @@ export default function ArchivagePage() {
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
               <h3> Aperçu de l'acte</h3>
-              <button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button>
+              <button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}><X size={18} /></button>
             </div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? (

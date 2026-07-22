@@ -129,9 +129,9 @@ export default function ResetPassword() {
         <div className="auth-card">
           <div className="auth-header">
             <h1 className="auth-title">
-              {step === 1 && '🔐 Réinitialisation du mot de passe'}
-              {step === 2 && '📱 Vérification du code'}
-              {step === 3 && '✏️ Nouveau mot de passe'}
+              {step === 1 && ' Réinitialisation du mot de passe'}
+              {step === 2 && ' Vérification du code'}
+              {step === 3 && ' Nouveau mot de passe'}
             </h1>
             <p className="auth-subtitle-reset">
               {step === 1 && 'Entrez votre email pour recevoir un code de réinitialisation'}
@@ -143,7 +143,7 @@ export default function ResetPassword() {
           {/* Message */}
           {message.text && (
             <div className={`reset-message ${message.type}`}>
-              {message.type === 'success' ? '✅' : '❌'} {message.text}
+              {message.type === 'success' ? '' : ''} {message.text}
             </div>
           )}
 
@@ -274,9 +274,9 @@ export default function ResetPassword() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>
