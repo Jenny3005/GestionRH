@@ -45,7 +45,7 @@ export default function ActivateAccount() {
       const data = await response.json();
       
       if (response.ok) {
-        alert('✅ Compte activé avec succès ! Connectez-vous.');
+        alert(' Compte activé avec succès ! Connectez-vous.');
         navigate('/auth');
       } else {
         setError(data.error || 'Erreur lors de l\'activation');
@@ -100,10 +100,10 @@ export default function ActivateAccount() {
             />
           </div>
 
-          {error && <div className="error-text">❌ {error}</div>}
+          {error && <div className="error-text"> {error}</div>}
 
           <button type="submit" className="btn-auth-submit" disabled={loading}>
-            {loading ? ' Activation...' : '✅ Activer mon compte'}
+            {loading ? ' Activation...' : ' Activer mon compte'}
           </button>
         </form>
 

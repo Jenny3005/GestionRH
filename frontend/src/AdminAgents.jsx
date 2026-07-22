@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import DataTable from 'react-data-table-component';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, Download, Upload } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, Download, Upload, AlertCircle } from 'lucide-react';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -167,7 +167,7 @@ export default function AdminAgents() {
           });
         }
         
-        alert(`✅ Agent ajouté avec succès !\n\n Un email d'activation a été envoyé à ${formData.email}`);
+        alert(` Agent ajouté avec succès !\n\n Un email d'activation a été envoyé à ${formData.email}`);
         
         setShowModal(false);
         setFormData({
@@ -293,7 +293,7 @@ export default function AdminAgents() {
         }
         
         if (headerRowIndex === -1) {
-          alert("❌ Format non reconnu. Colonne 'Matricule' introuvable.");
+          alert("Format non reconnu. Colonne 'Matricule' introuvable.");
           setImporting(false);
           setPending(false);
           return;
@@ -339,7 +339,7 @@ export default function AdminAgents() {
             
             const validTypeContrats = ['APE', 'ACDPE', 'ACE', 'AAE'];
             if (!validTypeContrats.includes(typecontrat)) {
-              warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Type de contrat "${typecontrat}" invalide, remplacé par APE`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Type de contrat "${typecontrat}" invalide, remplacé par APE`);
               typecontrat = 'APE';
             }
             
@@ -403,19 +403,19 @@ export default function AdminAgents() {
             }
             
             if (!matricule) {
-              warnings.push(`❌ Ligne ${lineNum}: Matricule manquant`);
+              warnings.push(` Ligne ${lineNum}: Matricule manquant`);
               continue;
             }
             if (!nom) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Nom manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Nom manquant`);
               continue;
             }
             if (!prenom) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Prénom manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Prénom manquant`);
               continue;
             }
             if (!email) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Email manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Email manquant`);
               continue;
             }
             
@@ -436,20 +436,20 @@ export default function AdminAgents() {
             });
             
           } catch (rowError) {
-            warnings.push(`❌ Ligne ${lineNum}: Erreur - ${rowError.message}`);
+            warnings.push(` Ligne ${lineNum}: Erreur - ${rowError.message}`);
           }
         }
         
         if (agentsToImport.length === 0) {
-          alert(`❌ Aucune donnée valide à importer.\n\n${warnings.slice(0, 10).join('\n')}`);
+          alert(` Aucune donnée valide à importer.\n\n${warnings.slice(0, 10).join('\n')}`);
           setImporting(false);
           setPending(false);
           return;
         }
         
         const confirmMessage = ` RÉSUMÉ DE L'IMPORT\n\n` +
-          `✅ Agents à importer: ${agentsToImport.length}\n` +
-          `⚠️ Avertissements: ${warnings.length}\n\n` +
+          ` Agents à importer: ${agentsToImport.length}\n` +
+          ` Avertissements: ${warnings.length}\n\n` +
           `${warnings.slice(0, 5).join('\n')}${warnings.length > 5 ? `\n... et ${warnings.length - 5} autres` : ''}\n\n` +
           `Continuer ?`;
         
@@ -479,9 +479,9 @@ export default function AdminAgents() {
         }
         
         if (result && result.success !== false) {
-          let successMessage = `✅ IMPORT TERMINÉ !\n\n`;
+          let successMessage = ` IMPORT TERMINÉ !\n\n`;
           successMessage += ` Succès: ${result.success_count || 0}\n`;
-          successMessage += `❌ Échecs: ${result.error_count || 0}\n`;
+          successMessage += ` Échecs: ${result.error_count || 0}\n`;
           
           if (result.errors && result.errors.length > 0) {
             successMessage += `\n Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
@@ -490,12 +490,12 @@ export default function AdminAgents() {
           alert(successMessage);
           await fetchAgents();
         } else {
-          alert(`❌ Erreur: ${result?.error || 'Erreur inconnue'}`);
+          alert(` Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
         
       } catch (error) {
         console.error("Erreur:", error);
-        alert("❌ Erreur lors de l'import: " + error.message);
+        alert(" Erreur lors de l'import: " + error.message);
       } finally {
         setImporting(false);
         setPending(false);
@@ -505,7 +505,7 @@ export default function AdminAgents() {
     
     reader.onerror = (error) => {
       console.error("Erreur de lecture:", error);
-      alert("❌ Erreur de lecture du fichier");
+      alert(" Erreur de lecture du fichier");
       setImporting(false);
       setPending(false);
     };
@@ -788,9 +788,9 @@ export default function AdminAgents() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>
@@ -805,7 +805,7 @@ export default function AdminAgents() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Inviter un agent</h3>
-            <p className="modal-info">📧 Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
+            <p className="modal-info"> Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
             <form onSubmit={handleAddAgent}>
               <div className="form-row">
                 <div className="form-group"><label>Matricule *</label><input type="text" name="matricule" value={formData.matricule} onChange={handleChange} required /></div>
@@ -850,7 +850,7 @@ export default function AdminAgents() {
               </div>
               <div className="modal-buttons">
                 <button type="button" onClick={() => setShowModal(false)}>Annuler</button>
-                <button type="submit" disabled={pending}>📤 Envoyer l'invitation</button>
+                <button type="submit" disabled={pending}> Envoyer l'invitation</button>
               </div>
             </form>
           </div>

@@ -66,8 +66,8 @@ export default function Postuler() {
   const handleFileUpload = (type, file) => {
     if (!file) return;
     
-    // 📁 Vérifications du fichier
-    console.log(`📁 Fichier ${type}:`, {
+    //  Vérifications du fichier
+    console.log(` Fichier ${type}:`, {
       name: file.name,
       size: `${(file.size / 1024).toFixed(2)} KB`,
       type: file.type
@@ -75,18 +75,18 @@ export default function Postuler() {
     
     // Vérifier que le fichier n'est pas vide
     if (file.size === 0) {
-      alert(`❌ Le fichier ${file.name} est vide. Veuillez choisir un fichier valide.`);
+      alert(` Le fichier ${file.name} est vide. Veuillez choisir un fichier valide.`);
       return;
     }
     
     // Vérifier la taille minimale (1 KB pour éviter les fichiers vides)
     if (file.size < 1024) {
-      console.warn(`⚠️ Attention: ${file.name} est très petit (${file.size} octets)`);
+      console.warn(` Attention: ${file.name} est très petit (${file.size} octets)`);
     }
     
     // Vérifier la taille maximale (10 MB)
     if (file.size > 10 * 1024 * 1024) {
-      alert(`❌ Le fichier ${file.name} dépasse 10 MB. Veuillez le compresser.`);
+      alert(` Le fichier ${file.name} dépasse 10 MB. Veuillez le compresser.`);
       return;
     }
     
@@ -95,7 +95,7 @@ export default function Postuler() {
     const fileExtension = file.name.split('.').pop().toLowerCase();
     
     if (!allowedExtensions.includes(fileExtension)) {
-      alert(`❌ Format non supporté pour ${file.name}. Formats acceptés: PDF, DOC, DOCX, JPG, PNG`);
+      alert(` Format non supporté pour ${file.name}. Formats acceptés: PDF, DOC, DOCX, JPG, PNG`);
       return;
     }
     
@@ -105,7 +105,7 @@ export default function Postuler() {
     const reader = new FileReader();
     
     reader.onloadstart = () => {
-      console.log(`⏳ Encodage de ${type}...`);
+      console.log(` Encodage de ${type}...`);
       setUploadProgress(prev => ({ ...prev, [type]: 50 }));
     };
     
@@ -113,12 +113,12 @@ export default function Postuler() {
       const base64String = reader.result;
       const base64Length = base64String.length;
       
-      console.log(`📊 ${type} encodé - Longueur Base64: ${(base64Length / 1024).toFixed(2)} KB`);
+      console.log(`${type} encodé - Longueur Base64: ${(base64Length / 1024).toFixed(2)} KB`);
       
       // Vérifier que le Base64 a une taille raisonnable
       if (base64Length < 200) {
-        console.error(`❌ ERREUR: Base64 trop court (${base64Length}) pour ${file.name}`);
-        alert(`❌ Erreur: Le fichier ${file.name} n'a pas pu être encodé correctement.`);
+        console.error(` ERREUR: Base64 trop court (${base64Length}) pour ${file.name}`);
+        alert(` Erreur: Le fichier ${file.name} n'a pas pu être encodé correctement.`);
         setUploadProgress(prev => ({ ...prev, [type]: 0 }));
         return;
       }
@@ -146,8 +146,8 @@ export default function Postuler() {
     };
     
     reader.onerror = (error) => {
-      console.error('❌ Erreur lecture fichier:', error);
-      alert(`❌ Impossible de lire le fichier ${file.name}`);
+      console.error(' Erreur lecture fichier:', error);
+      alert(` Impossible de lire le fichier ${file.name}`);
       setUploadProgress(prev => ({ ...prev, [type]: 0 }));
     };
     
@@ -172,7 +172,7 @@ export default function Postuler() {
       }
 
       // 1. Créer la candidature
-      console.log('📝 Création de la candidature...');
+      console.log(' Création de la candidature...');
       const candidatureRes = await fetch('/api/candidatures/postuler/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,13 +191,13 @@ export default function Postuler() {
       }
 
       const candidatureId = candidatureData.candidature_id;
-      console.log(`✅ Candidature créée avec ID: ${candidatureId}`);
+      console.log(` Candidature créée avec ID: ${candidatureId}`);
       
       // 2. Uploader tous les fichiers un par un
       let uploadErrors = [];
       
       for (const [type, fileData] of Object.entries(uploadedFiles)) {
-        console.log(`📤 Upload ${type} - Taille: ${(fileData.base64.length / 1024).toFixed(2)} KB`);
+        console.log(` Upload ${type} - Taille: ${(fileData.base64.length / 1024).toFixed(2)} KB`);
         
         try {
           const uploadRes = await fetch(`/api/candidatures/${candidatureId}/upload-piece/`, {
@@ -211,15 +211,15 @@ export default function Postuler() {
           });
           
           const uploadData = await uploadRes.json();
-          console.log(`📥 Réponse upload ${type}:`, uploadData);
+          console.log(` Réponse upload ${type}:`, uploadData);
           
           if (!uploadRes.ok) {
             uploadErrors.push(`${type}: ${uploadData.error}`);
           } else {
-            console.log(`✅ ${type} uploadé avec succès`);
+            console.log(` ${type} uploadé avec succès`);
           }
         } catch (error) {
-          console.error(`❌ Erreur upload ${type}:`, error);
+          console.error(` Erreur upload ${type}:`, error);
           uploadErrors.push(`${type}: ${error.message}`);
         }
       }
@@ -233,12 +233,12 @@ export default function Postuler() {
         return;
       }
 
-      // ⭐ PLUS BESOIN D'ATTENDRE L'ANALYSE ! ⭐
+      
       // L'analyse se fait automatiquement en arrière-plan
       
       setMessage({ 
         type: 'success', 
-        text: '✅ Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan.' 
+        text: 'Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan.' 
       });
       setIsPolling(true);
       pollCandidatureStatus(candidatureId);
@@ -253,7 +253,7 @@ export default function Postuler() {
       }, 10000);
 
     } catch (error) {
-      console.error('❌ Erreur globale:', error);
+      console.error(' Erreur globale:', error);
       setMessage({ type: 'error', text: 'Erreur de connexion au serveur: ' + error.message });
     } finally {
       setSubmitting(false);
@@ -275,7 +275,7 @@ export default function Postuler() {
         setIsPolling(false);
         setMessage({
           type: 'success',
-          text: `✅ Analyse IA terminée. Score: ${score}/100. Vous pouvez consulter votre dossier.`
+          text: ` Analyse IA terminée. Score: ${score}/100. Vous pouvez consulter votre dossier.`
         });
         return;
       }
@@ -286,7 +286,7 @@ export default function Postuler() {
         setIsPolling(false);
         setMessage({
           type: 'info',
-          text: '⚠️ Analyse IA toujours en cours. Vous serez notifié lorsque le résultat sera prêt.'
+          text: ' Analyse IA toujours en cours. Vous serez notifié lorsque le résultat sera prêt.'
         });
       }
     } catch (error) {
@@ -297,7 +297,7 @@ export default function Postuler() {
         setIsPolling(false);
         setMessage({
           type: 'info',
-          text: '⚠️ Impossible de vérifier le statut de l\'analyse pour le moment. L\'analyse se poursuivra en arrière-plan.'
+          text: ' Impossible de vérifier le statut de l\'analyse pour le moment. L\'analyse se poursuivra en arrière-plan.'
         });
       }
     }
@@ -305,13 +305,13 @@ export default function Postuler() {
 
   const getFileIcon = (type) => {
     const icons = {
-      'CV': '📄',
-      'LM': '📝',
-      'DIPLOME': '🎓',
-      'ATTESTATION': '📑',
-      'CNI': '🪪'
+      'CV': '',
+      'LM': '',
+      'DIPLOME': '',
+      'ATTESTATION': '',
+      'CNI': ''
     };
-    return icons[type] || '📎';
+    return icons[type] || '';
   };
 
   const getFileLabel = (type) => {
@@ -351,7 +351,7 @@ export default function Postuler() {
       <main className="intranet-main">
         <section className="demarches-hero" style={{ padding: '3rem 2rem' }}>
           <div className="demarches-hero-content">
-            <h1>📝 Candidature interne</h1>
+            <h1> Candidature interne</h1>
             <p>Postulez pour une opportunité de carrière au sein du Ministère</p>
           </div>
         </section>
@@ -397,7 +397,7 @@ export default function Postuler() {
                   color: 'white'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
-                    <span style={{ fontSize: '2rem' }}>👤</span>
+                    <span style={{ fontSize: '2rem' }}></span>
                     <div>
                       <h3 style={{ margin: 0, color: '#D4AF37' }}>{userInfo.prenom} {userInfo.nom}</h3>
                       <p style={{ margin: '4px 0 0 0', opacity: 0.8, fontSize: '0.85rem' }}>Matricule: {userInfo.matricule}</p>
@@ -413,7 +413,7 @@ export default function Postuler() {
                   border: '1px solid #E2E8F0'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '1.8rem' }}>📌</span>
+                    <span style={{ fontSize: '1.8rem' }}></span>
                     <div>
                       <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase' }}>Poste convoité</p>
                       <h3 style={{ margin: '4px 0 0 0', color: '#0B192C' }}>{poste?.intitule || 'Chargement...'}</h3>
@@ -423,7 +423,7 @@ export default function Postuler() {
 
                 <div style={{ marginBottom: '2rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.2rem' }}>
-                    <span style={{ fontSize: '1.3rem' }}>📎</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}><Paperclip size={18} style={{ color: '#D4AF37' }} /></span>
                     <h3 style={{ margin: 0, color: '#0B192C', fontSize: '1.1rem' }}>Documents à fournir</h3>
                   </div>
                   
@@ -449,7 +449,7 @@ export default function Postuler() {
                           {uploadedFiles[piece] ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <span style={{ color: '#059669', fontSize: '0.85rem' }}>
-                                ✅ {uploadedFiles[piece].name} ({formatFileSize(uploadedFiles[piece].size)})
+                                 {uploadedFiles[piece].name} ({formatFileSize(uploadedFiles[piece].size)})
                               </span>
                               <button
                                 type="button"
@@ -483,7 +483,7 @@ export default function Postuler() {
                               transition: 'all 0.2s',
                               display: 'inline-block'
                             }}>
-                              {uploadProgress[piece] ? `⏳ ${uploadProgress[piece]}%` : '📂 Choisir un fichier'}
+                              {uploadProgress[piece] ? ` ${uploadProgress[piece]}%` : ' Choisir un fichier'}
                               <input
                                 type="file"
                                 accept=".pdf,.doc,.docx,.jpg,.png,.jpeg"
@@ -545,7 +545,7 @@ export default function Postuler() {
                       gap: '8px'
                     }}
                   >
-                    {submitting ? '⏳ Envoi en cours...' : '📤 Soumettre ma candidature'}
+                    {submitting ? ' Envoi en cours...' : ' Soumettre ma candidature'}
                   </button>
                 </div>
 
@@ -558,7 +558,7 @@ export default function Postuler() {
                     textAlign: 'center'
                   }}>
                     <span style={{ fontSize: '0.8rem', color: '#D97706' }}>
-                      ⚠️ Veuillez joindre toutes les pièces requises avant de soumettre
+                       Veuillez joindre toutes les pièces requises avant de soumettre
                     </span>
                   </div>
                 )}
@@ -572,7 +572,7 @@ export default function Postuler() {
                     textAlign: 'center'
                   }}>
                     <span style={{ fontSize: '0.75rem', color: '#2563EB' }}>
-                      💡 Diplôme requis: {poste.diplomeRequis}
+                       Diplôme requis: {poste.diplomeRequis}
                     </span>
                   </div>
                 )}
@@ -608,9 +608,9 @@ export default function Postuler() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>
