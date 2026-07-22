@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
-import UserMenu from './UserMenu';
-import './App.css';
+import UserMenu from './UserMenu';import { MapPin, Phone, Mail, Trash2 } from 'lucide-react';import './App.css';
 
 function normalizeRole(role) {
   if (!role || typeof role !== 'string') return '';
@@ -130,7 +129,7 @@ export default function Profil() {
           body: JSON.stringify({ signature: base64 })
         });
         if (response.ok) {
-          setSuccessMessage('✅ Signature enregistrée avec succès');
+          setSuccessMessage(' Signature enregistrée avec succès');
           setTimeout(() => setSuccessMessage(''), 3000);
         } else {
           const error = await response.json();
@@ -163,7 +162,7 @@ export default function Profil() {
           body: JSON.stringify({ cachet: base64 })
         });
         if (response.ok) {
-          setSuccessMessage('✅ Cachet officiel enregistré avec succès');
+          setSuccessMessage(' Cachet officiel enregistré avec succès');
           setTimeout(() => setSuccessMessage(''), 3000);
         } else {
           const error = await response.json();
@@ -185,7 +184,7 @@ export default function Profil() {
         const response = await fetch(`/api/agent/delete-signature/${matricule}/`, { method: 'DELETE' });
         if (response.ok) {
           setSignaturePreview(null);
-          setSuccessMessage('✅ Signature supprimée');
+          setSuccessMessage(' Signature supprimée');
           setTimeout(() => setSuccessMessage(''), 3000);
         }
       } catch (error) { alert('Erreur de connexion'); }
@@ -199,7 +198,7 @@ export default function Profil() {
         const response = await fetch(`/api/agent/delete-cachet/${matricule}/`, { method: 'DELETE' });
         if (response.ok) {
           setCachetPreview(null);
-          setSuccessMessage('✅ Cachet supprimé');
+          setSuccessMessage(' Cachet supprimé');
           setTimeout(() => setSuccessMessage(''), 3000);
         }
       } catch (error) { alert('Erreur de connexion'); }
@@ -269,15 +268,15 @@ export default function Profil() {
         <div className="profil-actions-top">
           {!isEditing ? (
             <button className="btn-edit-profil-top" onClick={() => setIsEditing(true)}>
-              ✏️ Modifier mon profil
+               Modifier mon profil
             </button>
           ) : (
             <div className="edit-actions-top">
               <button className="btn-save-top" onClick={handleSave} disabled={loading}>
-                {loading ? 'Enregistrement...' : '💾 Enregistrer'}
+                {loading ? 'Enregistrement...' : ' Enregistrer'}
               </button>
               <button className="btn-cancel-top" onClick={() => { setIsEditing(false); fetchUserInfo(); }}>
-                ❌ Annuler
+                 Annuler
               </button>
             </div>
           )}
@@ -285,13 +284,13 @@ export default function Profil() {
 
         {successMessage && (
           <div className="alert-success">
-            <span className="alert-icon">✅</span>
+            <span className="alert-icon"></span>
             <span>{successMessage}</span>
           </div>
         )}
         {errorMessage && (
           <div className="alert-error">
-            <span className="alert-icon">❌</span>
+            <span className="alert-icon"></span>
             <span>{errorMessage}</span>
           </div>
         )}
@@ -302,7 +301,7 @@ export default function Profil() {
             {/* Carte 1 : Informations personnelles */}
             <div className="agent-card">
               <div className="agent-card-header">
-                <h3>📋 Informations personnelles</h3>
+                <h3> Informations personnelles</h3>
               </div>
               <div className="agent-card-content">
                 <div className="info-row">
@@ -351,7 +350,7 @@ export default function Profil() {
             {/* Carte 2 : Informations professionnelles */}
             <div className="agent-card">
               <div className="agent-card-header">
-                <h3>💼 Informations professionnelles</h3>
+                <h3> Informations professionnelles</h3>
               </div>
               <div className="agent-card-content">
                 <div className="info-row">
@@ -386,7 +385,7 @@ export default function Profil() {
             {/* Carte 3 : Informations de carrière */}
             <div className="agent-card">
               <div className="agent-card-header">
-                <h3>📈 Informations de carrière</h3>
+                <h3> Informations de carrière</h3>
               </div>
               <div className="agent-card-content">
                 <div className="info-row">
@@ -417,7 +416,7 @@ export default function Profil() {
             {/* Carte 4 : Informations complémentaires */}
             <div className="agent-card">
               <div className="agent-card-header">
-                <h3>📝 Informations complémentaires</h3>
+                <h3> Informations complémentaires</h3>
                 <span style={{ fontSize: '11px', color: '#6b7280', background: '#F3F4F6', padding: '3px 8px', borderRadius: '10px' }}>
                   Utilisées pour votre bulletin de notes
                 </span>
@@ -446,29 +445,29 @@ export default function Profil() {
           {canManageSignatureCachet && (
             <div className="signature-cachet-card">
               <div className="card-header">
-                <h3>✍️ Signature & Cachet officiel</h3>
+                <h3> Signature & Cachet officiel</h3>
                 <p className="card-subtitle">Espace réservé au {getRoleLabel()}</p>
               </div>
               <div className="signature-cachet-grid">
 
                 {/* Signature */}
                 <div className="signature-box">
-                  <h4>📝 Ma signature</h4>
+                  <h4> Ma signature</h4>
                   <div className="preview-area">
                     {signaturePreview ? (
                       <div className="preview-container">
                         <img src={signaturePreview} alt="Signature" className="signature-img" />
-                        <button className="btn-delete" onClick={handleDeleteSignature} disabled={signatureLoading} title="Supprimer">🗑️</button>
+                        <button className="btn-delete" onClick={handleDeleteSignature} disabled={signatureLoading} title="Supprimer"><Trash2 size={16} /></button>
                       </div>
                     ) : (
                       <div className="empty-preview">
-                        <span>✍️</span>
+                        <span></span>
                         <p>Aucune signature</p>
                       </div>
                     )}
                   </div>
                   <button className="btn-upload" onClick={() => signatureInputRef.current.click()} disabled={signatureLoading}>
-                    {signatureLoading ? 'Chargement...' : (signaturePreview ? '📤 Changer' : '📤 Télécharger')}
+                    {signatureLoading ? 'Chargement...' : (signaturePreview ? ' Changer' : ' Télécharger')}
                   </button>
                   <input type="file" ref={signatureInputRef} accept="image/png,image/jpeg,image/jpg"
                     onChange={handleSignatureUpload} style={{ display: 'none' }} />
@@ -477,26 +476,26 @@ export default function Profil() {
 
                 {/* Cachet */}
                 <div className="cachet-box">
-                  <h4>🏛️ Mon cachet officiel</h4>
+                  <h4> Mon cachet officiel</h4>
                   <div className="preview-area">
                     {cachetPreview ? (
                       <div className="preview-container">
                         <img src={cachetPreview} alt="Cachet" className="cachet-img" />
-                        <button className="btn-delete" onClick={handleDeleteCachet} disabled={cachetLoading} title="Supprimer">🗑️</button>
+                        <button className="btn-delete" onClick={handleDeleteCachet} disabled={cachetLoading} title="Supprimer"><Trash2 size={16} /></button>
                       </div>
                     ) : (
                       <div className="empty-preview">
-                        <span>🏛️</span>
+                        <span></span>
                         <p>Aucun cachet</p>
                       </div>
                     )}
                   </div>
                   <button className="btn-upload" onClick={() => cachetInputRef.current.click()} disabled={cachetLoading}>
-                    {cachetLoading ? 'Chargement...' : (cachetPreview ? '📤 Changer' : '📤 Télécharger')}
+                    {cachetLoading ? 'Chargement...' : (cachetPreview ? ' Changer' : ' Télécharger')}
                   </button>
                   <input type="file" ref={cachetInputRef} accept="image/png,image/jpeg,image/jpg"
                     onChange={handleCachetUpload} style={{ display: 'none' }} />
-                  <p className="help-text warning">⚠️ Le cachet engage officiellement votre service</p>
+                  <p className="help-text warning"> Le cachet engage officiellement votre service</p>
                 </div>
 
               </div>
@@ -531,9 +530,9 @@ export default function Profil() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

@@ -128,7 +128,7 @@ export default function AdminTypesDemande() {
       });
 
       if (response.ok) {
-        alert(`✅ Type de demande "${formData.libelle}" ajouté avec succès !`);
+        alert(` Type de demande "${formData.libelle}" ajouté avec succès !`);
         setShowModal(false);
         setFormData({ libelle: '', duree_traitement_moyenne: '', acte_generable: 0 });
         fetchTypes();
@@ -172,7 +172,7 @@ export default function AdminTypesDemande() {
       });
 
       if (response.ok) {
-        alert(`✅ Type de demande modifié avec succès !`);
+        alert(` Type de demande modifié avec succès !`);
         setShowEditModal(false);
         setFormData({ libelle: '', duree_traitement_moyenne: '', acte_generable: 0 });
         setSelectedType(null);
@@ -201,7 +201,7 @@ export default function AdminTypesDemande() {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Type supprimé avec succès');
+          alert(' Type supprimé avec succès');
           fetchTypes();
         } else {
           alert('Erreur lors de la suppression');
@@ -213,7 +213,7 @@ export default function AdminTypesDemande() {
   };
 
   const getActeLabel = (acte) => {
-    return acte === 1 ? '✅ Oui' : '❌ Non';
+    return acte === 1 ? ' Oui' : ' Non';
   };
 
   const columns = [
@@ -507,9 +507,9 @@ export default function AdminTypesDemande() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

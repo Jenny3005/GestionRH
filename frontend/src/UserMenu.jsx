@@ -115,7 +115,7 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [], o
                     className={`dropdown-subitem ${role === userRole ? 'active' : ''}`}
                     onClick={() => handleRoleChange(role)}
                   >
-                    {role === userRole ? '✅ ' : '🔄 '}{getRoleLabel(role)}
+                    {role === userRole ? ' ' : ' '}{getRoleLabel(role)}
                   </button>
                 ))}
               </div>
@@ -126,16 +126,16 @@ export default function UserMenu({ showDocuments = true, additionalLinks = [], o
           
           {/* Liens personnels */}
           <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/profil'); }}>
-            👤 Mon profil
+             Mon profil
           </button>
           {showDocuments && (
             <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/documents'); }}>
-              📁 Mes documents
+               Mes documents
             </button>
           )}
           {(userRole === 'rh' || userRole === 'rh/secretaire') && (
             <button className="dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/archivage'); }}>
-              🗄️ Archivage
+               Archivage
             </button>
           )}
           

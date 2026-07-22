@@ -136,7 +136,7 @@ export default function AdminPermissions() {
       });
 
       if (response.ok) {
-        alert('✅ Permission ajoutée avec succès');
+        alert(' Permission ajoutée avec succès');
         setShowModal(false);
         setFormData({ code: '', description: '' });
         fetchPermissions();
@@ -157,7 +157,7 @@ export default function AdminPermissions() {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Permission supprimée avec succès');
+          alert(' Permission supprimée avec succès');
           fetchPermissions();
           fetchRolePermissions();
         } else {
@@ -364,7 +364,7 @@ export default function AdminPermissions() {
                     </tr>
                   ) : permissions.length === 0 ? (
                     <tr>
-                      <td colSpan="3" style={{ textAlign: 'center' }}>📭 Aucune permission trouvée</td>
+                      <td colSpan="3" style={{ textAlign: 'center' }}><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucune permission trouvée</td>
                     </tr>
                   ) : (
                     permissions.map((perm) => (
@@ -491,9 +491,9 @@ export default function AdminPermissions() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

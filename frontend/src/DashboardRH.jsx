@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import UserMenu from './UserMenu';
+import { CheckCircle, FileText, Upload, Save, MapPin, Phone, Mail, Pencil, Trash2, Users, Lock, Plus, Paperclip, Inbox, X } from 'lucide-react';
 import './App.css';
 
 function addYears(date, years) {
@@ -200,11 +201,11 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, demandesEnCours: data.length }));
       }
 
-      // ✅ Récupération des actes générés
+      //  Récupération des actes générés
       const actesRes = await fetch(`/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
-        console.log('📄 Actes générés reçus:', data);
+        console.log(' Actes générés reçus:', data);
         setActesGeneres(data);
         setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
@@ -228,7 +229,7 @@ export default function DashboardRH() {
       }
       
     } catch (error) {
-      console.error('❌ Erreur chargement:', error);
+      console.error(' Erreur chargement:', error);
     } finally {
       setLoading(false);
     }
@@ -289,7 +290,7 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Note ajoutée avec succès');
+        alert(' Note ajoutée avec succès');
         setShowAddNoteModal(false);
         setNewNote({
           titre: '',
@@ -301,7 +302,7 @@ export default function DashboardRH() {
         await fetchNotesService();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+        alert(` Erreur: ${error.error || 'Création impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -337,12 +338,12 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Note modifiée avec succès');
+        alert(' Note modifiée avec succès');
         setShowEditNoteModal(false);
         await fetchNotesService();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+        alert(` Erreur: ${error.error || 'Modification impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -357,10 +358,10 @@ export default function DashboardRH() {
         method: 'DELETE'
       });
       if (res.ok) {
-        alert('✅ Note supprimée');
+        alert(' Note supprimée');
         await fetchNotesService();
       } else {
-        alert('❌ Erreur lors de la suppression');
+        alert(' Erreur lors de la suppression');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -381,7 +382,7 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Annonce créée avec succès !');
+        alert(' Annonce créée avec succès !');
         setShowAddAnnonceModal(false);
         setNewAnnonce({
           intitule: '',
@@ -396,7 +397,7 @@ export default function DashboardRH() {
         await fetchPostesVacants();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+        alert(` Erreur: ${error.error || 'Création impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -428,12 +429,12 @@ export default function DashboardRH() {
         body: JSON.stringify(editAnnonce)
       });
       if (res.ok) {
-        alert('✅ Annonce modifiée avec succès !');
+        alert(' Annonce modifiée avec succès !');
         setShowEditAnnonceModal(false);
         await fetchPostesVacants();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+        alert(` Erreur: ${error.error || 'Modification impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -449,10 +450,10 @@ export default function DashboardRH() {
         headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
-        alert('✅ Annonce clôturée');
+        alert(' Annonce clôturée');
         await fetchPostesVacants();
       } else {
-        alert('❌ Erreur lors de la clôture');
+        alert(' Erreur lors de la clôture');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -581,7 +582,7 @@ export default function DashboardRH() {
         body: JSON.stringify({ rh_matricule: matricule })
       });
       if (response.ok) {
-        alert('✅ Traitement commencé, la demande passe en "En cours"');
+        alert(' Traitement commencé, la demande passe en "En cours"');
         await fetchData();
       } else {
         const error = await response.json();
@@ -593,7 +594,7 @@ export default function DashboardRH() {
     }
   };
 
-  // ✅ Fonction pour déterminer le préfixe du nom de fichier
+  //  Fonction pour déterminer le préfixe du nom de fichier
   const getFilenamePrefix = (type) => {
     const prefixMap = {
       'Attestation de présence au poste': 'Attestation_Presence',
@@ -660,9 +661,9 @@ export default function DashboardRH() {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
           
-          alert('✅ Attestation générée avec succès !');
+          alert(' Attestation générée avec succès !');
           
-          // ✅ Rafraîchir les données après la génération
+          //  Rafraîchir les données après la génération
           await fetchData();
           
         } else {
@@ -713,7 +714,7 @@ export default function DashboardRH() {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        alert('✅ Acte généré avec succès !');
+        alert(' Acte généré avec succès !');
         await fetchData();
       } else {
         const error = await response.json();
@@ -735,7 +736,7 @@ export default function DashboardRH() {
         body: JSON.stringify({ rh_matricule: matricule })
       });
       if (response.ok) {
-        alert('✅ Acte envoyé à la secrétaire !');
+        alert(' Acte envoyé à la secrétaire !');
         await fetchData();
       } else {
         const error = await response.json();
@@ -786,8 +787,8 @@ export default function DashboardRH() {
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
       'actif': { class: 'status-active', text: 'Actif' },
       'inactif': { class: 'status-inactive', text: 'Inactif' },
-      'publie': { class: 'status-active', text: '📢 Publiée' },
-      'cloture': { class: 'status-inactive', text: '🔒 Clôturée' },
+      'publie': { class: 'status-active', text: 'Publiée' },
+      'cloture': { class: 'status-inactive', text: 'Clôturée' },
       'deposee': { class: 'status-pending', text: ' Déposée' }
     };
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
@@ -828,11 +829,11 @@ export default function DashboardRH() {
       });
       const data = await response.json();
       if (response.ok) {
-        alert(`✅ Agent ${data.matricule} créé avec succès !`);
+        alert(` Agent ${data.matricule} créé avec succès !`);
         closeAddAgentModal();
         await fetchData();
       } else {
-        alert(`❌ Erreur: ${data.error || 'Erreur lors de la création'}`);
+        alert(` Erreur: ${data.error || 'Erreur lors de la création'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -903,10 +904,10 @@ export default function DashboardRH() {
         }
 
         if (result && result.success !== false) {
-          alert(`✅ ${result.success_count || agents.length} agents importés avec succès !`);
+          alert(` ${result.success_count || agents.length} agents importés avec succès !`);
           await fetchData();
         } else {
-          alert(`❌ Erreur: ${result?.error || 'Erreur inconnue'}`);
+          alert(` Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
       } catch (error) {
         console.error('Erreur import:', error);
@@ -1306,49 +1307,49 @@ export default function DashboardRH() {
           <>
             <div className="rh-stats-grid">
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">👥</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.totalAgents}</span>
                   <span className="rh-stat-label">Agents actifs</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📋</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnAttente}</span>
                   <span className="rh-stat-label">Demandes à traiter</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">⚙️</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnCours}</span>
                   <span className="rh-stat-label">Demandes en cours</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📄</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.actesAEnvoyer}</span>
                   <span className="rh-stat-label">Actes à envoyer</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">⚠️</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.documentsExpires}</span>
                   <span className="rh-stat-label">Documents expirés</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📢</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.annoncesActives}</span>
                   <span className="rh-stat-label">Annonces actives</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📈</div>
+                <div className="rh-stat-icon"></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{alertesSemaine}</span>
                   <span className="rh-stat-label">Avancements prévus (7j)</span>
@@ -1366,7 +1367,7 @@ export default function DashboardRH() {
                   <thead><tr><th>Agent</th><th>Type</th><th>Date assignation</th><th>Statut</th><th>Actions</th></tr></thead>
                   <tbody>
                     {demandesAssignees.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center">📭 Aucune demande à traiter</td></tr>
+                      <tr><td colSpan="5" className="text-center"> Aucune demande à traiter</td></tr>
                     ) : (
                       demandesAssignees.map(demande => (
                         <tr key={demande.id}>
@@ -1419,19 +1420,19 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* ✅ SECTION ACTES GÉNÉRÉS - CORRIGÉE */}
+            {/*  SECTION ACTES GÉNÉRÉS - CORRIGÉE */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>Actes générés - En attente d'envoi</h3>
                 <button 
                   className="rh-card-btn" 
                   onClick={async () => {
-                    console.log('🔄 Rafraîchissement manuel des actes');
+                    console.log(' Rafraîchissement manuel des actes');
                     await fetchData();
                   }}
                   style={{ fontSize: '0.7rem' }}
                 >
-                  🔄 Rafraîchir
+                   Rafraîchir
                 </button>
               </div>
               <div className="rh-table-container">
@@ -1471,7 +1472,7 @@ export default function DashboardRH() {
 
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>👥 Derniers agents inscrits</h3>
+                <h3> Derniers agents inscrits</h3>
                 <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tous les agents →</button>
               </div>
               <div className="rh-table-container">
@@ -1479,7 +1480,7 @@ export default function DashboardRH() {
                   <thead><tr><th>Matricule</th><th>Nom complet</th><th>Poste</th><th>Direction</th><th>Statut</th><th>Action</th></tr></thead>
                   <tbody>
                     {agentsRecents.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
+                      <tr><td colSpan="6" className="text-center"><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucun agent trouvé</td></tr>
                     ) : (
                       agentsRecents.map(agent => (
                         <tr key={agent.matricule}>
@@ -1504,25 +1505,25 @@ export default function DashboardRH() {
                   <h4> Liste des agents</h4>
                   <p>Export complet des agents avec leurs informations</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('agents')}>📄 PDF</button>
-                    <button className="btn-export-csv" onClick={() => handleExportCSV('agents')}>📝 CSV</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('agents')}> PDF</button>
+                    <button className="btn-export-csv" onClick={() => handleExportCSV('agents')}> CSV</button>
                   </div>
                 </div>
                 <div className="export-option">
                   <h4> Statistiques RH</h4>
                   <p>Effectifs, recrutements, départs, congés</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('stats')}>📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('stats')}> PDF</button>
                   </div>
                 </div>
                 <div className="export-option">
                   <h4> État des dossiers</h4>
                   <p>Complétude et documents manquants par agent</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('dossiers')}>📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('dossiers')}> PDF</button>
                   </div>
                 </div>
               </div>
@@ -1548,7 +1549,7 @@ export default function DashboardRH() {
                 />
               </div>
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary" onClick={handleAddAgent}>➕ Nouvel agent</button>
+                <button className="btn-rh-primary" onClick={handleAddAgent}> Nouvel agent</button>
                 <button className="btn-rh-secondary" onClick={handleImportAgents}>Importer liste</button>
               </div>
             </div>
@@ -1597,8 +1598,8 @@ export default function DashboardRH() {
             {/* Barre d'actions */}
             <div className="rh-actions-bar">
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}>➕ Nouvelle annonce</button>
-                <button className="btn-rh-secondary" onClick={() => setShowAddNoteModal(true)}>📝 Nouvelle note de service</button>
+                <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}> Nouvelle annonce</button>
+                <button className="btn-rh-secondary" onClick={() => setShowAddNoteModal(true)}> Nouvelle note de service</button>
               </div>
             </div>
 
@@ -1621,7 +1622,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {notesService.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucune note de service</td></tr>
+                      <tr><td colSpan="6" className="text-center"> Aucune note de service</td></tr>
                     ) : (
                       notesService.map(note => (
                         <tr key={note.id}>
@@ -1631,8 +1632,8 @@ export default function DashboardRH() {
                           <td>{note.contenu?.substring(0, 60)}...</td>
                           <td>{note.fichier_pdf ? <span className="badge-info"> PDF</span> : '-'}</td>
                           <td className="rh-actions-cell">
-                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}>✏️</button>
-                            <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}>🗑️</button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}><Pencil size={16} /></button>
+                            <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}><Trash2 size={16} /></button>
                           </td>
                         </tr>
                       ))
@@ -1661,7 +1662,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {postesVacants.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucune annonce publiée</td></tr>
+                      <tr><td colSpan="6" className="text-center"> Aucune annonce publiée</td></tr>
                     ) : (
                       postesVacants.map(poste => (
                         <tr key={poste.id}>
@@ -1671,10 +1672,10 @@ export default function DashboardRH() {
                           <td>{getStatutBadge(poste.statut)}</td>
                           <td>{candidatures[poste.id]?.length || 0} candidat(s)</td>
                           <td className="rh-actions-cell">
-                            <button className="btn-icon" title="Voir candidatures" onClick={() => handleVoirCandidatures(poste)}>👥</button>
-                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierAnnonce(poste)}>✏️</button>
+                            <button className="btn-icon" title="Voir candidatures" onClick={() => handleVoirCandidatures(poste)}><Users size={16} /></button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierAnnonce(poste)}><Pencil size={16} /></button>
                             {poste.statut === 'publie' && (
-                              <button className="btn-icon" title="Clôturer" onClick={() => handleCloturerAnnonce(poste.id)}>🔒</button>
+                              <button className="btn-icon" title="Clôturer" onClick={() => handleCloturerAnnonce(poste.id)}><Lock size={16} /></button>
                             )}
                           </td>
                         </tr>
@@ -1692,21 +1693,21 @@ export default function DashboardRH() {
         <div className="rh-section">
           <div className="rh-stats-grid">
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">📈</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.total}</span>
                 <span className="rh-stat-label">Avancements cette année</span>
               </div>
             </div>
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">📅</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.prochain ? avancementsStats.prochain.date_prevue : '-'}</span>
                 <span className="rh-stat-label">Prochain avancement</span>
               </div>
             </div>
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">⚠️</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{alertesAvancement.length}</span>
                 <span className="rh-stat-label">Alertes en cours</span>
@@ -1716,7 +1717,7 @@ export default function DashboardRH() {
 
           <div className="rh-card full-width">
             <div className="rh-card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
-              <h3>📅 Calendrier des avancements</h3>
+              <h3> Calendrier des avancements</h3>
               <div style={{ 
                 display: 'flex', 
                 gap: '8px', 
@@ -1793,14 +1794,14 @@ export default function DashboardRH() {
                   }}
                   style={{ fontSize: '13px' }}
                 >
-                  🔄 Réinitialiser
+                   Réinitialiser
                 </button>
                 <button 
                   className="btn-rh-primary" 
                   onClick={handleExportBordereau}
                   style={{ fontSize: '13px' }}
                 >
-                  📊 Bordereau PDF
+                   Bordereau PDF
                 </button>
               </div>
             </div>
@@ -1849,7 +1850,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>➕ Nouvelle annonce</h3>
-              <button className="modal-close" onClick={() => setShowAddAnnonceModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAddAnnonceModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateAnnonce}>
               <div className="modal-body">
@@ -1918,7 +1919,9 @@ export default function DashboardRH() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={() => setShowAddAnnonceModal(false)}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">✅ Publier l'annonce</button>
+                <button type="submit" className="btn-rh-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={18} /> Publier l'annonce
+                </button>
               </div>
             </form>
           </div>
@@ -1931,7 +1934,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Modifier l'annonce</h3>
-              <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleUpdateAnnonce}>
               <div className="modal-body">
@@ -1997,7 +2000,7 @@ export default function DashboardRH() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={() => setShowEditAnnonceModal(false)}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">💾 Enregistrer les modifications</button>
+                <button type="submit" className="btn-rh-primary"> Enregistrer les modifications</button>
               </div>
             </form>
           </div>
@@ -2010,7 +2013,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Nouvelle note de service</h3>
-              <button className="modal-close" onClick={() => setShowAddNoteModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAddNoteModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateNote}>
               <div className="modal-body">
@@ -2034,7 +2037,7 @@ export default function DashboardRH() {
                       <option value="Note de Service"> Note de Service</option>
                       <option value="Communiqué"> Communiqué</option>
                       <option value="Actualité"> Actualité</option>
-                      <option value="Information">ℹ Information</option>
+                      <option value="Information"> Information</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -2098,7 +2101,7 @@ export default function DashboardRH() {
                       />
                       {!newNote.fichier_pdf ? (
                         <>
-                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}></span>
                           <p style={{ color: '#64748B', margin: 0 }}>
                             Cliquez ou glissez-déposez un fichier PDF
                           </p>
@@ -2106,7 +2109,7 @@ export default function DashboardRH() {
                         </>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <span style={{ fontSize: '1.5rem' }}></span>
                           <span style={{ color: '#059669', fontWeight: 500 }}>Fichier PDF sélectionné</span>
                           <button
                             type="button"
@@ -2147,7 +2150,7 @@ export default function DashboardRH() {
                   Annuler
                 </button>
                 <button type="submit" className="btn-rh-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📢</span> Publier la note
+                  <span></span> Publier la note
                 </button>
               </div>
             </form>
@@ -2160,8 +2163,8 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowEditNoteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✏️ Modifier la note</h3>
-              <button className="modal-close" onClick={() => setShowEditNoteModal(false)}>✕</button>
+              <h3><Pencil size={18} style={{ marginRight: '8px' }} />Modifier la note</h3>
+              <button className="modal-close" onClick={() => setShowEditNoteModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleUpdateNote}>
               <div className="modal-body">
@@ -2181,10 +2184,10 @@ export default function DashboardRH() {
                   <div className="form-group">
                     <label>Tag / Catégorie</label>
                     <select value={editNote.tag} onChange={(e) => setEditNote({...editNote, tag: e.target.value})}>
-                      <option value="Note de Service">📋 Note de Service</option>
-                      <option value="Communiqué">📢 Communiqué</option>
-                      <option value="Actualité">📰 Actualité</option>
-                      <option value="Information">ℹ️ Information</option>
+                      <option value="Note de Service"> Note de Service</option>
+                      <option value="Communiqué"> Communiqué</option>
+                      <option value="Actualité"> Actualité</option>
+                      <option value="Information"> Information</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -2245,7 +2248,7 @@ export default function DashboardRH() {
                       />
                       {!editNote.fichier_pdf ? (
                         <>
-                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}></span>
                           <p style={{ color: '#64748B', margin: 0 }}>
                             Cliquez pour ajouter ou remplacer le PDF
                           </p>
@@ -2253,7 +2256,7 @@ export default function DashboardRH() {
                         </>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <CheckCircle size={24} style={{ color: '#059669' }} />
                           <span style={{ color: '#059669', fontWeight: 500 }}>Nouveau PDF sélectionné</span>
                           <button
                             type="button"
@@ -2278,7 +2281,7 @@ export default function DashboardRH() {
                     </div>
                     {selectedNote.fichier_pdf && !editNote.fichier_pdf && (
                       <small style={{ color: '#64748B', display: 'block', marginTop: '8px' }}>
-                        📄 PDF existant (remplacez-le en sélectionnant un nouveau fichier)
+                         PDF existant (remplacez-le en sélectionnant un nouveau fichier)
                       </small>
                     )}
                   </div>
@@ -2290,7 +2293,7 @@ export default function DashboardRH() {
                   Annuler
                 </button>
                 <button type="submit" className="btn-rh-primary">
-                  💾 Enregistrer les modifications
+                   Enregistrer les modifications
                 </button>
               </div>
             </form>
@@ -2304,19 +2307,19 @@ export default function DashboardRH() {
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Candidatures - {selectedPoste.intitule}</h3>
-              <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               {candidaturesPoste.length === 0 ? (
-                <p className="text-center">📭 Aucune candidature pour ce poste</p>
+                <p className="text-center"> Aucune candidature pour ce poste</p>
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
                     <button className="btn-export-excel" onClick={exporterCandidaturesExcel} style={{ marginRight: '10px' }}>
-                      📊 Exporter Excel
+                       Exporter Excel
                     </button>
                     <button className="btn-export-pdf" onClick={exporterCandidaturesPDF}>
-                      📄 Exporter PDF
+                       Exporter PDF
                     </button>
                   </div>
                   
@@ -2361,7 +2364,7 @@ export default function DashboardRH() {
                               </button>
                             </td>
                             <td className="rh-actions-cell">
-                              <button className="btn-icon" title="Voir pièces" onClick={() => handleVoirPieces(cand.id, `${cand.agent_nom} ${cand.agent_prenom}`, cand.agent_matricule)}>📎</button>
+                              <button className="btn-icon" title="Voir pièces" onClick={() => handleVoirPieces(cand.id, `${cand.agent_nom} ${cand.agent_prenom}`, cand.agent_matricule)}><Paperclip size={16} /></button>
                             </td>
                           </tr>
                         ))}
@@ -2384,7 +2387,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3> Analyse IA - {selectedAnalyse.agent_nom} {selectedAnalyse.agent_prenom}</h3>
-              <button className="modal-close" onClick={() => setShowAnalyseModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAnalyseModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div style={{ marginBottom: '20px' }}>
@@ -2425,12 +2428,12 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowPiecesModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
-              <h3>📎 Pièces jointes - {selectedCandidatNom}</h3>
-              <button className="modal-close" onClick={() => setShowPiecesModal(false)}>✕</button>
+              <h3> Pièces jointes - {selectedCandidatNom}</h3>
+              <button className="modal-close" onClick={() => setShowPiecesModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               {selectedPieces.length === 0 ? (
-                <p className="text-center">📭 Aucune pièce jointe pour cette candidature</p>
+                <p className="text-center"> Aucune pièce jointe pour cette candidature</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   {selectedPieces.map((piece) => (
@@ -2444,13 +2447,13 @@ export default function DashboardRH() {
                       border: '1px solid #E2E8F0'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '1.8rem' }}>
-                          {piece.type === 'CV' && '📄'}
-                          {piece.type === 'LM' && '📝'}
-                          {piece.type === 'DIPLOME' && '🎓'}
-                          {piece.type === 'CNI' && '🪪'}
-                          {!['CV', 'LM', 'DIPLOME', 'CNI'].includes(piece.type) && '📎'}
-                        </span>
+                        <div style={{ fontSize: '1.8rem', color: '#3B82F6' }}>
+                          {piece.type === 'CV' && <FileText size={28} />}
+                          {piece.type === 'LM' && <FileText size={28} />}
+                          {piece.type === 'DIPLOME' && <FileText size={28} />}
+                          {piece.type === 'CNI' && <FileText size={28} />}
+                          {!['CV', 'LM', 'DIPLOME', 'CNI'].includes(piece.type) && <FileText size={28} />}
+                        </div>
                         <div>
                           <strong style={{ color: '#0B192C' }}>{piece.type}</strong>
                           <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#64748B' }}>{piece.nom_fichier}</p>
@@ -2477,7 +2480,7 @@ export default function DashboardRH() {
                           gap: '6px'
                         }}
                       >
-                        ⬇️ Télécharger
+                        ⬇ Télécharger
                       </button>
                     </div>
                   ))}
@@ -2496,8 +2499,8 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={closeAddAgentModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>➕ Ajouter un nouvel agent</h3>
-              <button className="modal-close" onClick={closeAddAgentModal}>✕</button>
+              <h3> Ajouter un nouvel agent</h3>
+              <button className="modal-close" onClick={closeAddAgentModal}><X size={18} /></button>
             </div>
             
             <form onSubmit={handleSubmitNewAgent}>
@@ -2606,7 +2609,7 @@ export default function DashboardRH() {
               
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={closeAddAgentModal}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">✅ Créer l'agent</button>
+                <button type="submit" className="btn-rh-primary">Créer l'agent</button>
               </div>
             </form>
           </div>
@@ -2616,7 +2619,7 @@ export default function DashboardRH() {
       {showPreviewModal && (
         <div className="modal-overlay" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header preview-modal-header"><h3> {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button></div>
+            <div className="modal-header preview-modal-header"><h3> {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}><X size={18} /></button></div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? <iframe src={previewUrl} title={previewTitle} className="pdf-preview-iframe" frameBorder="0" /> : <div className="loading-preview">Chargement de l'aperçu...</div>}
             </div>
@@ -2657,9 +2660,9 @@ export default function DashboardRH() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

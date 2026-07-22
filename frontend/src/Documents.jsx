@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav, { getDashboardPath, getRoleLabel } from './PortalNav';
+import { FileText, AlertCircle, MapPin, Phone, Mail, X } from 'lucide-react';
 import './App.css';
 
 const parseDate = (s) => {
@@ -32,18 +33,18 @@ export default function Documents() {
   const [previewActeUrl, setPreviewActeUrl] = useState('');
   const [previewActeTitle, setPreviewActeTitle] = useState('');
   
-  // ✅ Types de pièces chargés dynamiquement
+  //  Types de pièces chargés dynamiquement
   const [documentTypes, setDocumentTypes] = useState({});
   const [categoryNames, setCategoryNames] = useState({});
 
-  // ✅ Icônes par défaut par catégorie
+  //  Icônes par défaut par catégorie
   const categoryIcons = {
-    identity: '🆔',
-    academic: '🎓',
-    career: '💼',
-    medical: '🏥',
-    leave: '✈️',
-    attestations: '📑'
+    identity: <FileText size={24} style={{ color: '#3B82F6' }} />,
+    academic: <FileText size={24} style={{ color: '#8B5CF6' }} />,
+    career: <FileText size={24} style={{ color: '#10B981' }} />,
+    medical: <FileText size={24} style={{ color: '#EF4444' }} />,
+    leave: <FileText size={24} style={{ color: '#F59E0B' }} />,
+    attestations: <FileText size={24} style={{ color: '#6B7280' }} />
   };
 
   // Vérifier connexion
@@ -76,7 +77,7 @@ export default function Documents() {
       
       if (response.ok) {
         const actesData = await response.json();
-        console.log("📋 Actes reçus de l'API:", actesData);
+        console.log(" Actes reçus de l'API:", actesData);
         
         if (actesData && actesData.length > 0) {
           const actes = actesData.map(acte => ({
@@ -93,12 +94,12 @@ export default function Documents() {
           setMesActes([]);
         }
       } else {
-        console.log("❌ API actes non disponible, tentative avec les demandes...");
+        console.log("API actes non disponible, tentative avec les demandes...");
         // Fallback: récupérer via les demandes
         const demandesRes = await fetch(`/api/conges/mes-demandes/${matricule}/`);
         if (demandesRes.ok) {
           const demandes = await demandesRes.json();
-          console.log("📋 Demandes reçues:", demandes);
+          console.log(" Demandes reçues:", demandes);
           
           // Filtrer les demandes qui ont des actes générés (statut = 'acte_genere' ou 'signe')
           const actes = demandes
@@ -114,7 +115,7 @@ export default function Documents() {
             }));
           
           setMesActes(actes);
-          console.log("📋 Actes construits depuis les demandes:", actes);
+          console.log(" Actes construits depuis les demandes:", actes);
         }
       }
     } catch (error) {
@@ -187,7 +188,7 @@ export default function Documents() {
     }
   };
 
-  // ✅ Charger les types de pièces depuis la base de données
+  //  Charger les types de pièces depuis la base de données
   const loadDocumentTypes = async () => {
     try {
       const response = await fetch('/api/types-piece/');
@@ -199,33 +200,33 @@ export default function Documents() {
         
         types.forEach(type => {
           let category = 'identity';
-          let icon = '📄';
+          let icon = '';
           const libelle = type.libelle.toLowerCase();
           
           if (libelle.includes('identité') || libelle.includes('identite')) {
-            category = 'identity'; icon = '🆔';
+            category = 'identity'; icon = '';
           } else if (libelle.includes('naissance')) {
-            category = 'identity'; icon = '📄';
+            category = 'identity'; icon = '';
           } else if (libelle.includes('nationalité') || libelle.includes('nationalite')) {
-            category = 'identity'; icon = '📄';
+            category = 'identity'; icon = '';
           } else if (libelle.includes('diplôme') || libelle.includes('diplome') || libelle.includes('formation')) {
-            category = 'academic'; icon = '🎓';
+            category = 'academic'; icon = '';
           } else if (libelle.includes('nomination')) {
-            category = 'career'; icon = '📜';
+            category = 'career'; icon = '';
           } else if (libelle.includes('prise de service')) {
-            category = 'career'; icon = '📋';
+            category = 'career'; icon = '';
           } else if (libelle.includes('avancement')) {
-            category = 'career'; icon = '⭐';
+            category = 'career'; icon = '';
           } else if (libelle.includes('médical') || libelle.includes('medical')) {
-            category = 'medical'; icon = '🏥';
+            category = 'medical'; icon = '';
           } else if (libelle.includes('absence')) {
-            category = 'leave'; icon = '✈️';
+            category = 'leave'; icon = '';
           } else if (libelle.includes('congé') || libelle.includes('conge')) {
-            category = 'leave'; icon = '🏖️';
+            category = 'leave'; icon = '';
           } else if (libelle.includes('travail')) {
-            category = 'attestations'; icon = '📑';
+            category = 'attestations'; icon = '';
           } else if (libelle.includes('présence') || libelle.includes('presence')) {
-            category = 'attestations'; icon = '📑';
+            category = 'attestations'; icon = '';
           }
           
           typesMap[type.id] = {
@@ -461,7 +462,7 @@ export default function Documents() {
     return (
       <section className="docs-section">
         <div className="section-header-with-icon">
-          <div className="header-icon">{categoryIcons[category] || '📄'}</div>
+          <div className="header-icon">{categoryIcons[category] || ''}</div>
           <div>
             <h2>{catInfo.title}</h2>
             <p>{catInfo.description}</p>
@@ -514,14 +515,14 @@ export default function Documents() {
                     </div>
                     <div className="doc-card-actions">
                       <button className="doc-card-btn" onClick={() => downloadDocument(typeId)}>
-                        📄 Télécharger
+                         Télécharger
                       </button>
                       <label className="doc-card-btn">
-                        🔄 Remplacer
+                         Remplacer
                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(typeId, e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                       <button className="doc-card-btn" onClick={() => handleDelete(typeId)}>
-                        🗑️ Supprimer
+                         Supprimer
                       </button>
                     </div>
                   </>
@@ -532,7 +533,7 @@ export default function Documents() {
                     </div>
                     <div className="doc-card-actions">
                       <label className="doc-card-btn">
-                        📤 Importer
+                         Importer
                         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(typeId, e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                     </div>
@@ -657,17 +658,17 @@ export default function Documents() {
                 </div>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item" onClick={() => navigate(getDashboardPath())}>
-                  📊 Tableau de bord
+                   Tableau de bord
                 </button>
                 <button className="dropdown-item" onClick={() => navigate('/profil')}>
-                  👤 Mon profil
+                   Mon profil
                 </button>
                 <button className="dropdown-item" onClick={() => navigate('/documents')}>
-                  📁 Mes documents
+                   Mes documents
                 </button>
                 <div className="dropdown-divider"></div>
                 <button className="dropdown-item logout" onClick={handleLogout}>
-                  🔓 Se déconnecter
+                   Se déconnecter
                 </button>
               </div>
             )}
@@ -683,17 +684,17 @@ export default function Documents() {
             <p>Toutes vos pièces officielles, sécurisées et accessibles en ligne.</p>
             <div className="documents-stats">
               <div className="stat-card">
-                <div className="stat-icon">📄</div>
+                <div className="stat-icon"></div>
                 <span className="stat-number">{getUploadedCount()}</span>
                 <span className="stat-label">Documents importés</span>
               </div>
               <div className="stat-card">
-                <div className="stat-icon">⚠️</div>
+                <div className="stat-icon"></div>
                 <span className="stat-number">{missingDocumentsCount + expiredDocuments.length}</span>
                 <span className="stat-label">Manquants ou expirés</span>
               </div>
               <div className="stat-card">
-                <div className="stat-icon">📊</div>
+                <div className="stat-icon"></div>
                 <span className="stat-number">{completenessScore}%</span>
                 <span className="stat-label">Dossier complété</span>
               </div>
@@ -704,13 +705,13 @@ export default function Documents() {
         {(expiredDocuments.length > 0 || expiringSoon.length > 0) && (
           <section className="alertes-section">
             <div className="alertes-header">
-              <span className="alertes-icon">🔔</span>
+              <span className="alertes-icon"></span>
               <h3>Alertes d'expiration</h3>
             </div>
             <div className="alertes-list">
               {expiredDocuments.map(({ docDef, doc }) => (
                 <div key={docDef.id} className="alerte-card urgent">
-                  <div className="alerte-icon">⚠️</div>
+                  <div className="alerte-icon"></div>
                   <div className="alerte-content">
                     <div className="alerte-title">
                       {(() => {
@@ -725,7 +726,7 @@ export default function Documents() {
                       })()}
                     </div>
                     <label className="alerte-action">
-                      📤 Remplacer
+                       Remplacer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -740,7 +741,7 @@ export default function Documents() {
                       {docDef.label} expire dans {daysUntilExpiry} jours ({new Date(doc.expiryDate).toLocaleDateString('fr-FR')})
                     </div>
                     <label className="alerte-action secondary">
-                      📤 Remplacer
+                       Remplacer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(docDef.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -754,7 +755,7 @@ export default function Documents() {
           <section className="missing-reminder-section">
             <div className="missing-reminder-card">
               <div className="missing-reminder-header">
-                <span className="missing-icon">⚠️</span>
+                <span className="missing-icon"></span>
                 <div>
                   <strong>Documents obligatoires manquants</strong>
                   <span className="missing-count">{missingDocs.length} document{missingDocs.length > 1 ? 's' : ''}</span>
@@ -763,10 +764,10 @@ export default function Documents() {
               <div className="missing-docs-list">
                 {missingDocs.map(doc => (
                   <div key={doc.id} className="missing-doc-row">
-                    <span className="missing-doc-icon">{documentTypes[doc.id]?.icon || '📄'}</span>
+                    <span className="missing-doc-icon">{documentTypes[doc.id]?.icon || ''}</span>
                     <span className="missing-doc-name">{doc.libelle}</span>
                     <label className="missing-doc-upload">
-                      📤 Importer
+                       Importer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleFileUpload(doc.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -786,7 +787,7 @@ export default function Documents() {
         {/* SECTION MES ACTES GÉNÉRÉS */}
         <section className="docs-section actes-section">
           <div className="section-header-with-icon">
-            <div className="header-icon">📄</div>
+            <div className="header-icon"></div>
             <div>
               <h2>Mes actes générés</h2>
               <p>Consultez et téléchargez vos autorisations de congé et d'absence</p>
@@ -796,7 +797,7 @@ export default function Documents() {
           <div className="actes-container">
             {mesActes.length === 0 ? (
               <div className="empty-actes">
-                <div className="empty-icon">📭</div>
+                <div className="empty-icon"></div>
                 <p>Aucun acte généré pour le moment</p>
                 <small>Les actes apparaîtront ici après validation de vos demandes</small>
               </div>
@@ -805,9 +806,9 @@ export default function Documents() {
                 {mesActes.map((acte) => (
                   <div key={acte.id} className="acte-card">
                     <div className="acte-card-header">
-                      <span className="acte-icon">📄</span>
+                      <span className="acte-icon"></span>
                       <span className={`acte-status ${acte.statut === 'signe' ? 'status-signed' : 'status-generated'}`}>
-                        {acte.statut === 'signe' ? '✅ Signé' : '📝 Généré'}
+                        {acte.statut === 'signe' ? ' Signé' : ' Généré'}
                       </span>
                     </div>
                     <div className="acte-card-body">
@@ -817,10 +818,10 @@ export default function Documents() {
                     </div>
                     <div className="acte-card-footer">
                       <button className="btn-view-acte" onClick={() => handleVoirActe(acte.reference)}>
-                        👁️ Voir l'acte
+                         Voir l'acte
                       </button>
                       <button className="btn-download-acte" onClick={() => handleTelechargerActe(acte.reference, acte.type_acte, acte.agent_nom, acte.agent_prenom)}>
-                        ⬇️ Télécharger
+                         Télécharger
                       </button>
                     </div>
                   </div>
@@ -834,7 +835,7 @@ export default function Documents() {
         {isRH && (
           <section className="docs-section rh-section">
             <div className="section-header-with-icon">
-              <div className="header-icon">🔧</div>
+              <div className="header-icon"></div>
               <div>
                 <h2>Interface RH — Supervision</h2>
                 <p>Accès superviseur : visualisation des dossiers agents</p>
@@ -842,8 +843,8 @@ export default function Documents() {
             </div>
             <div className="rh-info-card">
               <p> <strong>Mode superviseur actif</strong></p>
-              <p>✓ Consultation des dossiers agents</p>
-              <p>✓ Actions tracées et horodatées</p>
+              <p><CheckCircle size={16} style={{ marginRight: '8px', color: '#10B981' }} />Consultation des dossiers agents</p>
+              <p><CheckCircle size={16} style={{ marginRight: '8px', color: '#10B981' }} />Actions tracées et horodatées</p>
             </div>
           </section>
         )}
@@ -854,7 +855,7 @@ export default function Documents() {
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
               <div className="modal-header">
                 <h3> Date d'expiration</h3>
-                <button className="modal-close" onClick={() => setShowExpiryModal(false)}>✕</button>
+                <button className="modal-close" onClick={() => setShowExpiryModal(false)}><X size={18} /></button>
               </div>
               <div className="modal-body">
                 <p style={{ marginBottom: '15px' }}>
@@ -877,7 +878,7 @@ export default function Documents() {
                   Annuler
                 </button>
                 <button type="button" className="btn-rh-primary" onClick={confirmUpload}>
-                  ✅ Valider et importer
+                   Valider et importer
                 </button>
               </div>
             </div>
@@ -898,7 +899,7 @@ export default function Documents() {
                   setShowActePreviewModal(false);
                   if (previewActeUrl) URL.revokeObjectURL(previewActeUrl);
                   setPreviewActeUrl('');
-                }}>✕</button>
+                }}><X size={18} /></button>
               </div>
               <div className="modal-body preview-modal-body">
                 {previewActeUrl ? (
@@ -922,7 +923,7 @@ export default function Documents() {
                     link.click();
                   }}
                 >
-                  ⬇️ Télécharger
+                   Télécharger
                 </button>
                 <button className="btn-close" onClick={() => {
                   setShowActePreviewModal(false);
@@ -962,9 +963,9 @@ export default function Documents() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

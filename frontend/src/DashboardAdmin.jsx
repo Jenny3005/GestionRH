@@ -4,7 +4,7 @@ import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
 import { normalizeRole, getRoleLabel } from './PortalNav';
 import Can from './components/Can';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
 import './App.css';
 
 export default function DashboardAdmin() {
@@ -85,7 +85,7 @@ export default function DashboardAdmin() {
       if (response.ok) {
         fetchAgents();
         fetchStats();
-        alert(`✅ Agent ${currentStatus ? 'désactivé' : 'activé'} avec succès`);
+        alert(` Agent ${currentStatus ? 'désactivé' : 'activé'} avec succès`);
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la modification');
@@ -271,42 +271,42 @@ export default function DashboardAdmin() {
           {/* STATISTIQUES */}
           <div className="admin-stats-grid">
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">👥</div>
+              <div className="admin-stat-icon"><Users size={24} /></div>
               <div className="admin-stat-info">
                 <h3>Total Agents</h3>
                 <p className="admin-stat-number">{stats.total_agents}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">✅</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Agents actifs</h3>
                 <p className="admin-stat-number">{stats.agents_actifs}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">⚙️</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Rôles</h3>
                 <p className="admin-stat-number">{stats.total_roles}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📝</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Types de demande</h3>
                 <p className="admin-stat-number">{stats.total_types_demande}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📋</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Demandes</h3>
                 <p className="admin-stat-number">{stats.total_demandes}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📄</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Types de pièce</h3>
                 <p className="admin-stat-number">{stats.total_types_piece}</p>
@@ -316,7 +316,7 @@ export default function DashboardAdmin() {
 
           {/* LISTE DES AGENTS */}
           <section className="admin-section">
-            <h3>📋 Liste des agents</h3>
+            <h3> Liste des agents</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -333,9 +333,9 @@ export default function DashboardAdmin() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="8" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="8" className="text-center"> Chargement...</td></tr>
                   ) : agents.length === 0 ? (
-                    <tr><td colSpan="8" className="text-center">📭 Aucun agent trouvé</td></tr>
+                    <tr><td colSpan="8" className="text-center"> Aucun agent trouvé</td></tr>
                   ) : (
                     agents.map((agent) => {
                       const normalizedRoles = getUniqueNormalizedRoles(agent.roles);
@@ -357,7 +357,7 @@ export default function DashboardAdmin() {
                           </td>
                           <td>
                             <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
-                              {agent.actif ? '✅ Actif' : '❌ Inactif'}
+                              {agent.actif ? ' Actif' : ' Inactif'}
                             </span>
                           </td>
                           <td>
@@ -366,7 +366,7 @@ export default function DashboardAdmin() {
                                 className="btn-table-toggle"
                                 onClick={() => toggleAgentStatus(agent.id, agent.actif)}
                               >
-                                {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
+                                {agent.actif ? ' Désactiver' : ' Activer'}
                               </button>
                             </Can>
                           </td>
@@ -381,30 +381,30 @@ export default function DashboardAdmin() {
 
           {/* ACTIONS RAPIDES */}
           <section className="admin-actions">
-            <h3>⚡ Actions rapides</h3>
+            <h3> Actions rapides</h3>
             <div className="admin-actions-grid">
               <Can permission="VOIR_AGENTS">
                 <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/agents')}>
-                  ➕ Gérer les agents
+                   Gérer les agents
                 </button>
               </Can>
               <Can permission="GERER_ROLES">
                 <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/roles')}>
-                  🎯 Gérer les rôles
+                   Gérer les rôles
                 </button>
               </Can>
               <Can permission="GERE_TYPE_DEMANDE">
                 <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-demande')}>
-                  📝 Types de demande
+                   Types de demande
                 </button>
               </Can>
               <Can permission="GERER_TYPES_PIECE">
                 <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-piece')}>
-                  📄 Types de pièce
+                   Types de pièce
                 </button>
               </Can>
               <button className="admin-action-btn" onClick={() => fetchAgents()}>
-                🔄 Actualiser
+                 Actualiser
               </button>
             </div>
           </section>
@@ -437,9 +437,9 @@ export default function DashboardAdmin() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { MapPin, Phone, Mail, Briefcase, FileText, FileCheck, CalendarDays, BarChart3 } from 'lucide-react';
 import './App.css';
 
 export default function App() {
@@ -147,11 +148,11 @@ export default function App() {
   const getTagIcon = (tag) => {
     const icons = {
       'Note de Service': '',
-      'Communiqué': '📢',
+      'Communiqué': '',
       'Actualité': '',
-      'Information': 'ℹ️'
+      'Information': 'ℹ'
     };
-    return icons[tag] || '📌';
+    return icons[tag] || '';
   };
 
   // Fonction pour afficher le contenu HTML depuis la BDD
@@ -244,7 +245,7 @@ export default function App() {
             {/* Opportunités de Carrière */}
             <section className="info-card-section" id="opportunites">
               <div className="section-header-premium">
-                <span className="icon">💼</span>
+                <span className="icon"><Briefcase size={18} /></span>
                 <h3>Opportunités de Carrière</h3>
               </div>
               <p className="section-desc">Appels à candidatures ouverts aux agents du MND.</p>
@@ -267,7 +268,7 @@ export default function App() {
                           {poste.directionDemande ? poste.directionDemande : 'Appel à candidature interne'}
                         </span>
                         <h4>{poste.intitule}</h4>
-                        <p className="poste-direction">📍 {poste.directionDemande || 'Ministère du Numérique'}</p>
+                        <p className="poste-direction"> {poste.directionDemande || 'Ministère du Numérique'}</p>
                         {poste.description && (
                           <>
                             <p className="poste-description" style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.5rem' }}>
@@ -312,7 +313,7 @@ export default function App() {
             {/* Notes de Service - DYNAMIQUE AVEC MODAL */}
             <section className="info-card-section mt-2">
               <div className="section-header-premium">
-                <span className="icon">📢</span>
+                <span className="icon"><FileText size={18} /></span>
                 <h3>Notes de Service</h3>
               </div>
               
@@ -384,7 +385,7 @@ export default function App() {
                   className="menu-item-link"
                   onClick={() => handleAppRH("Dossier Numérique")}
                 >
-                  <span className="m-icon">📂</span>
+                  <span className="m-icon"><FileText size={18} /></span>
                   <div className="m-text">
                     <strong>Dossier Numérique</strong>
                     <p>Consultez vos pièces et situation administrative</p>
@@ -395,7 +396,7 @@ export default function App() {
                   className="menu-item-link"
                   onClick={() => handleAppRH("Demandes d'Actes")}
                 >
-                  <span className="m-icon">📄</span>
+                  <span className="m-icon"><FileCheck size={18} /></span>
                   <div className="m-text">
                     <strong>Demandes d'Actes</strong>
                     <p>Attestations, certificats, fiches de poste</p>
@@ -406,7 +407,7 @@ export default function App() {
                   className="menu-item-link"
                   onClick={() => handleAppRH("Espace Congés")}
                 >
-                  <span className="m-icon">🌴</span>
+                  <span className="m-icon"><CalendarDays size={18} /></span>
                   <div className="m-text">
                     <strong>Espace Congés</strong>
                     <p>Demande de congé et solde annuel</p>
@@ -417,7 +418,7 @@ export default function App() {
                   className="menu-item-link"
                   onClick={() => handleAppRH("Suivi Avancement")}
                 >
-                  <span className="m-icon">📈</span>
+                  <span className="m-icon"><BarChart3 size={18} /></span>
                   <div className="m-text">
                     <strong>Suivi Avancement</strong>
                     <p>Échelons et passages de grade</p>
@@ -431,11 +432,11 @@ export default function App() {
               <h3>Liens Utiles</h3>
               <div className="title-divider-gold"></div>
               <ul className="useful-links-list">
-                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer">🌐 Site Officiel du MND</a></li>
-                <li><a href="https://sigrh.gouv.bj/SIGRHWEB" target="_blank" rel="noreferrer">🖥️ Accès SIGRH National</a></li>
+                <li><a href="https://www.numerique.gouv.bj" target="_blank" rel="noreferrer"> Site Officiel du MND</a></li>
+                <li><a href="https://sigrh.gouv.bj/SIGRHWEB" target="_blank" rel="noreferrer"> Accès SIGRH National</a></li>
                 <li>
                   <a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank" rel="noreferrer">
-                    📜 Statut de l'Agent de l'État (Loi 2015-18)
+                     Statut de l'Agent de l'État (Loi 2015-18)
                   </a>
                 </li>
               </ul>
@@ -450,7 +451,7 @@ export default function App() {
       {showNoteModal && selectedNote && (
         <div className="note-modal-overlay" onClick={() => setShowNoteModal(false)}>
           <div className="note-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="note-modal-close" onClick={() => setShowNoteModal(false)}>✕</button>
+            <button className="note-modal-close" onClick={() => setShowNoteModal(false)}><X size={18} /></button>
             
             <div className="note-modal-header">
               <div className="note-modal-tag">
@@ -488,16 +489,16 @@ export default function App() {
       {showPosteModal && selectedPoste && (
         <div className="modal-overlay" onClick={() => setShowPosteModal(false)}>
           <div className="modal-content note-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="note-modal-close" onClick={() => setShowPosteModal(false)}>✕</button>
+            <button className="note-modal-close" onClick={() => setShowPosteModal(false)}><X size={18} /></button>
             
             <div className="note-modal-header">
               <div className="note-modal-tag">
-                💼 Appel à candidature interne
+                 Appel à candidature interne
               </div>
               <h2>{selectedPoste.intitule}</h2>
               <div className="note-modal-meta">
-                <span>📍 {selectedPoste.directionDemande || 'Ministère du Numérique'}</span>
-                <span>📅 Clôture : {formatDate(selectedPoste.date_cloture)}</span>
+                <span> {selectedPoste.directionDemande || 'Ministère du Numérique'}</span>
+                <span> Clôture : {formatDate(selectedPoste.date_cloture)}</span>
               </div>
             </div>
             
@@ -518,7 +519,7 @@ export default function App() {
                 onClick={handlePostulerDepuisModal}
                 style={{ padding: '10px 30px', fontSize: '1rem' }}
               >
-                📝 Postuler maintenant
+                 Postuler maintenant
               </button>
             </div>
           </div>
@@ -552,9 +553,9 @@ export default function App() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>
