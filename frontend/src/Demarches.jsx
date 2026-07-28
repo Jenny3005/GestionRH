@@ -812,7 +812,7 @@ export default function Demarches() {
                   <span className="icon"><CalendarDays size={18} /></span>
                 </div>
                 <div className="modal-conge-title-section">
-                  <h3 className="modal-conge-title">Demande de congé</h3>
+                  <h3 className="modal-conge-title" style={{ color: '#FFFFFF' }}>Demande de congé</h3>
                   <p className="modal-conge-subtitle">Soumettez votre demande de congé annuel</p>
                 </div>
                 <button className="modal-conge-close" onClick={() => setShowCongeForm(false)}><X size={18} /></button>
@@ -1016,7 +1016,7 @@ export default function Demarches() {
                   <span className="icon"><AlertTriangle size={18} /></span>
                 </div>
                 <div className="modal-absence-title-section">
-                  <h3 className="modal-absence-title">Demande d'absence exceptionnelle</h3>
+                  <h3 className="modal-absence-title" style={{ color: '#FFFFFF' }}>Demande d'absence exceptionnelle</h3>
                   <p className="modal-absence-subtitle">Motif exceptionnel nécessitant une autorisation</p>
                 </div>
                 <button className="modal-absence-close" onClick={() => setShowAbsenceForm(false)}><X size={18} /></button>
