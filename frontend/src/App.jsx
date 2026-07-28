@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
-import { MapPin, Phone, Mail, Briefcase, FileText, FileCheck, CalendarDays, BarChart3 } from 'lucide-react';
+import { MapPin, Phone, Mail, Briefcase, FileText, FileCheck, CalendarDays, BarChart3,X } from 'lucide-react';
 import './App.css';
 
 export default function App() {
