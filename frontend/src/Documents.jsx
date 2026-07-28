@@ -735,7 +735,6 @@ export default function Documents() {
               
               {expiringSoon.map(({ docDef, doc, daysUntilExpiry }) => (
                 <div key={docDef.id} className="alerte-card warning">
-                  <div className="alerte-icon">⏰</div>
                   <div className="alerte-content">
                     <div className="alerte-title">
                       {docDef.label} expire dans {daysUntilExpiry} jours ({new Date(doc.expiryDate).toLocaleDateString('fr-FR')})

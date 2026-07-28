@@ -4214,32 +4214,41 @@ def check_expired_documents(request):
     try:
         today = date.today()
         count = 0
-        
-        pieces_expired = Piece.objects.filter(date_expiration__lte=today, valide=1)
+
+        pieces_expired = Piece.objects.filter(date_expiration__lte=today, valide=1).select_related('dossier_agent', 'type_piece', 'dossier_agent__agent')
         for piece in pieces_expired:
+            if not piece.dossier_agent or not piece.dossier_agent.agent:
+                continue
+
             agent = piece.dossier_agent.agent
             jours = (today - piece.date_expiration).days
-            
+            label = piece.type_piece.libelle if piece.type_piece else 'Pièce'
+
             if jours == 0:
-                message = f" {piece.type_piece.libelle} expire aujourd'hui"
+                message = f" {label} expire aujourd'hui"
             elif jours == 1:
-                message = f" {piece.type_piece.libelle} a expiré hier"
+                message = f" {label} a expiré hier"
             else:
-                message = f" {piece.type_piece.libelle} est expiré depuis {jours} jours"
-            
-            if not Notification.objects.filter(agent=agent, message__contains=piece.type_piece.libelle, type_notification='expiration', date_envoi=today).exists():
+                message = f" {label} est expiré depuis {jours} jours"
+
+            if not Notification.objects.filter(agent=agent, message__contains=label, type_notification='expiration', date_envoi=today).exists():
                 Notification.objects.create(agent=agent, message=message, type_notification='expiration', date_envoi=today, lue=0)
                 count += 1
-        
+
         in_30_days = today + timedelta(days=30)
-        pieces_expiring = Piece.objects.filter(date_expiration__gt=today, date_expiration__lte=in_30_days, valide=1)
+        pieces_expiring = Piece.objects.filter(date_expiration__gt=today, date_expiration__lte=in_30_days, valide=1).select_related('dossier_agent', 'type_piece', 'dossier_agent__agent')
         for piece in pieces_expiring:
+            if not piece.dossier_agent or not piece.dossier_agent.agent:
+                continue
+
             agent = piece.dossier_agent.agent
             jours = (piece.date_expiration - today).days
-            if not Notification.objects.filter(agent=agent, message__contains=piece.type_piece.libelle, type_notification='expiration', date_envoi=today).exists():
-                Notification.objects.create(agent=agent, message=f"⏰ {piece.type_piece.libelle} expire dans {jours} jours", type_notification='expiration', date_envoi=today, lue=0)
+            label = piece.type_piece.libelle if piece.type_piece else 'Pièce'
+
+            if not Notification.objects.filter(agent=agent, message__contains=label, type_notification='expiration', date_envoi=today).exists():
+                Notification.objects.create(agent=agent, message=f" {label} expire dans {jours} jours", type_notification='expiration', date_envoi=today, lue=0)
                 count += 1
-        
+
         return JsonResponse({'success': True, 'notifications_created': count, 'message': f'{count} notification(s) créée(s)'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -4754,16 +4763,20 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
         cache.delete(f'anomalies_refresh_{matricule}')
 
 
+def _get_ollama_host():
+    return os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_URL') or 'http://127.0.0.1:11434'
+
+
 @require_http_methods(["GET"])
 def health_ollama(request):
     """Health-check endpoint for Ollama connectivity."""
-    host = os.getenv('OLLAMA_HOST') or 'http://127.0.0.1:11434'
+    host = _get_ollama_host()
     try:
         client = ollama.Client(host=host)
         models = client.list()
-        return JsonResponse({'ok': True, 'models': [m['name'] for m in models]}, status=200)
+        return JsonResponse({'ok': True, 'models': [m['name'] for m in models], 'host': host}, status=200)
     except Exception as e:
-        return JsonResponse({'ok': False, 'error': str(e)}, status=503)
+        return JsonResponse({'ok': False, 'error': str(e), 'host': host}, status=503)
 
 
 @require_http_methods(["GET"])
@@ -4773,7 +4786,7 @@ def health(request):
 
 
 def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_URL', 'https://given-sentences-actions-governor.trycloudflare.com')
+    host = _get_ollama_host()
     model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
     try:
