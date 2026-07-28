@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserMenu from './UserMenu';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound, Paperclip } from 'lucide-react';
 import './App.css';
 
 export default function Postuler() {

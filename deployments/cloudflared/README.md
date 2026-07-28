@@ -57,8 +57,7 @@ curl https://ollama.example.com/v1/models
 
 7) Mettre à jour Render
 - Dans Render Dashboard -> service -> Environment -> ajoutez :
-  - `OLLAMA_HOST` = `https://ollama.example.com`
-  - `OLLAMA_MODEL` = `llama3.2:3b`
+  - `OLLAMA_URL` = `https://ollama.example.com`
 - Redeploy l'app.
 
 Sécurité recommandée
