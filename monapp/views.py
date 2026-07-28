@@ -65,6 +65,10 @@ import random
 import base64
 import ollama
 import re
+try:
+    from langdetect import detect as _langdetect_detect
+except ImportError:
+    _langdetect_detect = None
 
 def _validate_max_length(field_name, value, max_length):
     if value is None:
@@ -878,7 +882,7 @@ def get_agent_by_matricule(request, matricule):
             agent.corps = data.get('corps', agent.corps)
             agent.echelon = data.get('echelon', agent.echelon)
             
-            # ⭐ AJOUTE CES LIGNES ⭐
+            
             agent.lieu_naissance = data.get('lieu_naissance', agent.lieu_naissance)
             agent.dialectes = data.get('dialectes', agent.dialectes)
             agent.date_mariage = data.get('date_mariage', agent.date_mariage)
@@ -923,7 +927,6 @@ def get_agent_by_matricule(request, matricule):
             'corps': agent.corps or '',
             'echelon': agent.echelon or '',
             'actif': agent.actif,
-            # ⭐ AJOUTE CES LIGNES ⭐
             'lieu_naissance': agent.lieu_naissance or '',
             'dialectes': agent.dialectes or '',
             'date_mariage': str(agent.date_mariage) if agent.date_mariage else '',
@@ -955,10 +958,10 @@ def add_role_to_agent(request, agent_id):
                 role=role, 
                 date_attribution=datetime.now().date()
             )
-            print(f"✅ Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
+            print(f" Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
             return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté avec succès'})
         else:
-            print(f"ℹ️ L'agent a déjà le rôle {role.libelle}")
+            print(f" L'agent a déjà le rôle {role.libelle}")
             return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
         
     except Agent.DoesNotExist:
@@ -985,10 +988,10 @@ def remove_role_from_agent(request, agent_id):
         deleted, _ = AgentRole.objects.filter(agent=agent, role=role).delete()
         
         if deleted:
-            print(f"✅ Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
+            print(f" Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
             return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} supprimé avec succès'})
         else:
-            print(f"ℹ️ L'agent n'avait pas le rôle {role.libelle}")
+            print(f" L'agent n'avait pas le rôle {role.libelle}")
             return JsonResponse({'success': True, 'message': 'L\'agent n\'avait pas ce rôle'})
         
     except Agent.DoesNotExist:
@@ -1009,7 +1012,7 @@ def demande_conge(request):
         data = json.loads(request.body)
         matricule = data.get('matricule')
         date_debut_str = data.get('date_debut')
-        nombre_jours = data.get('nombre_jours')  # ✅ NOUVEAU : reçu du frontend
+        nombre_jours = data.get('nombre_jours')  
         
         # Validation des champs
         if not date_debut_str or not nombre_jours:
@@ -1024,23 +1027,23 @@ def demande_conge(request):
         # Vérifier l'agent
         agent = Agent.objects.get(matricule=matricule)
         
-        # ⛔ Refuser si l'agent est chef
+        #  Refuser si l'agent est chef
         if est_chef(agent):
             return JsonResponse({
-                'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la hiérarchie (Ministre ou supérieur).'
+                'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la Ministre.'
             }, status=403)
         
         # Valider les dates
         date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
         
-        # ✅ Calculer la date de fin automatiquement
+        #  Calculer la date de fin automatiquement
         date_fin = date_debut + timedelta(days=nombre_jours - 1)
         
         # Vérifier que la date de début n'est pas dans le passé
         if date_debut < datetime.now().date():
             return JsonResponse({'error': 'La date de début ne peut pas être dans le passé'}, status=400)
         
-        # ✅ Vérifier le nombre maximum de jours
+        #  Vérifier le nombre maximum de jours
         if nombre_jours > 30:
             return JsonResponse({'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'}, status=400)
         
@@ -1070,7 +1073,7 @@ def demande_conge(request):
         if nb_demandes_annee >= 2:
             return JsonResponse({'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'}, status=400)
         
-        # ✅ Vérifier le solde avec le nombre de jours
+        #  Vérifier le solde avec le nombre de jours
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
@@ -1166,7 +1169,7 @@ def demande_absence(request):
         
         agent = Agent.objects.get(matricule=matricule)
 
-        # ⛔ Refuser si l'agent est chef
+        #  Refuser si l'agent est chef
         if est_chef(agent):
             return JsonResponse({
                 'error': 'Vous êtes un chef de service. Les absences doivent être autorisées par votre supérieur hiérarchique.'
@@ -1379,7 +1382,7 @@ def valider_demande_conge(request, demande_id):
             
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 annee_conge = demande.demandeconge.date_debut.year
-                nombre_jours = demande.demandeconge.nombrejours  # ✅ Déjà stocké
+                nombre_jours = demande.demandeconge.nombrejours  #  Déjà stocké
                 
                 solde, _ = SoldeConge.objects.get_or_create(
                     agent=demande.agent,
@@ -4218,11 +4221,11 @@ def check_expired_documents(request):
             jours = (today - piece.date_expiration).days
             
             if jours == 0:
-                message = f"⚠️ {piece.type_piece.libelle} expire aujourd'hui"
+                message = f" {piece.type_piece.libelle} expire aujourd'hui"
             elif jours == 1:
-                message = f"⚠️ {piece.type_piece.libelle} a expiré hier"
+                message = f" {piece.type_piece.libelle} a expiré hier"
             else:
-                message = f"⚠️ {piece.type_piece.libelle} est expiré depuis {jours} jours"
+                message = f" {piece.type_piece.libelle} est expiré depuis {jours} jours"
             
             if not Notification.objects.filter(agent=agent, message__contains=piece.type_piece.libelle, type_notification='expiration', date_envoi=today).exists():
                 Notification.objects.create(agent=agent, message=message, type_notification='expiration', date_envoi=today, lue=0)
@@ -4976,13 +4979,13 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
     try:
         print(f"=== get_actes_a_envoyer_rh for RH: {matricule_rh}")
         
-        # ✅ CORRECTION : Filtrer par l'agent RH assigné à la demande
+        #  CORRECTION : Filtrer par l'agent RH assigné à la demande
         actes = ActeAdministratif.objects.filter(
             statut='genere',
             demande__agent_rh__matricule=matricule_rh  # Filtrer via la demande
         ).select_related('demande__agent')
         
-        # ✅ OU BIEN : Si l'agent RH est stocké sur l'acte lui-même
+        #  OU BIEN : Si l'agent RH est stocké sur l'acte lui-même
         # actes = ActeAdministratif.objects.filter(
         #     statut='genere',
         #     rh_matricule=matricule_rh  # Si vous avez un champ rh_matricule sur ActeAdministratif
@@ -5445,6 +5448,11 @@ def postuler(request):
             """, [matricule, poste_id])
             if cursor.fetchone()[0] > 0:
                 return JsonResponse({'error': 'Vous avez déjà postulé à cette annonce'}, status=400)
+
+            # Vérifier la complétude du dossier de l'agent
+            dossier_ok, dossier_message = _verifier_completude_dossier(matricule)
+            if not dossier_ok:
+                return JsonResponse({'error': dossier_message}, status=400)
             
             # Vérifier que l'annonce est ouverte
             cursor.execute("""
@@ -5456,11 +5464,11 @@ def postuler(request):
             if not poste:
                 return JsonResponse({'error': 'Annonce non trouvée'}, status=404)
             
-            if poste[0] != 'publie':
-                return JsonResponse({'error': 'Cette annonce est clôturée'}, status=400)
-            
-            if poste[1] and poste[1] < date.today():
-                return JsonResponse({'error': 'Date de clôture dépassée'}, status=400)
+            poste_statut = poste[0]
+            poste_date_cloture = poste[1]
+            ouvert, message = _verifier_poste_ouvert(poste_statut, poste_date_cloture)
+            if not ouvert:
+                return JsonResponse({'error': message}, status=400)
             
             pieces_requises = json.loads(poste[3]) if poste[3] else ['CV', 'LM', 'DIPLOME']
             
@@ -5572,7 +5580,7 @@ def postuler(request):
 def lancer_analyse_async(candidature_id):
     """Lance l'analyse IA en arrière-plan"""
     print("=" * 60)
-    print(f"🚀 [ASYNC] LANCEMENT de l'analyse pour candidature {candidature_id}")
+    print(f" [ASYNC] LANCEMENT de l'analyse pour candidature {candidature_id}")
     print("=" * 60)
     
     try:
@@ -5581,11 +5589,11 @@ def lancer_analyse_async(candidature_id):
         time.sleep(2)
 
         close_old_connections()
-        print(f"📡 Appel de l'analyse worker pour candidature {candidature_id}...")
+        print(f" Appel de l'analyse worker pour candidature {candidature_id}...")
         result = analyser_candidature_worker(candidature_id)
 
         if result is None:
-            print(f"❌ [ASYNC] Analyse worker a retourné None pour candidature {candidature_id}")
+            print(f" [ASYNC] Analyse worker a retourné None pour candidature {candidature_id}")
             return
 
         if hasattr(result, 'status_code') and result.status_code != 200:
@@ -5594,13 +5602,13 @@ def lancer_analyse_async(candidature_id):
                 error_message = payload.get('error') or payload.get('message') or f"HTTP {result.status_code}"
             except Exception:
                 error_message = f"HTTP {result.status_code}"
-            print(f"❌ [ASYNC] Analyse échouée pour candidature {candidature_id}: {error_message}")
+            print(f" [ASYNC] Analyse échouée pour candidature {candidature_id}: {error_message}")
             return
 
-        print(f"✅ [ASYNC] Analyse terminée pour candidature {candidature_id}")
+        print(f" [ASYNC] Analyse terminée pour candidature {candidature_id}")
         
     except Exception as e:
-        print(f"❌ [ASYNC] Erreur: {e}")
+        print(f" [ASYNC] Erreur: {e}")
         import traceback
         traceback.print_exc()
         
@@ -5634,6 +5642,7 @@ def check_candidature_status(request, candidature_id):
             })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
 
 def _ocr_image_bytes(img_bytes):
     """OCR d'une image en bytes en utilisant EasyOCR puis pytesseract en fallback."""
@@ -5718,10 +5727,10 @@ def extraire_texte_piece(piece_id):
                         
                         # Si on a assez de texte, on retourne directement
                         if len(texte) > 200:
-                            print(f"📄 PDF texte extrait: {len(texte)} caractères")
+                            print(f" PDF texte extrait: {len(texte)} caractères")
                             return texte[:3000]
                     
-                    print(f"⚠️ PDF scanné, OCR en cours...")
+                    print(f" PDF scanné, OCR en cours...")
                     try:
                         import fitz
                         doc = fitz.open(fichier_path)
@@ -5743,10 +5752,10 @@ def extraire_texte_piece(piece_id):
                             print(f"   Page {page_num + 1}: {len(page_text)} caractères")
                         
                         doc.close()
-                        print(f"📄 PDF OCR: {len(texte_ocr)} caractères")
+                        print(f" PDF OCR: {len(texte_ocr)} caractères")
                         return texte_ocr[:3000] if texte_ocr else ""
                     except ImportError:
-                        print("⚠️ PyMuPDF non installé, impossible d'OCR le PDF")
+                        print(" PyMuPDF non installé, impossible d'OCR le PDF")
                         return ""
                 except Exception as e:
                     print(f"Erreur PDF: {e}")
@@ -5755,7 +5764,7 @@ def extraire_texte_piece(piece_id):
             # ==================== IMAGES ====================
             elif nom_fichier.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')):
                 try:
-                    print("🖼️ OCR image...")
+                    print(" OCR image...")
                     
                     # Ouvrir l'image
                     img = Image.open(fichier_path)
@@ -5775,7 +5784,7 @@ def extraire_texte_piece(piece_id):
                     
                     # OCR
                     texte = _ocr_image_bytes(img_bytes)
-                    print(f"🖼️ OCR: {len(texte)} caractères")
+                    print(f" OCR: {len(texte)} caractères")
                     return texte[:3000] if texte else ""
                     
                 except Exception as e:
@@ -5787,7 +5796,7 @@ def extraire_texte_piece(piece_id):
                 try:
                     doc = Document(fichier_path)
                     texte = '\n'.join([para.text for para in doc.paragraphs if para.text])
-                    print(f"📄 DOCX: {len(texte)} caractères")
+                    print(f" DOCX: {len(texte)} caractères")
                     return texte[:3000]
                 except Exception as e:
                     print(f"Erreur DOCX: {e}")
@@ -5827,23 +5836,83 @@ def _normaliser_type_piece(libelle):
     return aliases.get(value, value)
 
 
-def _charger_pieces_requises(value):
-    """Parse pieces_requises depuis JSONField/texte SQL et normalise les codes."""
-    if not value:
-        return []
-    if isinstance(value, str):
+def _detect_language(text):
+    if not text:
+        return 'fr'
+    if _langdetect_detect:
         try:
-            value = json.loads(value)
-        except json.JSONDecodeError:
-            value = [value]
-    if not isinstance(value, list):
+            return _langdetect_detect(text)
+        except Exception:
+            return 'fr'
+    # Fallback simple heuristic
+    text_lower = text.lower()
+    english_markers = ['experience', 'profile', 'skills', 'objective', 'university', 'degree', 'resume']
+    french_markers = ['expérience', 'profil', 'compétences', 'objectif', 'université', 'diplôme', 'cv']
+    eng_count = sum(text_lower.count(marker) for marker in english_markers)
+    fr_count = sum(text_lower.count(marker) for marker in french_markers)
+    return 'en' if eng_count > fr_count else 'fr'
+
+COMPETENCES_TECHNIQUES = [
+    'python', 'django', 'react', 'javascript', 'sql', 'mysql', 'postgresql', 'linux', 'docker',
+    'git', 'api', 'rest', 'cisco', 'tcp/ip', 'vpn', 'firewall', 'routeur', 'switch', 'ms project',
+    'excel', 'word', 'powerpoint', 'ccna', 'ccnp', 'aws', 'azure', 'comptia', 'kubernetes',
+    'terraform', 'ansible', 'nodejs', 'vue', 'angular', 'flask', 'symfony', 'laravel'
+]
+
+def _verifier_poste_ouvert(statut, date_cloture):
+    if statut is None:
+        return False, 'Statut de poste inconnu'
+    if statut.lower() not in ['publie', 'ouvert']:
+        return False, 'Ce poste n est plus disponible'
+    if date_cloture and date_cloture < date.today():
+        return False, 'Le poste est clôturé'
+    return True, 'Poste ouvert'
+
+
+def _verifier_completude_dossier(agent_matricule, seuil=0.6):
+    dossier = DossierAgent.objects.filter(agent__matricule=agent_matricule).first()
+    if not dossier:
+        return False, 'Aucun dossier trouvé pour cet agent'
+    taux = dossier.taux_completude or 0
+    if taux < seuil:
+        return False, (
+            f'Dossier incomplet : {int(taux * 100)}% — minimum requis : {int(seuil * 100)}%'
+        )
+    return True, 'Dossier suffisamment complet'
+
+
+def _extract_technical_skills(text):
+    if not text:
         return []
-    pieces = []
-    for item in value:
-        code = _normaliser_type_piece(item)
-        if code and code not in pieces:
-            pieces.append(code)
-    return pieces
+    normalized = _normalize_text_for_matching(text)
+    found = [comp for comp in COMPETENCES_TECHNIQUES if comp in normalized]
+    return sorted(found)
+
+
+def _score_competences_techniques(cv_text, profil_text, language='fr'):
+    if not cv_text or not profil_text:
+        return 0, [], []
+    cv_skills = set(_extract_technical_skills(cv_text))
+    profil_skills = set(_extract_technical_skills(profil_text))
+    if not profil_skills:
+        return 0, [], []
+    communes = sorted(cv_skills & profil_skills)
+    manquantes = sorted(profil_skills - cv_skills)
+    score = int(round((len(communes) / len(profil_skills)) * 20)) if profil_skills else 0
+    return score, communes, manquantes
+
+
+def _generer_classement(cursor, poste_vacant_id):
+    cursor.execute(
+        "SELECT id FROM candidature WHERE poste_vacant_id = %s ORDER BY score_eligibilite DESC, date_soumission ASC",
+        [poste_vacant_id]
+    )
+    rows = cursor.fetchall()
+    rang = 1
+    for row in rows:
+        cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(rang), row[0]])
+        rang += 1
+    return rang - 1
 
 
 def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, 
@@ -6173,6 +6242,58 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
                 return True
         return False
 
+    def _get_diplome_niveau(text):
+        if not text:
+            return 0, 'inconnu'
+        norm = _normalize_text_for_matching(text)
+        niveaux = [
+            (5, ['doctorat', 'phd', 'thèse', 'these', 'doctorate']),
+            (4, ['master 2', 'master 1', 'master', 'mba', 'ingénieur', 'ingenieur', 'engineer', 'bac+5']),
+            (3, ['licence en', 'licence', 'bachelor of', 'bachelor', 'bac+4']),
+            (2, ['bac+3', 'bac +3', 'bts', 'dut']),
+            (1, ['bac', 'baccalauréat', 'baccalaureat']),
+        ]
+        for niveau, termes in niveaux:
+            for terme in termes:
+                if terme in norm:
+                    return niveau, terme
+        return 0, 'inconnu'
+
+    def _extract_required_experience(text):
+        if not text:
+            return 0
+        norm = _normalize_text_for_matching(text)
+        patterns = [
+            r'\b(\d+)\s*(?:ans|années|annees|année)\s*(?:dexperience|d\'experience|d experience|experience|expérience)\b',
+            r'\bminimum\s*(\d+)\s*(?:ans|années|annees|année)\b',
+            r'\bau moins\s*(\d+)\s*(?:ans|années|annees|année)\b',
+            r'\b(\d+)\s*\+\s*ans?\b',
+            r'\b(\d+)\s*(?:ans|années|annees|année)\b',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, norm)
+            if match:
+                try:
+                    return int(match.group(1))
+                except ValueError:
+                    continue
+        return 0
+
+    def _score_competences(cv_text, profil_text):
+        if not cv_text or not profil_text:
+            return 0, []
+        stop_words = {
+            'de', 'du', 'la', 'le', 'les', 'et', 'en', 'un', 'une', 'des', 'pour', 'avec', 'dans',
+            'sur', 'est', 'au', 'aux', 'par', 'que', 'qui', 'dont', 'ou', 'd', 'l', 'a', 'ce', 'ces'
+        }
+        cv_tokens = set(re.findall(r'\b[a-z0-9éèêàùâôîç]+\b', cv_text.lower()))
+        profil_tokens = set(re.findall(r'\b[a-z0-9éèêàùâôîç]+\b', profil_text.lower()))
+        cv_tokens = {tok for tok in cv_tokens if tok not in stop_words and len(tok) > 2}
+        profil_tokens = {tok for tok in profil_tokens if tok not in stop_words and len(tok) > 2}
+        matching = sorted([tok for tok in profil_tokens if tok in cv_tokens])
+        score = min(20, len(matching) * 3)
+        return score, matching
+
     pieces_requises = pieces_requises or ['CV', 'LM', 'DIPLOME']
     pieces_fournies = pieces_fournies or []
     textes_par_piece = textes_par_piece or {}
@@ -6184,6 +6305,7 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     diplome_piece_text = diplome_text
     has_diplome_piece = bool(diplome_piece_text and diplome_piece_text.strip())
     diplome_text_for_scoring = diplome_piece_text if has_diplome_piece else (cv_text or '')
+    langue_cv = _detect_language(cv_text or diplome_text or lettre_text or cni_text or '')
 
     # ============================================================
     # 1. VÉRIFICATION DES PIÈCES OBLIGATOIRES
@@ -6197,7 +6319,25 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
                 pieces_manquantes = []
         if pieces_manquantes:
             return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
-    
+
+    # Vérification d'identité éliminatoire : si le nom de l'agent n'apparaît pas
+    if legal_name_parts:
+        verification_text = ' '.join(filter(None, [cv_text, diplome_piece_text, cni_text]))
+        if verification_text and not _contains_name(verification_text, legal_name_parts):
+            details_analyse = {
+                'diplome': {'points': 0, 'max': 40, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'experience': {'points': 0, 'max': 30, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'competences': {'points': 0, 'max': 20, 'details': 'Nom du candidat absent des documents fournis', 'trouve': []},
+                'anciennete': {'points': 0, 'max': 10, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'lettre_motivation': {'points': 0, 'max': 20, 'details': 'Nom du candidat absent des documents fournis', 'trouve': False},
+                'fraudes': [{
+                    'type': 'verification_identite',
+                    'description': 'Le nom du candidat est absent des documents fournis; analyse interrompue.',
+                    'severite': 'haute'
+                }]
+            }
+            return 0, 'Dossier non valide : le nom du candidat n est pas présent dans les documents fournis.', details_analyse
+
     # ============================================================
     # 2. DÉTECTION DE FRAUDE - VÉRIFICATION DES DOCUMENTS
     # ============================================================
@@ -6334,49 +6474,76 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         diplome_labels = cv_labels
         diplome_sentences = _extract_diplome_details(cv_text)[1]
 
-    if diplome_labels:
-        score_diplome = 0
-        if 'Doctorat' in diplome_labels:
+    candidate_text_for_diploma = diplome_piece_text if has_diplome_piece else (cv_text or '')
+    candidate_niveau, candidate_diplome_detecte = _get_diplome_niveau(candidate_text_for_diploma)
+    required_niveau, required_diplome_detecte = _get_diplome_niveau(diplome_requis or profil_recherche)
+    score_diplome = 0
+
+    if required_niveau > 0:
+        if candidate_niveau >= required_niveau:
             score_diplome = 40
-        elif 'Master 2' in diplome_labels:
-            score_diplome = 35
-        elif 'Master 1' in diplome_labels:
-            score_diplome = 30
-        elif 'Master' in diplome_labels:
-            score_diplome = 35
-        elif 'Ingénieur' in diplome_labels:
-            score_diplome = 35
-        elif 'Bac+5' in diplome_labels:
-            score_diplome = 35
-        elif 'Bachelor' in diplome_labels or 'Licence' in diplome_labels:
-            score_diplome = 25
-        elif 'Bac+3' in diplome_labels:
-            score_diplome = 25
-        elif 'Bac+2' in diplome_labels:
-            score_diplome = 20
-        elif 'BTS' in diplome_labels or 'DUT' in diplome_labels:
-            score_diplome = 20
-        elif 'Baccalauréat' in diplome_labels:
-            score_diplome = 10
+            details_analyse['diplome']['details'] = (
+                f"Diplôme {candidate_diplome_detecte} détecté, requis {required_diplome_detecte}."
+            )
         else:
-            score_diplome = 10
-
-        bonus, bonus_details = _score_diplome_requirement(diplome_labels, cv_text, diplome_requis)
-        if bonus > 0:
-            score_diplome = min(40, score_diplome + bonus)
-
-        details_analyse['diplome']['points'] = score_diplome
-        details_analyse['diplome']['trouve'] = ', '.join(diplome_labels)
-        details_analyse['diplome']['details'] = f"Diplôme trouvé dans le {diplome_source}: {details_analyse['diplome']['trouve']}"
-        if bonus_details:
-            details_analyse['diplome']['details'] += ' (' + '; '.join(bonus_details) + ')'
-        if diplome_sentences:
-            details_analyse['diplome']['details'] += f". Extraits: {diplome_sentences[:2]}"
+            detected_label = candidate_diplome_detecte if candidate_diplome_detecte != 'inconnu' else (', '.join(diplome_labels) or 'Non spécifié')
+            details_analyse['diplome']['points'] = 0
+            details_analyse['diplome']['trouve'] = detected_label
+            details_analyse['diplome']['details'] = (
+                f"Diplôme insuffisant : {detected_label} détecté, {required_diplome_detecte} requis."
+            )
+            score_total = 0
+            score_final = 0
+            details_analyse['experience']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['competences']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['anciennete']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['lettre_motivation']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            return 0, details_analyse['diplome']['details'], details_analyse
     else:
-        details_analyse['diplome']['points'] = 0
-        details_analyse['diplome']['trouve'] = 'Non spécifié'
-        details_analyse['diplome']['details'] = f"Diplôme trouvé: Non spécifié" + (f" (Requis: {diplome_requis})" if diplome_requis else "")
+        if diplome_labels:
+            if 'Doctorat' in diplome_labels:
+                score_diplome = 40
+            elif 'Master 2' in diplome_labels:
+                score_diplome = 35
+            elif 'Master 1' in diplome_labels:
+                score_diplome = 30
+            elif 'Master' in diplome_labels:
+                score_diplome = 35
+            elif 'Ingénieur' in diplome_labels:
+                score_diplome = 35
+            elif 'Bac+5' in diplome_labels:
+                score_diplome = 35
+            elif 'Bachelor' in diplome_labels or 'Licence' in diplome_labels:
+                score_diplome = 25
+            elif 'Bac+3' in diplome_labels:
+                score_diplome = 25
+            elif 'Bac+2' in diplome_labels:
+                score_diplome = 20
+            elif 'BTS' in diplome_labels or 'DUT' in diplome_labels:
+                score_diplome = 20
+            elif 'Baccalauréat' in diplome_labels:
+                score_diplome = 10
+            else:
+                score_diplome = 10
 
+            bonus, bonus_details = _score_diplome_requirement(diplome_labels, cv_text, diplome_requis)
+            if bonus > 0:
+                score_diplome = min(40, score_diplome + bonus)
+
+            details_analyse['diplome']['details'] = f"Diplôme trouvé dans le {diplome_source}: {', '.join(diplome_labels)}"
+            if bonus_details:
+                details_analyse['diplome']['details'] += ' (' + '; '.join(bonus_details) + ')'
+            if diplome_sentences:
+                details_analyse['diplome']['details'] += f". Extraits: {diplome_sentences[:2]}"
+        else:
+            details_analyse['diplome']['points'] = 0
+            details_analyse['diplome']['trouve'] = 'Non spécifié'
+            details_analyse['diplome']['details'] = (
+                f"Diplôme trouvé: Non spécifié" + (f" (Requis: {diplome_requis})" if diplome_requis else "")
+            )
+
+    details_analyse['diplome']['points'] = score_diplome
+    details_analyse['diplome']['trouve'] = ', '.join(diplome_labels) if diplome_labels else (candidate_diplome_detecte or 'Non spécifié')
     score_total += details_analyse['diplome']['points']
     
     # 3.2 Analyse de l'EXPÉRIENCE (0-30 points)
@@ -6422,31 +6589,13 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         score_total += points_exp
         
         # 3.3 Analyse des COMPÉTENCES (0-20 points)
-        competences_trouvees = []
-        competences_techniques = {
-            'programmation': ['python', 'java', 'php', 'javascript', 'js', 'c++', 'c#', 'ruby', 'golang', 'node', 'typescript'],
-            'bases_donnees': ['sql', 'mysql', 'postgresql', 'postgres', 'mongodb', 'oracle', 'nosql'],
-            'web': ['html', 'css', 'react', 'angular', 'vue', 'laravel', 'symfony', 'django', 'flask'],
-            'devops': ['docker', 'kubernetes', 'k8s', 'aws', 'azure', 'gcp', 'cloud', 'ci/cd', 'jenkins', 'gitlab-ci'],
-            'analyse': ['analyse', 'data', 'excel', 'power bi', 'powerbi', 'statistiques', 'machine learning', 'ml', 'data science'],
-            'gestion': ['gestion', 'management', 'équipe', 'agile', 'scrum', 'leadership'],
-        }
-        
-        import re
-        for categorie, mots in competences_techniques.items():
-            for mot in mots:
-                pattern = fr'\b{mot}\b'
-                if re.search(pattern, cv_lower):
-                    competences_trouvees.append(f"{mot} ({categorie})")
-        
-        # Éviter les faux positifs très génériques
-        competences_trouvees = [c for c in competences_trouvees if 'project' not in c]
-        
-        # Compétences uniques
-        competences_uniques = list(set(competences_trouvees))
-        details_analyse['competences']['trouve'] = competences_uniques[:10]
-        points_competences = min(20, len(competences_uniques) * 2)
+        points_competences, competences_communes, competences_manquantes = _score_competences_techniques(cv_text, profil_recherche, langue_cv)
+        details_analyse['competences']['trouve'] = competences_communes or _extract_technical_skills(cv_text)[:10]
         details_analyse['competences']['points'] = points_competences
+        details_analyse['competences']['details'] = (
+            f"Communes: {', '.join(competences_communes)}; Manquantes: {', '.join(competences_manquantes)}"
+            if competences_communes or competences_manquantes else 'Aucune compétence technique spécifique détectée'
+        )
         score_total += points_competences
         
         # 3.4 Analyse ANCIENNETÉ (0-10 points)
@@ -6488,9 +6637,18 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         details_analyse['lettre_motivation']['details'] = "Lettre de motivation demandee mais non fournie ou illisible"
     
     # ============================================================
-    # 4. SCORE FINAL (limité à 100)
+    # 4. SCORE FINAL PONDÉRÉ (limité à 100)
     # ============================================================
-    score_final = min(100, score_total)
+    score_final = round(
+        min(100, (
+            (details_analyse['diplome']['points'] / 40.0) * 35 +
+            (details_analyse['experience']['points'] / 30.0) * 30 +
+            (details_analyse['competences']['points'] / 20.0) * 25 +
+            (details_analyse['anciennete']['points'] / 10.0) * 10
+        )
+        + ((details_analyse['lettre_motivation']['points'] / 20.0) * 10 if lettre_requise else 0)
+        )
+    )
     
     # PÉNALITÉ pour fraude
     fraudes_graves = [f for f in fraudes_detectees if f.get('severite') == 'haute']
@@ -6560,10 +6718,10 @@ Score final: {score_final}/100
             WHERE id = %s
         """, [score_final, rapport_analyse, candidature_id])
 
-    # ✅ AJOUTE AUSSI LES DÉTAILS (stockage en JSON)
+    #  AJOUTE AUSSI LES DÉTAILS (stockage en JSON)
     details_json = json.dumps(details_analyse, ensure_ascii=False)
 
-    # ✅ RETOURNE 3 VALEURS
+    #  RETOURNE 3 VALEURS
     return score_final, rapport_analyse, details_analyse
 
 
@@ -6583,7 +6741,7 @@ def analyser_candidature(request, candidature_id):
             if not cursor.fetchone():
                 print("❌ Candidature non trouvée")
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
-            print("✅ Candidature trouvée")
+            print(" Candidature trouvée")
             
             # 2. Récupérer les pièces de la candidature
             cursor.execute("""
@@ -6712,7 +6870,6 @@ def analyser_candidature(request, candidature_id):
             
             # 9. Mettre à jour le rang
             # Calculer le rang côté application pour éviter l'erreur MySQL 1093
-            # (You can't specify target table 'c' for update in FROM clause)
             cursor.execute("SELECT poste_vacant_id FROM candidature WHERE id = %s", [candidature_id])
             row = cursor.fetchone()
             poste_vacant_id = row[0] if row else None
@@ -6725,6 +6882,8 @@ def analyser_candidature(request, candidature_id):
                 new_rank = count_higher + 1
                 cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(new_rank), candidature_id])
                 print(f"✅ Rang mis à jour (nouveau rang: {new_rank})")
+                # Générer le classement complet du poste
+                _generer_classement(cursor, poste_vacant_id)
             else:
                 print("⚠️ Impossible de récupérer poste_vacant_id pour calcul du rang")
             
@@ -6874,7 +7033,7 @@ def upload_piece_candidature(request, candidature_id):
                     f.write(file_data)
                 
                 original_filename = file_name
-                print(f"✅ Fichier sauvegardé: {file_path}")
+                print(f" Fichier sauvegardé: {file_path}")
             
             # ========== EXTRACTION DE LA DATE D'EXPIRATION ==========
             if request.content_type and 'multipart/form-data' in request.content_type:

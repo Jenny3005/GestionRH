@@ -7382,10 +7382,7 @@ body {
   padding: 30px 35px;
   line-height: 1.7;
   color: #334155;
-}
-
-.note-modal-body h3 {
-  color: #1e3c72;
+    white-space: pre-wrap;
   margin-top: 25px;
   margin-bottom: 15px;
   border-left: 4px solid #2c7da0;
