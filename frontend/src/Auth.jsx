@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getDashboardPath, normalizeRole } from './PortalNav';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
 import './App.css';
 
 export default function Auth({ onLogin }) {
