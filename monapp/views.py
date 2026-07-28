@@ -42,6 +42,29 @@ def normalize_matricule(value):
             return ''
         return value
     return str(value).strip()
+
+
+def _synchroniser_champs_demande(demande, nombre_jours, annee, solde=None, jours_restants=None):
+    """Synchronise les colonnes de la table demande pour garder un état cohérent."""
+    if demande is None:
+        return demande
+
+    jours_consommes = int(nombre_jours or 0)
+
+    if jours_restants is None:
+        if solde is not None:
+            jours_acquis = getattr(solde, 'jours_acquis', None) or 30
+            jours_pris = getattr(solde, 'jours_pris', None) or 0
+            jours_restants = max((jours_acquis or 30) - jours_pris, 0)
+        else:
+            jours_restants = 0
+
+    demande.annee = annee
+    demande.jours_consommes = jours_consommes
+    demande.jours_restants = int(jours_restants or 0)
+    demande.save(update_fields=['annee', 'jours_consommes', 'jours_restants'])
+    return demande
+
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
@@ -1107,7 +1130,15 @@ def demande_conge(request):
             type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}",
+            annee=annee_courante
+        )
+        _synchroniser_champs_demande(
+            demande,
+            nombre_jours,
+            annee_courante,
+            solde=solde,
+            jours_restants=max(solde.jours_restants - nombre_jours, 0)
         )
         
         # ✅ Créer le congé avec date_fin calculée
@@ -1212,9 +1243,13 @@ def demande_absence(request):
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
             numerosuivi=numerosuivi,
-            jours_consommes=nombre_jours,
-            jours_restants=10 - nouveau_total,
             annee=annee_courante
+        )
+        _synchroniser_champs_demande(
+            demande,
+            nombre_jours,
+            annee_courante,
+            jours_restants=max(10 - nouveau_total, 0)
         )
         
         absence = DemandeAbsence.objects.create(
@@ -1277,15 +1312,20 @@ def valider_demande_absence(request, demande_id):
                 annee_absence = demande.demandeabsence.date_debut.year if demande.demandeabsence.date_debut else datetime.now().year
                 nombre_jours = demande.demandeabsence.nombrejours or 0
                 
-                solde, _ = SoldeConge.objects.get_or_create(
+                total_valide = Demande.objects.filter(
                     agent=demande.agent,
-                    annee=annee_absence,
-                    defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
+                    type_demande__libelle='Absence',
+                    statut='valide',
+                    annee=annee_absence
+                ).exclude(id=demande.id).aggregate(total=models.Sum('jours_consommes'))['total'] or 0
+                total_valide += nombre_jours
+                jours_restants = max(10 - total_valide, 0)
+                _synchroniser_champs_demande(
+                    demande,
+                    nombre_jours,
+                    annee_absence,
+                    jours_restants=jours_restants
                 )
-                
-                solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
-                solde.jours_restants = max((solde.jours_acquis or 30) - solde.jours_pris, 0)
-                solde.save()
         else:
             demande.statut = 'refuse'
         
@@ -1405,8 +1445,15 @@ def valider_demande_conge(request, demande_id):
                 )
                 
                 solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
-                solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
+                solde.jours_restants = max((solde.jours_acquis or 30) - solde.jours_pris, 0)
                 solde.save()
+                _synchroniser_champs_demande(
+                    demande,
+                    nombre_jours,
+                    annee_conge,
+                    solde=solde,
+                    jours_restants=solde.jours_restants
+                )
         else:
             demande.statut = 'refuse'
             print("❌ Demande rejetée")
