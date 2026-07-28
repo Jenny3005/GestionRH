@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
+import { User, Check, Send, CheckCircle,X, AlertCircle, MapPin, Phone, Mail, FileText, Signature, Users, Clipboard ,Inbox} from 'lucide-react';
 import './App.css';
 
 // Fonction pour normaliser le rôle
@@ -102,9 +103,9 @@ export default function DashboardDPAF() {
 
   const getInfoMessage = () => {
     if (userRole === 'dpaf') {
-      return "ℹ️ Types d'actes signés par le DPAF : Attestation de travail, Absence, Reprise de service";
+      return " Types d'actes signés par le DPAF : Attestation de travail, Absence, Reprise de service";
     } else if (userRole === 'dapaf') {
-      return "ℹ️ Types d'actes signés par le DAPAF : Attestation de présence, Attestation de validité de services, Certificat de non-jouissance de congé";
+      return " Types d'actes signés par le DAPAF : Attestation de présence, Attestation de validité de services, Certificat de non-jouissance de congé";
     }
     return "";
   };
@@ -124,6 +125,24 @@ export default function DashboardDPAF() {
   const isAttestationType = (type) => {
     const attestationTypes = ['Attestation de travail', 'Attestation de présence au poste', 'Attestation de validité de services', 'Certificat de non-jouissance de congé'];
     return attestationTypes.includes(type);
+  };
+
+  const isAdministrativeAct = (type) => {
+    return type === 'Autorisation de jouissance de congé administratif';
+  };
+
+  const shouldSkipChefValidation = (type) => {
+    return isAttestationType(type) || isAdministrativeAct(type);
+  };
+
+  const getEffectiveStatutForTimeline = (type, statut) => {
+    if (!shouldSkipChefValidation(type)) {
+      return statut;
+    }
+    if (statut === 'valide' || statut === 'en_attente_chef') {
+      return getStatutTransmis(type);
+    }
+    return statut;
   };
 
   useEffect(() => {
@@ -146,6 +165,7 @@ export default function DashboardDPAF() {
         if (response.ok) {
           const allAgents = await response.json();
           const agentsRHFiltered = allAgents.filter(agent => {
+            if (!agent.actif) return false;
             if (agent.role !== 'rh') return false;
             if (agent.matricule === matricule) return false;
             return true;
@@ -155,10 +175,8 @@ export default function DashboardDPAF() {
         }
       } else {
         const agentsRHData = await response.json();
-        const agentsRHFiltered = agentsRHData.filter(agent => {
-          if (agent.matricule === matricule) return false;
-          return true;
-        });
+        // endpoint /api/agents/rh/ already returns only RHs; just exclude current user
+        const agentsRHFiltered = agentsRHData.filter(agent => agent.matricule !== matricule);
         setAgentsRH(agentsRHFiltered);
       }
     } catch (error) {
@@ -204,7 +222,7 @@ export default function DashboardDPAF() {
         fetch(`/api/dashboard/actes-a-signer/${matricule}/`)
       ]);
       
-      // ✅ Demandes à assigner
+      //  Demandes à assigner
       let transmisesData = [];
       if (transmisesRes.ok) {
         transmisesData = await transmisesRes.json();
@@ -219,28 +237,28 @@ export default function DashboardDPAF() {
         setDemandesTransmises(transmisesData);
       }
 
-      // ✅ Attestations à assigner
+      //  Attestations à assigner
       let attestationsData = [];
       if (attestationsRes.ok) {
         attestationsData = await attestationsRes.json();
         setAttestationsSoumises(attestationsData);
       }
 
-      // ✅ Demandes assignées
+      //  Demandes assignées
       let assigneesData = [];
       if (assigneesRes.ok) {
         assigneesData = await assigneesRes.json();
         setDemandesAssignees(assigneesData);
       }
 
-      // ✅ Attestations assignées
+      //  Attestations assignées
       let attestationsAssigneesData = [];
       if (attestationsAssigneesRes.ok) {
         attestationsAssigneesData = await attestationsAssigneesRes.json();
         setAttestationsAssignees(attestationsAssigneesData);
       }
 
-      // ✅ Actes à signer
+      //  Actes à signer
       let actesData = [];
       if (actesRes.ok) {
         actesData = await actesRes.json();
@@ -251,7 +269,7 @@ export default function DashboardDPAF() {
         setActesASigner(actesFiltres);
       }
 
-      // ✅ Stats - CORRECTION
+      //  Stats - CORRECTION
       const totalAAssigner = transmisesData.length + attestationsData.length;
       const totalAssignees = assigneesData.length + attestationsAssigneesData.length;
 
@@ -298,7 +316,7 @@ export default function DashboardDPAF() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ ${isAttestationItem ? 'Attestation' : 'Demande'} assignée avec succès`);
+        alert(` ${isAttestationItem ? 'Attestation' : 'Demande'} assignée avec succès`);
         setShowAssignerModal(false);
         setSelectedItem(null);
         setIsAttestation(false);
@@ -336,13 +354,25 @@ export default function DashboardDPAF() {
         const urlBlob = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = urlBlob;
-        a.download = `Acte_Signe_${reference}.pdf`;
+        // Nom de fichier depuis headers si disponible
+        const disposition = response.headers.get('content-disposition');
+        const contentType = response.headers.get('content-type') || '';
+        let filename = `Acte_Signe_${reference}.pdf`;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename\*=UTF-8''([^\n;]+)|filename=\"?([^\"]+)\"?/);
+          if (match) filename = decodeURIComponent(match[1] || match[2]);
+        } else if (contentType.includes('wordprocessingml')) {
+          filename = `Acte_Signe_${reference}.docx`;
+        } else if (contentType.includes('pdf')) {
+          filename = `Acte_Signe_${reference}.pdf`;
+        }
         document.body.appendChild(a);
+        a.download = filename;
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(urlBlob);
-        
-        alert('✅ Acte signé avec succès !');
+
+        alert(' Acte signé avec succès !');
         setShowSignerModal(false);
         setSelectedActe(null);
         setSignatureCommentaire('');
@@ -375,13 +405,22 @@ export default function DashboardDPAF() {
     try {
       setLoading(true);
       const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
-      
+
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setPreviewTitle(`${acte.type_acte} - ${reference}`);
-        setShowPreviewModal(true);
+
+        // Essayer d'ouvrir dans un nouvel onglet (évite les problèmes d'iframe bloqué)
+        const opened = window.open(url);
+        if (opened) {
+          opened.focus();
+        } else {
+          setPreviewUrl(url);
+          setPreviewTitle(`${acte.type_acte} - ${reference}`);
+          setShowPreviewModal(true);
+        }
       } else {
         alert('Erreur lors du chargement de l\'acte');
       }
@@ -413,21 +452,36 @@ export default function DashboardDPAF() {
 
   const getStatusBadge = (statut) => {
     const badges = {
-      'transmise_dpaf': <span className="badge-warning">📤 Transmise au DPAF</span>,
-      'transmise_dapaf': <span className="badge-warning">📤 Transmise au DAPAF</span>,
-      'assignee_rh': <span className="badge-info">👥 Assignée RH</span>,
-      'en_cours_traitement': <span className="badge-info">⚙️ En cours</span>,
-      'acte_genere': <span className="badge-success">📄 Acte généré</span>,
-      'termine': <span className="badge-success">✅ Terminé</span>,
-      'attente_signature_dpaf': <span className="badge-warning">✍️ En attente signature DPAF</span>,
-      'attente_signature_dapaf': <span className="badge-warning">✍️ En attente signature DAPAF</span>,
-      'signe': <span className="badge-success">✅ Signé</span>,
-      'remis': <span className="badge-success">✅ Remis à l'agent</span>,
-      'soumise': <span className="badge-info">📝 Soumise</span>,
-      'valide': <span className="badge-success">✅ Validée</span>,
+      'transmise_dpaf': <span className="badge-warning"> Transmise au DPAF</span>,
+      'transmise_dapaf': <span className="badge-warning"> Transmise au DAPAF</span>,
+      'assignee_rh': <span className="badge-info"> Assignée RH</span>,
+      'en_cours_traitement': <span className="badge-info"> En cours</span>,
+      'acte_genere': <span className="badge-success"> Acte généré</span>,
+      'termine': <span className="badge-success">Terminé</span>,
+      'attente_signature_dpaf': <span className="badge-warning">En attente signature DPAF</span>,
+      'attente_signature_dapaf': <span className="badge-warning"> En attente signature DAPAF</span>,
+      'signe': <span className="badge-success">Signé</span>,
+      'remis': <span className="badge-success"> Remis à l'agent</span>,
+      'soumise': <span className="badge-info"> Soumise</span>,
+      'valide': <span className="badge-success"> Validée</span>,
     };
     return badges[statut] || <span className="badge-secondary">{statut}</span>;
   };
+
+  // Normalisation du statut en niveau (1-7) pour le timeline
+  const getNiveauStatut = (statut) => {
+    const niveaux = {
+      'soumise': 1, 'en_attente_chef': 1, 'Demande soumise': 1,
+      'valide': 2, 'Approuvée': 2,
+      'transmise_dpaf': 3, 'transmise_dapaf': 3, 'Transmise au DPAF': 3, 'Transmise au DAPAF': 3,
+      'assignee_rh': 4, 'Assignée au RH': 4,
+      'en_cours_traitement': 5, 'En traitement': 5,
+      'acte_genere': 6, 'Acte généré': 6,
+      'remis': 7, 'signe': 7, 'Signé': 7, 'Acte remis': 7, 'Terminé': 7, 'termine': 7
+    };
+    return niveaux[statut] || 1;
+  };
+
 
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
@@ -454,7 +508,7 @@ export default function DashboardDPAF() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📊 Tableau de bord - {getRoleLabel()}</h2>
+            <h2> Tableau de bord - {getRoleLabel()}</h2>
             <p>Gestion et assignment des demandes et attestations aux agents RH - Signature des actes</p>
           </div>
         </section>
@@ -463,33 +517,33 @@ export default function DashboardDPAF() {
         <div className="stats-container">
           <div className="stat-card" style={{ borderLeftColor: '#F59E0B' }}>
             <div className="stat-number">{stats.a_assigner}</div>
-            <div className="stat-label">📋 À assigner</div>
+            <div className="stat-label"> À assigner</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3B82F6' }}>
             <div className="stat-number">{stats.assignees}</div>
-            <div className="stat-label">👥 Assignées</div>
+            <div className="stat-label"> Assignées</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#8B5CF6' }}>
             <div className="stat-number">{stats.en_cours}</div>
-            <div className="stat-label">⚙️ En cours</div>
+            <div className="stat-label"> En cours</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{stats.terminees}</div>
-            <div className="stat-label">✅ Terminées</div>
+            <div className="stat-label"> Terminées</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#EF4444' }}>
             <div className="stat-number">{stats.actes_a_signer}</div>
-            <div className="stat-label">✍️ Actes à signer</div>
+            <div className="stat-label"> Actes à signer</div>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#6B7280' }}>
             <div className="stat-number">{stats.historique_count}</div>
-            <div className="stat-label">📜 Historique</div>
+            <div className="stat-label"> Historique</div>
           </div>
         </div>
 
         {/* SECTION 1: Demandes et attestations à assigner */}
         <div className="admin-section">
-          <h3>📋 Demandes et attestations à assigner</h3>
+          <h3> Demandes et attestations à assigner</h3>
           
           <div style={{ 
             display: 'flex',
@@ -500,13 +554,13 @@ export default function DashboardDPAF() {
             borderRadius: '8px'
           }}>
             <div style={{ flex: 1, borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
-              <strong>📤 DPAF :</strong>
+              <strong> DPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Absences, Reprise, Attestation de travail
               </p>
             </div>
             <div style={{ flex: 1, borderLeft: '4px solid #10B981', paddingLeft: '10px' }}>
-              <strong>📤 DAPAF :</strong>
+              <strong> DAPAF :</strong>
               <p style={{ margin: '5px 0 0', fontSize: '0.75rem', color: '#475569' }}>
                 Congés, Attestations présence/validité/certificats
               </p>
@@ -527,9 +581,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                  <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                 ) : (demandesTransmises.length === 0 && attestationsSoumises.length === 0) ? (
-                  <tr><td colSpan="6" className="text-center">📭 Aucune demande ou attestation à assigner</td></tr>
+                  <tr><td colSpan="6" className="text-center"> Aucune demande ou attestation à assigner</td></tr>
                 ) : (
                   <>
                     {/* Demandes */}
@@ -553,7 +607,7 @@ export default function DashboardDPAF() {
                         <td>{d.date_transmission ? new Date(d.date_transmission).toLocaleDateString('fr-FR') : '-'}</td>
                         <td>
                           <button className="btn-assigner" onClick={() => handleVoirDetails(d, false)}>
-                            👥 Assigner à un RH
+                             Assigner à un RH
                           </button>
                         </td>
                       </tr>
@@ -573,7 +627,7 @@ export default function DashboardDPAF() {
                             fontWeight: 'bold',
                             color: '#4338CA'
                           }}>
-                            📄 {att.type_attestation}
+                             {att.type_attestation}
                           </span>
                         </td>
                         <td>
@@ -591,7 +645,7 @@ export default function DashboardDPAF() {
                         <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
                         <td>
                           <button className="btn-assigner" onClick={() => handleVoirDetails(att, true)}>
-                            👥 Assigner à un RH
+                             Assigner à un RH
                           </button>
                         </td>
                       </tr>
@@ -609,20 +663,20 @@ export default function DashboardDPAF() {
             className={`filter-tab ${activeTab === 'encours' ? 'active' : ''}`} 
             onClick={() => setActiveTab('encours')}
           >
-            ⚙️ En cours ({stats.assignees})
+             En cours ({stats.assignees})
           </button>
           <button 
             className={`filter-tab ${activeTab === 'historique' ? 'active' : ''}`} 
             onClick={() => setActiveTab('historique')}
           >
-            📜 Historique ({stats.historique_count})
+             Historique ({stats.historique_count})
           </button>
         </div>
 
         {/* SECTION 2: Demandes et attestations assignées en cours */}
         {activeTab === 'encours' && (
           <div className="admin-section">
-            <h3>📋 Demandes et attestations assignées - Suivi</h3>
+            <h3> Demandes et attestations assignées - Suivi</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -637,9 +691,9 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                   ) : (demandesAssignees.length === 0 && attestationsAssignees.length === 0) ? (
-                    <tr><td colSpan="6" className="text-center">📭 Aucune demande en cours</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Aucune demande en cours</td></tr>
                   ) : (
                     <>
                       {/* Demandes */}
@@ -652,7 +706,7 @@ export default function DashboardDPAF() {
                           <td>{d.date_assignation ? new Date(d.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <button className="btn-view" onClick={() => handleVoirSuivi(d)}>
-                              👁️ Voir suivi
+                               Voir suivi
                             </button>
                           </td>
                         </tr>
@@ -671,7 +725,7 @@ export default function DashboardDPAF() {
                               fontWeight: 'bold',
                               color: '#4338CA'
                             }}>
-                              📄 {att.type_attestation}
+                               {att.type_attestation}
                             </span>
                           </td>
                           <td>{att.agent_rh_nom} {att.agent_rh_prenom}</td>
@@ -679,7 +733,7 @@ export default function DashboardDPAF() {
                           <td>{att.date_assignation ? new Date(att.date_assignation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <button className="btn-view" onClick={() => handleVoirSuivi(att)}>
-                              👁️ Voir suivi
+                               Voir suivi
                             </button>
                           </td>
                         </tr>
@@ -695,7 +749,7 @@ export default function DashboardDPAF() {
         {/* SECTION 2bis: Historique des demandes traitées */}
         {activeTab === 'historique' && (
           <div className="admin-section">
-            <h3>📜 Historique des demandes et attestations traitées</h3>
+            <h3> Historique des demandes et attestations traitées</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -710,9 +764,9 @@ export default function DashboardDPAF() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Chargement...</td></tr>
                   ) : (demandesHistorique.length === 0 && attestationsHistorique.length === 0) ? (
-                    <tr><td colSpan="6" className="text-center">📭 Aucune demande dans l'historique</td></tr>
+                    <tr><td colSpan="6" className="text-center"> Aucune demande dans l'historique</td></tr>
                   ) : (
                     <>
                       {/* Demandes historiques */}
@@ -744,7 +798,7 @@ export default function DashboardDPAF() {
                               fontWeight: 'bold',
                               color: '#4338CA'
                             }}>
-                              📄 {att.type_attestation}
+                               {att.type_attestation}
                             </span>
                           </td>
                           <td>{att.agent_rh_nom || '-'} {att.agent_rh_prenom || ''}</td>
@@ -752,7 +806,7 @@ export default function DashboardDPAF() {
                           <td>{att.date_soumission ? new Date(att.date_soumission).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <button className="btn-view" onClick={() => handleVoirSuivi(att)}>
-                              👁️ Voir suivi
+                               Voir suivi
                             </button>
                           </td>
                         </tr>
@@ -786,7 +840,7 @@ export default function DashboardDPAF() {
             borderLeft: '4px solid #ffc107',
             marginBottom: '20px'
           }}>
-            <p>⚠️ <strong>Attention :</strong> Vous devez uploader votre signature et votre cachet dans votre {''}
+            <p> <strong>Attention :</strong> Vous devez uploader votre signature et votre cachet dans votre {''}
             <span 
               onClick={() => navigate('/profil')} 
               style={{ fontWeight: 'bold', textDecoration: 'underline', cursor: 'pointer', color: '#0056b3' }}
@@ -800,7 +854,7 @@ export default function DashboardDPAF() {
 
         {/* SECTION 3: Actes à signer */}
         <div className="admin-section">
-          <h3>✍️ Actes à signer par {getRoleLabel()}</h3>
+          <h3> Actes à signer par {getRoleLabel()}</h3>
           <div className="admin-table-container">
             <table className="admin-table">
               <thead>
@@ -814,9 +868,9 @@ export default function DashboardDPAF() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center">⏳ Chargement...</td></tr>
+                  <tr><td colSpan="5" className="text-center"> Chargement...</td></tr>
                 ) : actesASigner.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center">📭 Aucun acte à signer</td></tr>
+                  <tr><td colSpan="5" className="text-center"><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucun acte à signer</td></tr>
                 ) : (
                   actesASigner.map((acte) => (
                     <tr key={acte.reference}>
@@ -829,14 +883,14 @@ export default function DashboardDPAF() {
                       <td>
                         <div className="action-buttons-cell">
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}>
-                            👁️ Voir l'acte
+                             Voir l'acte
                           </button>
                           <button 
                             className="btn-signer" 
                             onClick={() => handleSigner(acte)}
                             disabled={!hasSignature || !hasCachet}
                           >
-                            ✍️ Signer l'acte
+                             Signer l'acte
                           </button>
                         </div>
                       </td>
@@ -856,7 +910,9 @@ export default function DashboardDPAF() {
             <div className="modal-header-elegant">
               <div className="modal-header-content-elegant">
                 <div className="header-icon-circle-elegant">
-                  <span className="header-icon-large">{isAttestation ? '📄' : '👥'}</span>
+                  <div style={{ fontSize: '2rem', color: '#3B82F6' }}>
+                    {isAttestation ? <CheckCircle size={32} /> : <Send size={32} />}
+                  </div>
                 </div>
                 <div className="header-title-section-elegant">
                   <h3 className="modal-title-elegant">
@@ -869,7 +925,7 @@ export default function DashboardDPAF() {
                   </p>
                 </div>
                 <button className="modal-close-elegant" onClick={() => setShowAssignerModal(false)}>
-                  ✕
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -878,7 +934,7 @@ export default function DashboardDPAF() {
               {/* Carte de l'élément */}
               <div className="demande-info-card-elegant">
                 <div className="demande-card-header-elegant">
-                  <span className="card-header-icon">{isAttestation ? '📄' : '📋'}</span>
+                  <span className="card-header-icon">{isAttestation ? '' : ''}</span>
                   <span className="card-header-title">
                     {isAttestation ? 'Information de l\'attestation' : 'Information de la demande'}
                   </span>
@@ -887,7 +943,7 @@ export default function DashboardDPAF() {
                   <div className="demande-detail-item-elegant">
                     <span className="detail-label-elegant">Agent concerné</span>
                     <div className="detail-value-with-icon-elegant">
-                      <span className="detail-icon-elegant">👤</span>
+                      <User size={18} style={{ color: '#3B82F6' }} />
                       <strong>{selectedItem.agent_nom} {selectedItem.agent_prenom}</strong>
                     </div>
                   </div>
@@ -931,14 +987,14 @@ export default function DashboardDPAF() {
               {/* Sélection agent RH */}
               <div className="selection-section-elegant">
                 <div className="selection-header-elegant">
-                  <span className="selection-header-icon"></span>
+                  <span className="selection-header-icon"><Users size={16} /></span>
                   <span className="selection-header-title">Sélectionner l'agent RH</span>
                 </div>
                 
                 <div className="agents-list-elegant">
                   {agentsRH.length === 0 ? (
                     <div className="no-agents-message-elegant">
-                      <span className="no-agents-icon">⚠️</span>
+                      <span className="no-agents-icon"><Users size={24} /></span>
                       <p>Aucun agent RH disponible</p>
                       <small>Veuillez contacter l'administrateur pour ajouter des agents RH</small>
                     </div>
@@ -971,7 +1027,7 @@ export default function DashboardDPAF() {
                               </div>
                             </div>
                             {selectedAgentRH === agent.matricule && (
-                              <div className="agent-selected-check-elegant">✓</div>
+                              <div className="agent-selected-check-elegant"><CheckCircle size={16} /></div>
                             )}
                           </div>
                         </label>
@@ -984,7 +1040,7 @@ export default function DashboardDPAF() {
               {/* Instructions */}
               <div className="instructions-section-elegant">
                 <div className="instructions-header-elegant">
-                  <span className="instructions-icon"></span>
+                  <span className="instructions-icon"><FileText size={16} /></span>
                   <span className="instructions-title">Instructions pour l'agent RH</span>
                   <span className="optional-badge-elegant">Optionnel</span>
                 </div>
@@ -1009,7 +1065,7 @@ export default function DashboardDPAF() {
                 onClick={() => handleAssignerItem(selectedItem, isAttestation)}
                 disabled={!selectedAgentRH}
               >
-                <span className="btn-icon">✓</span>
+                <Check size={18} />
                 {isAttestation ? 'Assigner l\'attestation' : 'Assigner la demande'}
               </button>
             </div>
@@ -1023,10 +1079,10 @@ export default function DashboardDPAF() {
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header suivi-modal-header">
               <div className="header-icon-wrapper">
-                <span className="header-icon">📊</span>
+                <span className="header-icon"><FileText size={18} /></span>
                 <h3>Suivi de la demande</h3>
               </div>
-              <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowSuiviModal(false)}><X size={18} /></button>
             </div>
             
             <div className="modal-body suivi-modal-body">
@@ -1044,7 +1100,7 @@ export default function DashboardDPAF() {
               {/* Carte Détails */}
               <div className="suivi-details-card">
                 <div className="detail-item">
-                  <span className="detail-icon">📋</span>
+                  <span className="detail-icon"><Clipboard size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Type</span>
                     <strong className="detail-value">
@@ -1054,7 +1110,7 @@ export default function DashboardDPAF() {
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📤</span>
+                  <span className="detail-icon"><Send size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Destinataire</span>
                     <strong className="detail-value" style={{ 
@@ -1065,14 +1121,14 @@ export default function DashboardDPAF() {
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">👥</span>
+                  <span className="detail-icon"><User size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Assigné à</span>
                     <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📊</span>
+                  <span className="detail-icon"><CheckCircle size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Statut</span>
                     <strong className="detail-value">{getStatusBadge(selectedDemande.statut)}</strong>
@@ -1082,7 +1138,7 @@ export default function DashboardDPAF() {
 
               {/* Timeline */}
               <div className="suivi-timeline-modern">
-                <h4 className="timeline-title">🔄 Chronologie du traitement</h4>
+                <h4 className="timeline-title"> Chronologie du traitement</h4>
                 
                 <div className="timeline-modern">
                   <div className="timeline-modern-step completed">
@@ -1092,7 +1148,7 @@ export default function DashboardDPAF() {
                     </div>
                     <div className="timeline-modern-content">
                       <div className="step-header">
-                        <span className="step-icon">📝</span>
+                        <span className="step-icon"></span>
                         <span className="step-title">Demande soumise</span>
                         <span className="step-status">Par l'agent</span>
                       </div>
@@ -1107,7 +1163,7 @@ export default function DashboardDPAF() {
                     </div>
                     <div className="timeline-modern-content">
                       <div className="step-header">
-                        <span className="step-icon">📤</span>
+                        <span className="step-icon"></span>
                         <span className="step-title">Transmission</span>
                         <span className="step-status">Par la secrétaire</span>
                       </div>
@@ -1115,71 +1171,84 @@ export default function DashboardDPAF() {
                     </div>
                   </div>
 
-                  <div className={`timeline-modern-step ${selectedDemande.statut === 'assignee_rh' || selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : ''}`}>
-                    <div className="timeline-modern-marker">
-                      <div className="marker-dot"></div>
-                      <div className="marker-line"></div>
-                    </div>
-                    <div className="timeline-modern-content">
-                      <div className="step-header">
-                        <span className="step-icon">👥</span>
-                        <span className="step-title">Assignation RH</span>
-                        <span className="step-status">{selectedDemande.agent_rh_nom || 'En attente'}</span>
-                      </div>
-                      <p className="step-description">Assignée à un agent RH</p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const typeDemande = selectedDemande.type_attestation || selectedDemande.type_demande;
+                    const statutBrut = selectedDemande?.statut || selectedDemande?.statutBrut || '';
+                    const statutReel = getEffectiveStatutForTimeline(typeDemande, statutBrut);
+                    const niveau = getNiveauStatut(statutReel);
+                    const estComplete = (niveauRequis) => niveau >= niveauRequis;
+                    const estActive = (niveauRequis) => niveau === niveauRequis - 1;
 
-                  {selectedDemande.statut !== 'soumise' && selectedDemande.statut !== 'transmise_dpaf' && selectedDemande.statut !== 'transmise_dapaf' && (
-                    <div className={`timeline-modern-step ${selectedDemande.statut === 'en_cours_traitement' || selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe' ? 'completed' : selectedDemande.statut === 'assignee_rh' ? 'active' : ''}`}>
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
-                          <span className="step-icon">⚙️</span>
-                          <span className="step-title">Traitement RH</span>
-                          <span className="step-status">En cours</span>
+                    return (
+                      <>
+                        <div className={`timeline-modern-step ${estComplete(4) ? 'completed' : ''}`}>
+                          <div className="timeline-modern-marker">
+                            <div className="marker-dot"></div>
+                            <div className="marker-line"></div>
+                          </div>
+                          <div className="timeline-modern-content">
+                            <div className="step-header">
+                              <span className="step-icon"></span>
+                              <span className="step-title">Assignation RH</span>
+                              <span className="step-status">{selectedDemande.agent_rh_nom || 'En attente'}</span>
+                            </div>
+                            <p className="step-description">Assignée à un agent RH</p>
+                          </div>
                         </div>
-                        <p className="step-description">L'agent RH traite la demande</p>
-                      </div>
-                    </div>
-                  )}
 
-                  {(selectedDemande.statut === 'acte_genere' || selectedDemande.statut === 'remis' || selectedDemande.statut === 'signe') && (
-                    <div className="timeline-modern-step completed">
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
-                          <span className="step-icon">📄</span>
-                          <span className="step-title">Acte généré</span>
-                          <span className="step-status">Par l'agent RH</span>
-                        </div>
-                        <p className="step-description">Acte généré et envoyé</p>
-                      </div>
-                    </div>
-                  )}
+                        {niveau > 3 && (
+                          <div className={`timeline-modern-step ${estComplete(5) ? 'completed' : estActive(5) ? 'active' : ''}`}>
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
+                                <span className="step-icon"></span>
+                                <span className="step-title">Traitement RH</span>
+                                <span className="step-status">En cours</span>
+                              </div>
+                              <p className="step-description">L'agent RH traite la demande</p>
+                            </div>
+                          </div>
+                        )}
 
-                  {(selectedDemande.statut === 'signe' || selectedDemande.statut === 'remis') && (
-                    <div className="timeline-modern-step completed">
-                      <div className="timeline-modern-marker">
-                        <div className="marker-dot"></div>
-                        <div className="marker-line"></div>
-                      </div>
-                      <div className="timeline-modern-content">
-                        <div className="step-header">
-                          <span className="step-icon">✍️</span>
-                          <span className="step-title">Signature</span>
-                          <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
-                        </div>
-                        <p className="step-description">Acte signé avec cachet officiel</p>
-                      </div>
-                    </div>
-                  )}
+                        {niveau >= 6 && (
+                          <div className="timeline-modern-step completed">
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
+                                <span className="step-icon"></span>
+                                <span className="step-title">Acte généré</span>
+                                <span className="step-status">Par l'agent RH</span>
+                              </div>
+                              <p className="step-description">Acte généré et envoyé</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {niveau >= 7 && (
+                          <div className="timeline-modern-step completed">
+                            <div className="timeline-modern-marker">
+                              <div className="marker-dot"></div>
+                              <div className="marker-line"></div>
+                            </div>
+                            <div className="timeline-modern-content">
+                              <div className="step-header">
+                                <span className="step-icon"></span>
+                                <span className="step-title">Signature</span>
+                                <span className="step-status">Par le {getDestinataire(selectedDemande.type_attestation || selectedDemande.type_demande)}</span>
+                              </div>
+                              <p className="step-description">Acte signé avec cachet officiel</p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   {selectedDemande.statut === 'remis' && (
                     <div className="timeline-modern-step completed">
@@ -1188,7 +1257,7 @@ export default function DashboardDPAF() {
                       </div>
                       <div className="timeline-modern-content">
                         <div className="step-header">
-                          <span className="step-icon">✅</span>
+                          <span className="step-icon"></span>
                           <span className="step-title">Remis à l'agent</span>
                           <span className="step-status">Par la secrétaire</span>
                         </div>
@@ -1196,13 +1265,14 @@ export default function DashboardDPAF() {
                       </div>
                     </div>
                   )}
+                
                 </div>
               </div>
 
               {selectedDemande.commentaire && (
                 <div className="suivi-commentaire-card">
                   <div className="commentaire-header">
-                    <span className="commentaire-icon">📝</span>
+                    <span className="commentaire-icon"><FileText size={16} /></span>
                     <h4>Commentaire</h4>
                   </div>
                   <div className="commentaire-content">
@@ -1230,14 +1300,14 @@ export default function DashboardDPAF() {
             <div className="modal-signature-header">
               <div className="modal-signature-header-left">
                 <div className="modal-signature-icon-wrapper">
-                  <span className="icon">✍️</span>
+                  <span className="icon"><Signature size={18} /></span>
                 </div>
                 <div className="modal-signature-title">
                   <h3>Signature de l'acte</h3>
                   <span className="subtitle">Apposez votre signature officielle</span>
                 </div>
               </div>
-              <button className="modal-signature-close" onClick={() => setShowSignerModal(false)}>✕</button>
+              <button className="modal-signature-close" onClick={() => setShowSignerModal(false)}><X size={18} /></button>
             </div>
 
             {/* BODY */}
@@ -1245,7 +1315,7 @@ export default function DashboardDPAF() {
               
               {/* Carte Acte */}
               <div className="modal-signature-info">
-                <div className="card-label">📋 Détails de l'acte</div>
+                <div className="card-label"> Détails de l'acte</div>
                 <div className="modal-signature-info-grid">
                   <div className="modal-signature-info-item">
                     <span className="label">Référence</span>
@@ -1264,7 +1334,7 @@ export default function DashboardDPAF() {
 
               {/* Carte Signataire */}
               <div className="modal-signature-signataire">
-                <div className="card-label">🖋️ Signataire</div>
+                <div className="card-label"> Signataire</div>
                 <div className="modal-signature-signataire-grid">
                   <div className="modal-signature-signataire-item">
                     <span className="label">Nom</span>
@@ -1292,7 +1362,7 @@ export default function DashboardDPAF() {
               {/* Commentaire */}
               <div className="modal-signature-commentaire">
                 <div className="label-row">
-                  <span className="label">💬 Commentaire</span>
+                  <span className="label"> Commentaire</span>
                   <span className="optional">Optionnel</span>
                 </div>
                 <textarea
@@ -1305,7 +1375,7 @@ export default function DashboardDPAF() {
 
               {/* Alerte sécurité */}
               <div className="modal-signature-alerte">
-                <span className="icon">⚠️</span>
+                <span className="icon"><AlertCircle size={16} /></span>
                 <div className="content">
                   <p><strong>Cette action est irréversible.</strong></p>
                   <p>En cliquant sur <strong>"Signer"</strong>, votre signature et votre cachet officiel seront automatiquement apposés sur l'acte.</p>
@@ -1324,7 +1394,7 @@ export default function DashboardDPAF() {
                 onClick={() => handleSignerActe(selectedActe.reference)}
                 disabled={!hasSignature || !hasCachet}
               >
-                <span className="icon">✍️</span>
+                <span className="icon"><Signature size={16} /></span>
                 Signer avec mon cachet officiel
               </button>
             </div>
@@ -1341,12 +1411,12 @@ export default function DashboardDPAF() {
         }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
-              <h3>📄 {previewTitle}</h3>
+              <h3> {previewTitle}</h3>
               <button className="modal-close" onClick={() => {
                 setShowPreviewModal(false);
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
                 setPreviewUrl('');
-              }}>✕</button>
+              }}><X size={18} /></button>
             </div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? (
@@ -1357,7 +1427,7 @@ export default function DashboardDPAF() {
                   frameBorder="0"
                 />
               ) : (
-                <div className="loading-preview">⏳ Chargement de l'aperçu...</div>
+                <div className="loading-preview"> Chargement de l'aperçu...</div>
               )}
             </div>
             <div className="modal-footer preview-modal-footer">
@@ -1370,7 +1440,7 @@ export default function DashboardDPAF() {
                   link.click();
                 }}
               >
-                ⬇️ Télécharger
+                 Télécharger
               </button>
               <button className="btn-close" onClick={() => {
                 setShowPreviewModal(false);
@@ -1408,9 +1478,9 @@ export default function DashboardDPAF() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

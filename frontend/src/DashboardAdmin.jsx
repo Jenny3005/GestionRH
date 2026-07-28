@@ -4,7 +4,7 @@ import AdminNav from './AdminNav';
 import usePermissions from './hooks/usePermissions';
 import { normalizeRole, getRoleLabel } from './PortalNav';
 import Can from './components/Can';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
 import './App.css';
 
 export default function DashboardAdmin() {
@@ -46,7 +46,7 @@ export default function DashboardAdmin() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -60,7 +60,7 @@ export default function DashboardAdmin() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/stats/');
+      const response = await fetch('/api/stats/');
       if (response.ok) {
         const data = await response.json();
         setStats(data);
@@ -77,7 +77,7 @@ export default function DashboardAdmin() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentId}/toggle/`, {
+      const response = await fetch(`/api/agents/${agentId}/toggle/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actif: currentStatus ? 0 : 1 })
@@ -85,7 +85,7 @@ export default function DashboardAdmin() {
       if (response.ok) {
         fetchAgents();
         fetchStats();
-        alert(`✅ Agent ${currentStatus ? 'désactivé' : 'activé'} avec succès`);
+        alert(` Agent ${currentStatus ? 'désactivé' : 'activé'} avec succès`);
       } else {
         const error = await response.json();
         alert(error.error || 'Erreur lors de la modification');
@@ -152,8 +152,8 @@ export default function DashboardAdmin() {
         <nav className="sidebar-nav">
           {/* Tableau de bord */}
           <button 
-            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
-            onClick={() => navigateTo('/admin/dashboard')}
+            className={`sidebar-item ${window.location.pathname === '/app-admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/app-admin/dashboard')}
           >
             <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
@@ -174,8 +174,8 @@ export default function DashboardAdmin() {
               <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/agents')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/agents')}
                   >
                     <span className="sidebar-icon"><Users size={16} /></span>
                     <span className="sidebar-label">Agents</span>
@@ -183,8 +183,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/roles')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/roles')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Rôles</span>
@@ -192,8 +192,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/permissions')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/permissions')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Permissions</span>
@@ -201,8 +201,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-demande')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-demande')}
                   >
                     <span className="sidebar-icon"><FileText size={16} /></span>
                     <span className="sidebar-label">Types de demande</span>
@@ -210,8 +210,8 @@ export default function DashboardAdmin() {
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-piece')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-piece')}
                   >
                     <span className="sidebar-icon"><FilePlus2 size={16} /></span>
                     <span className="sidebar-label">Types de pièce</span>
@@ -244,7 +244,7 @@ export default function DashboardAdmin() {
         <header className="admin-navbar">
           <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
           </div>
           <div className="admin-navbar-left">
@@ -263,7 +263,7 @@ export default function DashboardAdmin() {
           {/* BANDEAU HERO */}
           <section className="hero-banner-intranet">
             <div className="banner-content">
-              <h2>📊 Tableau de bord Administrateur</h2>
+              <h2> Tableau de bord Administrateur</h2>
               <p>Bienvenue {userPrenom} {userNom} ! Gérez les agents, les rôles et les types de demande depuis cet espace.</p>
             </div>
           </section>
@@ -271,42 +271,42 @@ export default function DashboardAdmin() {
           {/* STATISTIQUES */}
           <div className="admin-stats-grid">
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">👥</div>
+              <div className="admin-stat-icon"><Users size={24} /></div>
               <div className="admin-stat-info">
                 <h3>Total Agents</h3>
                 <p className="admin-stat-number">{stats.total_agents}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">✅</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Agents actifs</h3>
                 <p className="admin-stat-number">{stats.agents_actifs}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">⚙️</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Rôles</h3>
                 <p className="admin-stat-number">{stats.total_roles}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📝</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Types de demande</h3>
                 <p className="admin-stat-number">{stats.total_types_demande}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📋</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Demandes</h3>
                 <p className="admin-stat-number">{stats.total_demandes}</p>
               </div>
             </div>
             <div className="admin-stat-card">
-              <div className="admin-stat-icon">📄</div>
+              <div className="admin-stat-icon"></div>
               <div className="admin-stat-info">
                 <h3>Types de pièce</h3>
                 <p className="admin-stat-number">{stats.total_types_piece}</p>
@@ -316,7 +316,7 @@ export default function DashboardAdmin() {
 
           {/* LISTE DES AGENTS */}
           <section className="admin-section">
-            <h3>📋 Liste des agents</h3>
+            <h3> Liste des agents</h3>
             <div className="admin-table-container">
               <table className="admin-table">
                 <thead>
@@ -333,9 +333,9 @@ export default function DashboardAdmin() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="8" className="text-center">⏳ Chargement...</td></tr>
+                    <tr><td colSpan="8" className="text-center"> Chargement...</td></tr>
                   ) : agents.length === 0 ? (
-                    <tr><td colSpan="8" className="text-center">📭 Aucun agent trouvé</td></tr>
+                    <tr><td colSpan="8" className="text-center"> Aucun agent trouvé</td></tr>
                   ) : (
                     agents.map((agent) => {
                       const normalizedRoles = getUniqueNormalizedRoles(agent.roles);
@@ -357,7 +357,7 @@ export default function DashboardAdmin() {
                           </td>
                           <td>
                             <span className={`status-badge ${agent.actif ? 'active' : 'inactive'}`}>
-                              {agent.actif ? '✅ Actif' : '❌ Inactif'}
+                              {agent.actif ? ' Actif' : ' Inactif'}
                             </span>
                           </td>
                           <td>
@@ -366,7 +366,7 @@ export default function DashboardAdmin() {
                                 className="btn-table-toggle"
                                 onClick={() => toggleAgentStatus(agent.id, agent.actif)}
                               >
-                                {agent.actif ? '🔴 Désactiver' : '🟢 Activer'}
+                                {agent.actif ? ' Désactiver' : ' Activer'}
                               </button>
                             </Can>
                           </td>
@@ -381,30 +381,30 @@ export default function DashboardAdmin() {
 
           {/* ACTIONS RAPIDES */}
           <section className="admin-actions">
-            <h3>⚡ Actions rapides</h3>
+            <h3> Actions rapides</h3>
             <div className="admin-actions-grid">
               <Can permission="VOIR_AGENTS">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/agents')}>
-                  ➕ Gérer les agents
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/agents')}>
+                   Gérer les agents
                 </button>
               </Can>
               <Can permission="GERER_ROLES">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/roles')}>
-                  🎯 Gérer les rôles
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/roles')}>
+                   Gérer les rôles
                 </button>
               </Can>
               <Can permission="GERE_TYPE_DEMANDE">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/types-demande')}>
-                  📝 Types de demande
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-demande')}>
+                   Types de demande
                 </button>
               </Can>
               <Can permission="GERER_TYPES_PIECE">
-                <button className="admin-action-btn" onClick={() => navigateTo('/admin/types-piece')}>
-                  📄 Types de pièce
+                <button className="admin-action-btn" onClick={() => navigateTo('/app-admin/types-piece')}>
+                   Types de pièce
                 </button>
               </Can>
               <button className="admin-action-btn" onClick={() => fetchAgents()}>
-                🔄 Actualiser
+                 Actualiser
               </button>
             </div>
           </section>
@@ -415,7 +415,7 @@ export default function DashboardAdmin() {
           <div className="benin-national-tricolor-line"></div>
           <div className="footer-main-content">
             <div className="footer-centered-logo-zone">
-              <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+              <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
               <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
             </div>
             <div className="footer-columns-grid">
@@ -437,9 +437,9 @@ export default function DashboardAdmin() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

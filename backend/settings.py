@@ -12,6 +12,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import shutil
+import warnings
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +23,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u*k*t1_kd##x9h)=z)3k8(*5!#-$5=#7v6bhd+t06c5oz2q1du'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-u*k*t1_kd##x9h)=z)3k8(*5!#-$5=#7v6bhd+t06c5oz2q1du')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.environ.get('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = ['gestionrh-gnxw.onrender.com', 'localhost', '127.0.0.1']
+DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'gestionrh-gnxw.onrender.com']
+render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if render_host:
+    DEFAULT_ALLOWED_HOSTS.append(render_host)
+
+env_allowed_hosts = os.environ.get('ALLOWED_HOSTS', '')
+if env_allowed_hosts:
+    ALLOWED_HOSTS = [host.strip() for host in env_allowed_hosts.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = DEFAULT_ALLOWED_HOSTS
 
 
 # Application definition
@@ -44,9 +56,11 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'monapp.middleware.IgnoreBadRequestsMiddleware',  # ← AJOUTE ICI
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'monapp.middleware.SecurityHeadersMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # ← AJOUTE CETTE LIGNE ICI
+    'monapp.middleware.IgnoreBadRequestsMiddleware',   # ← AJOUTE ICI
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -58,7 +72,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://gestionrh-gnxw.onrender.com",
+    "https://gestionrh-vu84.onrender.com",
 ]
 
 # Configuration des uploads
@@ -77,7 +91,7 @@ ROOT_URLCONF = 'backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [str(BASE_DIR / 'frontend' / 'dist')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -131,25 +145,52 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Configuration email
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Pour Gmail
-
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'jennyhoundon@gmail.com'  # Remplace par ton email
-EMAIL_HOST_PASSWORD = 'kygy dccl qgny adse'   # Remplace par ton mot de passe
-DEFAULT_FROM_EMAIL = 'MND <jennyhoundon@gmail.com>'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', '')
+DEFAULT_FROM_EMAIL = 'jennyhoundon@gmail.com'
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', 20))
 
 # URL du frontend (utilisée pour les liens d'activation par email)
-FRONTEND_URL = 'https://gestionrh-gnxw.onrender.com'   # développement
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://gestionrh-gnxw.onrender.com')
 # FRONTEND_URL = 'https://votre-domaine.gouv.bj'  # production
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'monapp/static')]
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'monapp', 'static'),
+    os.path.join(BASE_DIR, 'frontend', 'dist'),
+    os.path.join(BASE_DIR, 'frontend', 'public'),
+]
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+CSRF_TRUSTED_ORIGINS = [
+    'https://gestionrh-vu84.onrender.com',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+if render_host:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
+
+    
+# --- Vérification du moteur de conversion DOCX->PDF ---
+# Vérifie si `soffice` (LibreOffice) est disponible sur le PATH.
+SOFFICE_PATH = shutil.which('soffice') or shutil.which('libreoffice')
+PDF_CONVERTER_AVAILABLE = bool(SOFFICE_PATH)
+PDF_CONVERTER_PATH = SOFFICE_PATH
+if not PDF_CONVERTER_AVAILABLE:
+    warnings.warn(
+        'LibreOffice (soffice) introuvable sur le serveur. La conversion DOCX->PDF utilisera un fallback.'
+    )
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
@@ -161,6 +202,16 @@ USE_I18N = True
 
 USE_TZ = True
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': BASE_DIR / 'django_cache',
+        'TIMEOUT': 300,
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+        },
+    }
+}
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/

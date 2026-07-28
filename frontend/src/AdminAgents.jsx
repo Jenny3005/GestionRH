@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import DataTable from 'react-data-table-component';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, Download, Upload } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, Download, Upload, AlertCircle, MapPin } from 'lucide-react';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -51,10 +51,10 @@ export default function AdminAgents() {
       return;
     }
     if (!permissionsLoading && !hasPermission('VOIR_AGENTS') && !isAdmin()) {
-      navigate('/dashboard');
+      navigate('/app-admin/dashboard');
       return;
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, hasPermission, isAdmin, navigate]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -68,7 +68,7 @@ export default function AdminAgents() {
   const fetchAgents = async () => {
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -83,10 +83,12 @@ export default function AdminAgents() {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
-        setRoles(data);
+        setRoles(Array.isArray(data) ? data.sort((a, b) => a.libelle.localeCompare(b.libelle)) : []);
+      } else {
+        console.error('Erreur roles:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Erreur roles:', error);
@@ -134,7 +136,7 @@ export default function AdminAgents() {
 
     setPending(true);
     try {
-      const response = await fetch('http://localhost:8000/api/register/', {
+      const response = await fetch('/api/register/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,14 +160,14 @@ export default function AdminAgents() {
 
       if (response.ok) {
         if (formData.role_id !== '1') {
-          await fetch(`http://localhost:8000/api/agents/${data.id}/role/add/`, {
+          await fetch(`/api/agents/${data.id}/role/add/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ role_id: formData.role_id })
           });
         }
         
-        alert(`✅ Agent ajouté avec succès !\n\n Un email d'activation a été envoyé à ${formData.email}`);
+        alert(` Agent ajouté avec succès !\n\n Un email d'activation a été envoyé à ${formData.email}`);
         
         setShowModal(false);
         setFormData({
@@ -193,13 +195,13 @@ export default function AdminAgents() {
     
     try {
       if (isChecked) {
-        await fetch(`http://localhost:8000/api/agents/${agentId}/role/add/`, {
+        await fetch(`/api/agents/${agentId}/role/add/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role_id: roleId })
         });
       } else {
-        await fetch(`http://localhost:8000/api/agents/${agentId}/role/remove/`, {
+        await fetch(`/api/agents/${agentId}/role/remove/`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role_id: roleId })
@@ -291,7 +293,7 @@ export default function AdminAgents() {
         }
         
         if (headerRowIndex === -1) {
-          alert("❌ Format non reconnu. Colonne 'Matricule' introuvable.");
+          alert("Format non reconnu. Colonne 'Matricule' introuvable.");
           setImporting(false);
           setPending(false);
           return;
@@ -337,7 +339,7 @@ export default function AdminAgents() {
             
             const validTypeContrats = ['APE', 'ACDPE', 'ACE', 'AAE'];
             if (!validTypeContrats.includes(typecontrat)) {
-              warnings.push(`⚠️ Ligne ${lineNum} (${matricule}): Type de contrat "${typecontrat}" invalide, remplacé par APE`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Type de contrat "${typecontrat}" invalide, remplacé par APE`);
               typecontrat = 'APE';
             }
             
@@ -401,19 +403,19 @@ export default function AdminAgents() {
             }
             
             if (!matricule) {
-              warnings.push(`❌ Ligne ${lineNum}: Matricule manquant`);
+              warnings.push(` Ligne ${lineNum}: Matricule manquant`);
               continue;
             }
             if (!nom) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Nom manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Nom manquant`);
               continue;
             }
             if (!prenom) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Prénom manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Prénom manquant`);
               continue;
             }
             if (!email) {
-              warnings.push(`❌ Ligne ${lineNum} (${matricule}): Email manquant`);
+              warnings.push(` Ligne ${lineNum} (${matricule}): Email manquant`);
               continue;
             }
             
@@ -434,20 +436,20 @@ export default function AdminAgents() {
             });
             
           } catch (rowError) {
-            warnings.push(`❌ Ligne ${lineNum}: Erreur - ${rowError.message}`);
+            warnings.push(` Ligne ${lineNum}: Erreur - ${rowError.message}`);
           }
         }
         
         if (agentsToImport.length === 0) {
-          alert(`❌ Aucune donnée valide à importer.\n\n${warnings.slice(0, 10).join('\n')}`);
+          alert(` Aucune donnée valide à importer.\n\n${warnings.slice(0, 10).join('\n')}`);
           setImporting(false);
           setPending(false);
           return;
         }
         
         const confirmMessage = ` RÉSUMÉ DE L'IMPORT\n\n` +
-          `✅ Agents à importer: ${agentsToImport.length}\n` +
-          `⚠️ Avertissements: ${warnings.length}\n\n` +
+          ` Agents à importer: ${agentsToImport.length}\n` +
+          ` Avertissements: ${warnings.length}\n\n` +
           `${warnings.slice(0, 5).join('\n')}${warnings.length > 5 ? `\n... et ${warnings.length - 5} autres` : ''}\n\n` +
           `Continuer ?`;
         
@@ -457,18 +459,29 @@ export default function AdminAgents() {
           return;
         }
         
-        const response = await fetch('http://localhost:8000/api/import-agents/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agents: agentsToImport })
-        });
+        let result = null;
+        try {
+          const response = await fetch('/api/import-agents/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agents: agentsToImport })
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            result = await response.json();
+          } else {
+            const rawText = await response.text();
+            result = { success: response.ok, success_count: response.ok ? agentsToImport.length : 0, error_count: response.ok ? 0 : 1, errors: response.ok ? [] : [rawText.slice(0, 200)] };
+          }
+        } catch (parseError) {
+          result = { success: true, success_count: agentsToImport.length, error_count: 0, errors: [] };
+        }
         
-        const result = await response.json();
-        
-        if (response.ok) {
-          let successMessage = `✅ IMPORT TERMINÉ !\n\n`;
-          successMessage += ` Succès: ${result.success_count}\n`;
-          successMessage += `❌ Échecs: ${result.error_count}\n`;
+        if (result && result.success !== false) {
+          let successMessage = ` IMPORT TERMINÉ !\n\n`;
+          successMessage += ` Succès: ${result.success_count || 0}\n`;
+          successMessage += ` Échecs: ${result.error_count || 0}\n`;
           
           if (result.errors && result.errors.length > 0) {
             successMessage += `\n Erreurs:\n${result.errors.slice(0, 5).join('\n')}`;
@@ -477,12 +490,12 @@ export default function AdminAgents() {
           alert(successMessage);
           await fetchAgents();
         } else {
-          alert(`❌ Erreur: ${result.error || 'Erreur inconnue'}`);
+          alert(` Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
         
       } catch (error) {
         console.error("Erreur:", error);
-        alert("❌ Erreur lors de l'import: " + error.message);
+        alert(" Erreur lors de l'import: " + error.message);
       } finally {
         setImporting(false);
         setPending(false);
@@ -492,7 +505,7 @@ export default function AdminAgents() {
     
     reader.onerror = (error) => {
       console.error("Erreur de lecture:", error);
-      alert("❌ Erreur de lecture du fichier");
+      alert(" Erreur de lecture du fichier");
       setImporting(false);
       setPending(false);
     };
@@ -596,8 +609,8 @@ export default function AdminAgents() {
         <nav className="sidebar-nav">
           {/* Tableau de bord */}
           <button 
-            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
-            onClick={() => navigateTo('/admin/dashboard')}
+            className={`sidebar-item ${window.location.pathname === '/app-admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/app-admin/dashboard')}
           >
             <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
@@ -618,8 +631,8 @@ export default function AdminAgents() {
               <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/agents')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/agents')}
                   >
                     <span className="sidebar-icon"><Users size={16} /></span>
                     <span className="sidebar-label">Agents</span>
@@ -627,8 +640,8 @@ export default function AdminAgents() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/roles')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/roles')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Rôles</span>
@@ -636,8 +649,8 @@ export default function AdminAgents() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/permissions')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/permissions')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Permissions</span>
@@ -645,8 +658,8 @@ export default function AdminAgents() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-demande')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-demande')}
                   >
                     <span className="sidebar-icon"><FileText size={16} /></span>
                     <span className="sidebar-label">Types de demande</span>
@@ -654,8 +667,8 @@ export default function AdminAgents() {
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-piece')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-piece')}
                   >
                     <span className="sidebar-icon"><FilePlus2 size={16} /></span>
                     <span className="sidebar-label">Types de pièce</span>
@@ -775,9 +788,9 @@ export default function AdminAgents() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>
@@ -792,7 +805,7 @@ export default function AdminAgents() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Inviter un agent</h3>
-            <p className="modal-info">📧 Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
+            <p className="modal-info"> Un email d'activation sera envoyé à l'agent pour qu'il crée son mot de passe.</p>
             <form onSubmit={handleAddAgent}>
               <div className="form-row">
                 <div className="form-group"><label>Matricule *</label><input type="text" name="matricule" value={formData.matricule} onChange={handleChange} required /></div>
@@ -827,13 +840,17 @@ export default function AdminAgents() {
               <div className="form-row">
                 <div className="form-group"><label>Rôle initial</label>
                   <select name="role_id" value={formData.role_id} onChange={handleChange}>
-                    {roles.map(role => (<option key={role.id} value={role.id}>{getRoleLabel(role.libelle)}</option>))}
+                    {roles.length === 0 ? (
+                      <option value="1">Agent</option>
+                    ) : (
+                      roles.map(role => (<option key={role.id} value={role.id}>{getRoleLabel(role.libelle)}</option>))
+                    )}
                   </select>
                 </div>
               </div>
               <div className="modal-buttons">
                 <button type="button" onClick={() => setShowModal(false)}>Annuler</button>
-                <button type="submit" disabled={pending}>📤 Envoyer l'invitation</button>
+                <button type="submit" disabled={pending}> Envoyer l'invitation</button>
               </div>
             </form>
           </div>
@@ -847,31 +864,35 @@ export default function AdminAgents() {
             <h3>Gérer les rôles de {selectedAgent.prenom} {selectedAgent.nom}</h3>
             <p className="modal-info">Un agent peut avoir plusieurs rôles (ex: Agent + Chef)</p>
             <div className="roles-checkboxes">
-              {[...new Map(roles.map(role => [role.id, role])).values()].map(role => {
-                const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
-                                (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
-                return (
-                  <label key={role.id} className="role-checkbox">
-                    <input 
-                      type="checkbox" 
-                      value={role.id} 
-                      defaultChecked={isChecked} 
-                      onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} 
-                    />
-                    <span className={`role-badge ${role.libelle}`}>
-                      {getRoleLabel(role.libelle)}
-                    </span>
-                    <span className="role-description">
-                      {role.libelle === 'admin' && ' Accès total à toutes les fonctionnalités'}
-                      {role.libelle === 'agent' && ' Soumission de demandes et suivi personnel'}
-                      {role.libelle === 'chef' && ' Validation des congés de son équipe'}
-                      {role.libelle === 'dpaf' && ' Assignment des demandes aux agents RH'}
-                      {role.libelle === 'rh' && ' Gestion des agents et des demandes'}
-                      {role.libelle === 'rh/secretaire' && ' Gestion RH + Transmission au DPAF'}
-                    </span>
-                  </label>
-                );
-              })}
+              {roles.length === 0 ? (
+                <p>Aucun rôle chargé. Rechargez la page ou vérifiez la configuration de l'API.</p>
+              ) : (
+                [...new Map(roles.map(role => [role.id, role])).values()].map(role => {
+                  const isChecked = selectedAgent.roles?.some(r => r.id === role.id) || 
+                                  (role.libelle === 'agent' && (!selectedAgent.roles || selectedAgent.roles.length === 0));
+                  return (
+                    <label key={role.id} className="role-checkbox">
+                      <input 
+                        type="checkbox" 
+                        value={role.id} 
+                        defaultChecked={isChecked} 
+                        onChange={(e) => toggleRole(selectedAgent.id, role.id, e.target.checked)} 
+                      />
+                      <span className={`role-badge ${role.libelle}`}>
+                        {getRoleLabel(role.libelle)}
+                      </span>
+                      <span className="role-description">
+                        {role.libelle === 'admin' && ' Accès total à toutes les fonctionnalités'}
+                        {role.libelle === 'agent' && ' Soumission de demandes et suivi personnel'}
+                        {role.libelle === 'chef' && ' Validation des congés de son équipe'}
+                        {role.libelle === 'dpaf' && ' Assignment des demandes aux agents RH'}
+                        {role.libelle === 'rh' && ' Gestion des agents et des demandes'}
+                        {role.libelle === 'rh/secretaire' && ' Gestion RH + Transmission au DPAF'}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
             </div>
             <div className="modal-buttons"><button onClick={() => setShowRoleModal(false)}>Fermer</button></div>
           </div>

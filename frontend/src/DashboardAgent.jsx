@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { Clipboard, Leaf, Bell, BarChart3, CheckCircle2, UserCheck, Share2, Zap, FileCheck, Signature, Package, MapPin, Phone, Mail, Trash2, X, User, CalendarDays, CheckCircle } from 'lucide-react';
 import './App.css';
 
 export default function DashboardAgent() {
@@ -21,6 +22,9 @@ export default function DashboardAgent() {
     typecontrat: ''
   });
   const [demandesRecentes, setDemandesRecentes] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
   const [soldeConge, setSoldeConge] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +44,7 @@ export default function DashboardAgent() {
     }
 
     const loadAll = async () => {
-      await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
+      await fetch('/api/avancements/calculer/').catch(() => {});
       await fetchUserInfo();
       await fetchDemandesRecentes();
       await fetchSoldeConge();
@@ -74,7 +78,7 @@ export default function DashboardAgent() {
 
   const fetchAvancement = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/avancements/agent/${matricule}/`);
+      const response = await fetch(`/api/avancements/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         const prochain = data.find(a => a.type === 'normal' && a.date_prevue) || data[0] || null;
@@ -88,7 +92,7 @@ export default function DashboardAgent() {
   const checkExpiryOnce = async () => {
     if (expiryChecked) return;
     try {
-      await fetch(`http://localhost:8000/api/check-expiry/`);
+      await fetch(`/api/check-expiry/`);
       setExpiryChecked(true);
     } catch (error) {
       console.error('Erreur check-expiry:', error);
@@ -98,7 +102,7 @@ export default function DashboardAgent() {
   const fetchAllNotifications = async () => {
     setLoading(true);
     try {
-      const notifResponse = await fetch(`http://localhost:8000/api/notifications/${matricule}/`);
+      const notifResponse = await fetch(`/api/notifications/${matricule}/`);
       let notifs = [];
       if (notifResponse.ok) {
         notifs = await notifResponse.json();
@@ -113,7 +117,7 @@ export default function DashboardAgent() {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/`);
+      const response = await fetch(`/api/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
         setUserInfo({
@@ -140,7 +144,7 @@ export default function DashboardAgent() {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          const formatted = data.slice(0, 5).map(d => {
+          const formatted = data.map(d => {
             let statutAffichage = d.statut;
             if (d.statut === 'valide') statutAffichage = 'Approuvée';
             else if (d.statut === 'refuse') statutAffichage = 'Rejetée';
@@ -198,14 +202,14 @@ export default function DashboardAgent() {
   const marquerNotificationLue = async (notificationId) => {
     if (notificationId === 'all') {
       try {
-        await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/lues/`, { method: 'PUT' });
+        await fetch(`/api/notifications/${encodeURIComponent(matricule)}/lues/`, { method: 'PUT' });
         fetchAllNotifications();
       } catch (error) {
         console.error('Erreur:', error);
       }
     } else if (typeof notificationId === 'number') {
       try {
-        await fetch(`http://localhost:8000/api/notifications/${notificationId}/lue/`, { method: 'PUT' });
+        await fetch(`/api/notifications/${notificationId}/lue/`, { method: 'PUT' });
         fetchAllNotifications();
       } catch (error) {
         console.error('Erreur:', error);
@@ -217,7 +221,7 @@ export default function DashboardAgent() {
     e.stopPropagation();
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     try {
-      await fetch(`http://localhost:8000/api/notifications/${notificationId}/supprimer/`, { method: 'DELETE' });
+      await fetch(`/api/notifications/${notificationId}/supprimer/`, { method: 'DELETE' });
     } catch (error) {
       console.error('Erreur:', error);
       fetchAllNotifications();
@@ -228,7 +232,7 @@ export default function DashboardAgent() {
     if (!window.confirm('Supprimer définitivement toutes les notifications ?')) return;
     setNotifications([]);
     try {
-      await fetch(`http://localhost:8000/api/notifications/${encodeURIComponent(matricule)}/supprimer-toutes/`, { method: 'DELETE' });
+      await fetch(`/api/notifications/${encodeURIComponent(matricule)}/supprimer-toutes/`, { method: 'DELETE' });
     } catch (error) {
       console.error('Erreur:', error);
       fetchAllNotifications();
@@ -249,10 +253,10 @@ export default function DashboardAgent() {
   const unreadCount = notifications.filter(n => !n.lue).length;
 
   const stats = [
-    { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: "📋", color: "#3B82F6" },
-    { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: "🌴", color: "#10B981", unit: "jours" },
-    { label: "Notifications", value: unreadCount.toString(), icon: "🔔", color: "#F59E0B" },
-    { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: "📊", color: "#8B5CF6" }
+    { label: "Demandes en cours", value: demandesRecentes.filter(d => d.statut === 'En attente').length.toString(), icon: <Clipboard size={20} />, color: "#3B82F6" },
+    { label: "Solde congés", value: soldeConge?.jours_restants || "0", icon: <Leaf size={20} />, color: "#10B981", unit: "jours" },
+    { label: "Notifications", value: unreadCount.toString(), icon: <Bell size={20} />, color: "#F59E0B" },
+    { label: "Complétude dossier", value: `${tauxCompletude}%`, icon: <BarChart3 size={20} />, color: "#8B5CF6" }
   ];
 
   const getNiveauStatut = (statut) => {
@@ -275,12 +279,28 @@ export default function DashboardAgent() {
   const estComplete = (niveauRequis) => niveauActuel >= niveauRequis;
   const estActive = (niveauRequis) => niveauActuel === niveauRequis - 1;
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredDemandes = demandesRecentes.filter((d) => {
+    if (!normalizedSearchQuery) return true;
+    return [d.type, d.periode, d.date, d.statut]
+      .filter(Boolean)
+      .some(field => field.toLowerCase().includes(normalizedSearchQuery));
+  });
+
+  const pageCount = Math.max(1, Math.ceil(filteredDemandes.length / rowsPerPage));
+  const currentPageClamped = Math.min(Math.max(currentPage, 1), pageCount);
+  const startIndex = (currentPageClamped - 1) * rowsPerPage;
+  const currentRows = filteredDemandes.slice(startIndex, startIndex + rowsPerPage);
+
+  const goToPrevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
+  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, pageCount));
+
   return (
     <div className="intranet-home">
       <header className="intranet-navbar">
         <div className="nav-left-zone">
           <a href="/" className="logo-nav-link">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </a>
         </div>
         <PortalNav />
@@ -316,7 +336,18 @@ export default function DashboardAgent() {
           {/* Demandes récentes */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>Demandes récentes</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0 }}>Demandes récentes</h3>
+                <div style={{ flex: '1 1 auto', minWidth: '200px' }}>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                    placeholder="Recherche..."
+                    style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}
+                  />
+                </div>
+              </div>
               <button className="agent-card-btn" onClick={() => navigate('/demarches')}>Voir tout →</button>
             </div>
             <div className="agent-table-container">
@@ -331,14 +362,14 @@ export default function DashboardAgent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {demandesRecentes.length === 0 ? (
+                  {filteredDemandes.length === 0 ? (
                     <tr>
                       <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
-                        Aucune demande récente
+                        Aucune demande trouvée
                       </td>
                     </tr>
                   ) : (
-                    demandesRecentes.map((d) => {
+                    currentRows.map((d) => {
                       let badgeClass = 'rejected';
                       if (['Approuvée', 'Acte généré', 'Acte remis', 'Signé', 'Terminé'].includes(d.statut)) {
                         badgeClass = 'approved';
@@ -367,12 +398,37 @@ export default function DashboardAgent() {
                 </tbody>
               </table>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0 0 0' }}>
+              <div style={{ fontSize: '0.95rem', color: '#4b5563' }}>
+                {filteredDemandes.length === 0
+                  ? 'Aucun résultat'
+                  : `Affichage ${startIndex + 1} à ${Math.min(startIndex + rowsPerPage, filteredDemandes.length)} sur ${filteredDemandes.length}`}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="agent-card-btn"
+                  style={{ padding: '0.5rem 0.75rem', minWidth: '120px' }}
+                  onClick={goToPrevPage}
+                  disabled={currentPageClamped === 1}
+                >
+                  ← Précédent
+                </button>
+                <button
+                  className="agent-card-btn"
+                  style={{ padding: '0.5rem 0.75rem', minWidth: '120px' }}
+                  onClick={goToNextPage}
+                  disabled={currentPageClamped === pageCount || filteredDemandes.length === 0}
+                >
+                  Suivant 
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Solde congés */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>🌴 Solde congés {soldeConge?.annee || new Date().getFullYear()}</h3>
+              <h3><Leaf size={18} style={{ marginRight: '8px', color: '#10B981' }} />Solde congés {soldeConge?.annee || new Date().getFullYear()}</h3>
               <button className="agent-card-btn" onClick={() => navigate('/demarches')}>Demander →</button>
             </div>
             <div className="soldes-conges">
@@ -409,10 +465,10 @@ export default function DashboardAgent() {
           {/* Notifications */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>🔔 Notifications</h3>
+              <h3><Bell size={18} style={{ marginRight: '8px', color: '#D4AF37' }} />Notifications</h3>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button className="agent-card-btn" onClick={() => marquerNotificationLue('all')}>Marquer tout lu</button>
-                <button className="agent-card-btn" onClick={handleSupprimerToutesNotifications} style={{ color: '#dc3545' }}>🗑️ Tout supprimer</button>
+                <button className="agent-card-btn" onClick={handleSupprimerToutesNotifications} style={{ color: '#dc3545' }}><Trash2 size={16} style={{ marginRight: '6px' }} />Tout supprimer</button>
               </div>
             </div>
             <div className="notifications-list">
@@ -432,18 +488,18 @@ export default function DashboardAgent() {
                     style={{ cursor: 'pointer' }}
                   >
                     <div className="notification-icon">
-                      {notif.type === 'success' && '✅'}
-                      {notif.type === 'info' && 'ℹ️'}
-                      {notif.type === 'warning' && '⏰'}
-                      {notif.type === 'danger' && '⚠️'}
-                      {notif.type === 'document' && '📄'}
-                      {notif.type === 'expiration' && '⚠️'}
-                      {notif.type === 'validation_conge' && '✅'}
-                      {notif.type === 'demande_conge' && '📋'}
-                      {notif.type === 'assignation' && '👥'}
-                      {notif.type === 'acte_disponible' && '📄'}
-                      {notif.type === 'acte_signe' && '✅'}
-                      {notif.type === 'acte_recu' && '📬'}
+                      {notif.type === 'success' && ''}
+                      {notif.type === 'info' && 'ℹ'}
+                      {notif.type === 'warning' && ''}
+                      {notif.type === 'danger' && ''}
+                      {notif.type === 'document' && ''}
+                      {notif.type === 'expiration' && ''}
+                      {notif.type === 'validation_conge' && ''}
+                      {notif.type === 'demande_conge' && ''}
+                      {notif.type === 'assignation' && ''}
+                      {notif.type === 'acte_disponible' && ''}
+                      {notif.type === 'acte_signe' && ''}
+                      {notif.type === 'acte_recu' && ''}
                     </div>
                     <div className="notification-content">
                       <div className="notification-message">{notif.message}</div>
@@ -455,7 +511,7 @@ export default function DashboardAgent() {
                       title="Supprimer"
                       style={{ cursor: 'pointer', marginLeft: '10px', opacity: 0.6, fontSize: '14px' }}
                     >
-                      🗑️
+                      
                     </div>
                   </div>
                 ))
@@ -466,7 +522,7 @@ export default function DashboardAgent() {
           {/* Prochain avancement */}
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>📈 Prochain avancement</h3>
+              <h3> Prochain avancement</h3>
             </div>
             <div className="avancement-info">
               {avancement ? (
@@ -503,7 +559,7 @@ export default function DashboardAgent() {
                 </>
               )}
               <div className="avancement-status">
-                <span className="status-info">ℹ️ Les avancements sont gérés par l'administration</span>
+                <span className="status-info"> Les avancements sont gérés par l'administration</span>
               </div>
             </div>
           </div>
@@ -513,7 +569,7 @@ export default function DashboardAgent() {
         <div className="agent-dashboard-grid" style={{ gridTemplateColumns: '1fr' }}>
           <div className="agent-card">
             <div className="agent-card-header">
-              <h3>📋 Bulletin individuel de notes</h3>
+              <h3> Bulletin individuel de notes</h3>
             </div>
             <div style={{ padding: '16px 20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
               <div style={{ flex: 1 }}>
@@ -524,13 +580,13 @@ export default function DashboardAgent() {
                 </p>
                 <div style={{ display: 'flex', gap: '20px', marginTop: '12px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    ✓ Infos administratives préremplies
+                    <CheckCircle2 size={14} style={{ color: '#10B981' }} /> Infos administratives préremplies
                   </span>
                   <span style={{ fontSize: '13px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    ✓ Critères selon votre catégorie
+                    <CheckCircle2 size={14} style={{ color: '#10B981' }} /> Critères selon votre catégorie
                   </span>
                   <span style={{ fontSize: '13px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    ✓ Relevé de services calculé automatiquement
+                    <CheckCircle2 size={14} style={{ color: '#10B981' }} /> Relevé de services calculé automatiquement
                   </span>
                 </div>
               </div>
@@ -539,7 +595,7 @@ export default function DashboardAgent() {
                 onClick={() => navigate('/bulletin-notes')}
                 style={{ whiteSpace: 'nowrap', padding: '12px 28px', fontSize: '14px', fontWeight: '600' }}
               >
-                📥 Générer mon bulletin
+                 Générer mon bulletin
               </button>
             </div>
           </div>
@@ -552,7 +608,7 @@ export default function DashboardAgent() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Détail du solde de congés</h3>
-              <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowSoldeModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div className="solde-info-annee">
@@ -561,7 +617,7 @@ export default function DashboardAgent() {
               </div>
               <div className="solde-detail-card">
                 <div className="solde-detail-item">
-                  <div className="solde-detail-icon">📅</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours acquis</span>
                     <span className="solde-detail-value">{soldeConge?.jours_acquis || 30} jours</span>
@@ -569,7 +625,7 @@ export default function DashboardAgent() {
                   </div>
                 </div>
                 <div className="solde-detail-item">
-                  <div className="solde-detail-icon">✅</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours pris</span>
                     <span className="solde-detail-value">{soldeConge?.jours_pris || 0} jours</span>
@@ -577,7 +633,7 @@ export default function DashboardAgent() {
                   </div>
                 </div>
                 <div className="solde-detail-item highlight">
-                  <div className="solde-detail-icon">🌴</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours restants</span>
                     <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
@@ -599,10 +655,10 @@ export default function DashboardAgent() {
               <div className="solde-historique">
                 <h4>Informations</h4>
                 <ul>
-                  <li>✓ 30 jours de congés par an</li>
-                  <li>✓ Les congés non pris sont perdus en fin d'année</li>
-                  <li>✓ Maximum 2 demandes de congé par an</li>
-                  <li>✓ Maximum 30 jours consécutifs</li>
+                  <li><CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />30 jours de congés par an</li>
+                  <li><CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />Les congés non pris sont perdus en fin d'année</li>
+                  <li><CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />Maximum 2 demandes de congé par an</li>
+                  <li><CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />Maximum 30 jours consécutifs</li>
                 </ul>
               </div>
             </div>
@@ -624,10 +680,10 @@ export default function DashboardAgent() {
           <div className="modal-content suivi-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header suivi-modal-header">
               <div className="header-icon-wrapper">
-                <span className="header-icon">📋</span>
+                <span className="header-icon"><Clipboard size={18} /></span>
                 <h3>Suivi de votre demande</h3>
               </div>
-              <button className="modal-close" onClick={() => setShowSuiviModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowSuiviModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body suivi-modal-body">
               <div className="suivi-agent-card">
@@ -642,21 +698,21 @@ export default function DashboardAgent() {
 
               <div className="suivi-details-card">
                 <div className="detail-item">
-                  <span className="detail-icon">📌</span>
+                  <span className="detail-icon"><Clipboard size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Type de demande</span>
                     <strong className="detail-value">{selectedDemande.type}</strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📅</span>
+                  <span className="detail-icon"><CalendarDays size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Période</span>
                     <strong className="detail-value">{selectedDemande.periode}</strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📅</span>
+                  <span className="detail-icon"><CalendarDays size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Date de soumission</span>
                     <strong className="detail-value">
@@ -667,14 +723,14 @@ export default function DashboardAgent() {
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">👥</span>
+                  <span className="detail-icon"><User size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Assigné à</span>
                     <strong className="detail-value">{selectedDemande.agent_rh_nom || 'Non assigné'} {selectedDemande.agent_rh_prenom || ''}</strong>
                   </div>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-icon">📄</span>
+                  <span className="detail-icon"><CheckCircle2 size={16} /></span>
                   <div className="detail-content">
                     <span className="detail-label">Statut actuel</span>
                     <strong className="detail-value">{selectedDemande.statut}</strong>
@@ -686,14 +742,14 @@ export default function DashboardAgent() {
                 <h4 className="timeline-title">Chronologie du traitement</h4>
                 <div className="timeline-modern">
                   {[
-                    { icon: '📝', titre: 'Demande soumise', sous: 'Par vous', desc: `Soumise le ${selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}`, niveau: 1 },
-                    { icon: '👔', titre: 'Validation du chef', sous: 'Par votre supérieur', desc: 'Votre chef de service valide la demande', niveau: 2 },
-                    { icon: '📤', titre: 'Transmission au DPAF', sous: 'Par la secrétaire', desc: 'Votre demande est transmise pour assignation', niveau: 3 },
-                    { icon: '👥', titre: 'Assignation à un agent RH', sous: `Agent: ${selectedDemande.agent_rh_nom || 'En attente'}`, desc: 'Un agent RH est assigné à votre dossier', niveau: 4 },
-                    { icon: '⚙️', titre: 'Traitement par l\'agent RH', sous: 'En cours', desc: "L'agent RH vérifie et traite votre demande", niveau: 5 },
-                    { icon: '📄', titre: 'Génération de l\'acte', sous: 'Par l\'agent RH', desc: 'Votre acte est généré', niveau: 6 },
-                    { icon: '✍️', titre: 'Signature par le DPAF', sous: 'Signature officielle', desc: 'Votre acte est signé électroniquement', niveau: 7 },
-                    { icon: '✅', titre: 'Acte remis', sous: 'Par la secrétaire', desc: 'Votre acte vous a été remis', niveau: 7 },
+                    { icon: <CheckCircle2 size={24} />, titre: 'Demande soumise', sous: 'Par vous', desc: `Soumise le ${selectedDemande.date_soumission ? new Date(selectedDemande.date_soumission).toLocaleDateString('fr-FR') : '-'}`, niveau: 1 },
+                    { icon: <UserCheck size={24} />, titre: 'Validation du chef', sous: 'Par votre supérieur', desc: 'Votre chef de service valide la demande', niveau: 2 },
+                    { icon: <Share2 size={24} />, titre: 'Transmission au DPAF', sous: 'Par la secrétaire', desc: 'Votre demande est transmise pour assignation', niveau: 3 },
+                    { icon: <UserCheck size={24} />, titre: 'Assignation à un agent RH', sous: `Agent: ${selectedDemande.agent_rh_nom || 'En attente'}`, desc: 'Un agent RH est assigné à votre dossier', niveau: 4 },
+                    { icon: <Zap size={24} />, titre: 'Traitement par l\'agent RH', sous: 'En cours', desc: "L'agent RH vérifie et traite votre demande", niveau: 5 },
+                    { icon: <FileCheck size={24} />, titre: 'Génération de l\'acte', sous: 'Par l\'agent RH', desc: 'Votre acte est généré', niveau: 6 },
+                    { icon: <Signature size={24} />, titre: 'Signature par le DPAF', sous: 'Signature officielle', desc: 'Votre acte est signé électroniquement', niveau: 7 },
+                    { icon: <Package size={24} />, titre: 'Acte remis', sous: 'Par la secrétaire', desc: 'Votre acte vous a été remis', niveau: 7 },
                   ].map((etape, i, arr) => (
                     <div key={i} className={`timeline-modern-step ${estComplete(etape.niveau) ? 'completed' : estActive(etape.niveau) ? 'active' : ''}`}>
                       <div className="timeline-modern-marker">
@@ -725,7 +781,7 @@ export default function DashboardAgent() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">
@@ -747,9 +803,9 @@ export default function DashboardAgent() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

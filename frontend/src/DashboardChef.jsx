@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { MapPin, Phone, Mail } from 'lucide-react';
 import './App.css';
 
 export default function DashboardChef() {
@@ -32,7 +33,7 @@ export default function DashboardChef() {
     setError('');
     try {
       // Récupérer toutes les demandes de la direction (sans filtre statut)
-      const response = await fetch(`http://localhost:8000/api/conges/direction/${encodeURIComponent(matricule)}/`);
+      const response = await fetch(`/api/conges/direction/${encodeURIComponent(matricule)}/`);
       const data = await response.json();
 
       if (response.ok && Array.isArray(data)) {
@@ -69,11 +70,11 @@ export default function DashboardChef() {
   const getStatusBadge = (statut) => {
     switch(statut) {
       case 'valide':
-        return <span className="badge-success">✓ Validée</span>;
+        return <span className="badge-success"> Validée</span>;
       case 'refuse':
-        return <span className="badge-danger">✗ Rejetée</span>;
+        return <span className="badge-danger"> Rejetée</span>;
       default:
-        return <span className="badge-warning">⏳ En attente</span>;
+        return <span className="badge-warning"> En attente</span>;
     }
   };
 
@@ -85,7 +86,7 @@ export default function DashboardChef() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/conges/${demandeId}/valider/`, {
+      const response = await fetch(`/api/conges/${demandeId}/valider/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,16 +99,16 @@ export default function DashboardChef() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande ${decision === 'valide' ? 'validée' : 'rejetée'} avec succès`);
+        alert(` Demande ${decision === 'valide' ? 'validée' : 'rejetée'} avec succès`);
         fetchDemandes(); // Recharger la liste
         setSelectedDemande(null);
         setCommentaire('');
       } else {
-        alert(`❌ Erreur: ${data.error || 'Problème lors de la validation'}`);
+        alert(` Erreur: ${data.error || 'Problème lors de la validation'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
-      alert('❌ Erreur de connexion au serveur');
+      alert(' Erreur de connexion au serveur');
     }
   };
 
@@ -165,7 +166,7 @@ export default function DashboardChef() {
         <div className="admin-header">
           <h3> Demandes {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validées' : 'rejetées'}</h3>
           <button className="btn-refresh" onClick={fetchDemandes} disabled={loading}>
-            🔄 {loading ? 'Chargement...' : 'Rafraîchir'}
+             {loading ? 'Chargement...' : 'Rafraîchir'}
           </button>
         </div>
 
@@ -188,7 +189,7 @@ export default function DashboardChef() {
                 {loading ? (
                   <tr><td colSpan="8" className="text-center"> Chargement des demandes...</td></tr>
                 ) : error ? (
-                  <tr><td colSpan="8" className="text-center error-text">❌ {error}</td></tr>
+                  <tr><td colSpan="8" className="text-center error-text"> {error}</td></tr>
                 ) : filteredDemandes.length === 0 ? (
                   <tr><td colSpan="8" className="text-center"> Aucune demande {filter === 'en_attente_chef' ? 'en attente' : filter === 'valide' ? 'validée' : 'rejetée'}</td></tr>
                 ) : (
@@ -208,7 +209,7 @@ export default function DashboardChef() {
                           </button>
                         ) : (
                           <button className="btn-view" onClick={() => setSelectedDemande(d)}>
-                            👁️ Voir
+                             Voir
                           </button>
                         )}
                       </td>
@@ -276,7 +277,7 @@ export default function DashboardChef() {
               {/* Période */}
               <div className="period-card">
                 <div className="period-item">
-                  <span className="period-label">📅 Date de début</span>
+                  <span className="period-label"> Date de début</span>
                   <span className="period-value">{formatDate(selectedDemande.date_debut)}</span>
                 </div>
                 <div className="period-arrow">
@@ -285,7 +286,7 @@ export default function DashboardChef() {
                   </svg>
                 </div>
                 <div className="period-item">
-                  <span className="period-label">📅 Date de fin</span>
+                  <span className="period-label"> Date de fin</span>
                   <span className="period-value">{formatDate(selectedDemande.date_fin)}</span>
                 </div>
               </div>
@@ -293,7 +294,7 @@ export default function DashboardChef() {
               {/* Détails supplémentaires */}
               <div className="details-row">
                 <div className="detail-chip">
-                  <span className="chip-label">📆 Jours</span>
+                  <span className="chip-label">Jours</span>
                   <span className="chip-value">{selectedDemande.nombre_jours ?? selectedDemande.jours_demandes}</span>
                 </div>
                 <div className="detail-chip status-chip">
@@ -306,7 +307,7 @@ export default function DashboardChef() {
               {selectedDemande.commentaire && (
                 <div className="existing-comment">
                   <div className="comment-header">
-                    <span className="comment-icon">💬</span>
+                    <span className="comment-icon"></span>
                     <span className="comment-label">Commentaire du demandeur</span>
                   </div>
                   <p className="comment-text">{selectedDemande.commentaire}</p>
@@ -399,9 +400,9 @@ export default function DashboardChef() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

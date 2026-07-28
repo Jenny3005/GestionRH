@@ -27,7 +27,7 @@ export function normalizeRole(role) {
 
 export function getDashboardPath(role = localStorage.getItem('userRole')) {
   role = normalizeRole(role);
-  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'admin') return '/app-admin/dashboard';
   if (role === 'chef') return '/chef/dashboard';
   if (role === 'rh') return '/rh/dashboard';
   if (role === 'secretaire') return '/secretaire/dashboard';
@@ -47,7 +47,7 @@ export function getRoleLabel(role = localStorage.getItem('userRole')) {
     case 'rh/secretaire': return ' RH / Secrétaire DPAF';
     case 'dpaf': return ' DPAF - Direction Planification';
     case 'dapaf': return ' DAPAF - Direction Affaires Politiques';
-    default: return '👤 Agent';
+    default: return ' Agent';
   }
 }
 
@@ -58,7 +58,7 @@ export default function PortalNav() {
   const [userRole, setUserRole] = useState('');
   const [userRoles, setUserRoles] = useState([]);
 
-  useEffect(() => {
+  const refreshUserState = () => {
     setIsLoggedIn(Boolean(localStorage.getItem('userMatricule')));
     setUserRole(normalizeRole(localStorage.getItem('userRole')));
 
@@ -73,7 +73,22 @@ export default function PortalNav() {
       parsedRoles = [];
     }
     setUserRoles(parsedRoles);
-  }, []);
+  };
+
+  useEffect(() => {
+    refreshUserState();
+
+    const handleStorageChange = () => {
+      refreshUserState();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('localstoragechange', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localstoragechange', handleStorageChange);
+    };
+  }, [location.pathname]);
 
   const dashboardPath = userRoles.length > 1 ? '/dashboard' : getDashboardPath(userRole);
 
@@ -87,7 +102,7 @@ export default function PortalNav() {
     links.push({ href: '/demarches', label: ' Démarches RH' });
     links.push({ href: '/documents', label: ' Documents' });
 
-    // ✅ Candidatures - Exclure les rôles qui ne sont pas des agents "purs"
+    //  Candidatures - Exclure les rôles qui ne sont pas des agents "purs"
     const rolesExclus = ['dpaf', 'dapaf', 'admin', 'rh', 'chef', 'secretaire', 'rh/secretaire'];
     const hasExcluRole = rolesExclus.some(r => userRole === r || userRoles.includes(r));
     

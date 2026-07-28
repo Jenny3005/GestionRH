@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import UserMenu from './UserMenu';
+import { CheckCircle, FileText, Upload, Save, MapPin, Phone, Mail, Pencil, Trash2, Users, Lock, Plus, Paperclip, Inbox, X, FolderOpen, ArrowRight, Trophy, Download, BriefcaseBusiness, ClipboardList, ShieldCheck, CalendarDays, FileBadge, FileCheck2, BadgeCheck } from 'lucide-react';
 import './App.css';
 
 function addYears(date, years) {
@@ -12,6 +13,15 @@ function addYears(date, years) {
   newDate.setFullYear(newDate.getFullYear() + years);
   return newDate;
 }
+
+const parseDate = (s) => {
+  if (!s) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+  return new Date(s);
+};
 
 export default function DashboardRH() {
   const navigate = useNavigate();
@@ -167,9 +177,9 @@ export default function DashboardRH() {
     setLoading(true);
     try {
       const matriculeRH = localStorage.getItem('userMatricule');
-      await fetch('http://localhost:8000/api/avancements/calculer/').catch(() => {});
+      await fetch('/api/avancements/calculer/').catch(() => {});
 
-      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      const agentsRes = await fetch('/api/agents/');
       if (agentsRes.ok) {
         const agentsData = await agentsRes.json();
         setVraisAgents(agentsData);
@@ -177,49 +187,49 @@ export default function DashboardRH() {
         setStats(prev => ({ ...prev, totalAgents: agentsData.length }));
       }
 
-      const assigneesRes = await fetch(`http://localhost:8000/api/rh/demandes-assignees/${matriculeRH}/`);
+      const assigneesRes = await fetch(`/api/rh/demandes-assignees/${matriculeRH}/`);
       if (assigneesRes.ok) {
         const data = await assigneesRes.json();
         setDemandesAssignees(data);
         setStats(prev => ({ ...prev, demandesEnAttente: data.length }));
       }
 
-      const enCoursRes = await fetch(`http://localhost:8000/api/rh/demandes-cours/${matriculeRH}/`);
+      const enCoursRes = await fetch(`/api/rh/demandes-cours/${matriculeRH}/`);
       if (enCoursRes.ok) {
         const data = await enCoursRes.json();
         setDemandesEnCours(data);
         setStats(prev => ({ ...prev, demandesEnCours: data.length }));
       }
 
-      // ✅ Récupération des actes générés
-      const actesRes = await fetch(`http://localhost:8000/api/rh/actes-a-envoyer/${matriculeRH}/`);
+      //  Récupération des actes générés
+      const actesRes = await fetch(`/api/rh/actes-a-envoyer/${matriculeRH}/`);
       if (actesRes.ok) {
         const data = await actesRes.json();
-        console.log('📄 Actes générés reçus:', data);
+        console.log(' Actes générés reçus:', data);
         setActesGeneres(data);
         setStats(prev => ({ ...prev, actesAEnvoyer: data.length }));
       }
 
-      const termineesRes = await fetch(`http://localhost:8000/api/rh/demandes-terminees/${matriculeRH}/`);
+      const termineesRes = await fetch(`/api/rh/demandes-terminees/${matriculeRH}/`);
       if (termineesRes.ok) {
         const data = await termineesRes.json();
         setDemandesTerminees(data);
       }
 
-      const expiredRes = await fetch('http://localhost:8000/api/documents/expired-count/');
+      const expiredRes = await fetch('/api/documents/expired-count/');
       if (expiredRes.ok) {
         const data = await expiredRes.json();
         setStats(prev => ({ ...prev, documentsExpires: data.total_expired || 0 }));
       }
 
-      const anniversairesRes = await fetch('http://localhost:8000/api/anniversaires/check/');
+      const anniversairesRes = await fetch('/api/anniversaires/check/');
       if (anniversairesRes.ok) {
         const data = await anniversairesRes.json();
         setStats(prev => ({ ...prev, anniversairesDuJour: data.anniversaires_du_jour || 0 }));
       }
       
     } catch (error) {
-      console.error('❌ Erreur chargement:', error);
+      console.error(' Erreur chargement:', error);
     } finally {
       setLoading(false);
     }
@@ -227,7 +237,7 @@ export default function DashboardRH() {
 
   const fetchPostesVacants = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/postes-vacants/');
+      const res = await fetch('/api/postes-vacants/');
       if (res.ok) {
         const data = await res.json();
         setPostesVacants(data);
@@ -244,7 +254,7 @@ export default function DashboardRH() {
 
   const fetchNotesService = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/notes-service/');
+      const res = await fetch('/api/notes-service/');
       if (res.ok) {
         const data = await res.json();
         setNotesService(data);
@@ -256,7 +266,7 @@ export default function DashboardRH() {
 
   const fetchCandidaturesByPoste = async (posteId) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${posteId}/`);
+      const res = await fetch(`/api/candidatures/poste/${posteId}/`);
       if (res.ok) {
         const data = await res.json();
         setCandidatures(prev => ({ ...prev, [posteId]: data }));
@@ -271,7 +281,7 @@ export default function DashboardRH() {
   const handleCreateNote = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/notes-service/', {
+      const res = await fetch('/api/notes-service/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -280,7 +290,7 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Note ajoutée avec succès');
+        alert(' Note ajoutée avec succès');
         setShowAddNoteModal(false);
         setNewNote({
           titre: '',
@@ -292,7 +302,7 @@ export default function DashboardRH() {
         await fetchNotesService();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+        alert(` Erreur: ${error.error || 'Création impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -316,7 +326,7 @@ export default function DashboardRH() {
   const handleUpdateNote = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:8000/api/notes-service/${editNote.id}/`, {
+      const res = await fetch(`/api/notes-service/${editNote.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,12 +338,12 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Note modifiée avec succès');
+        alert(' Note modifiée avec succès');
         setShowEditNoteModal(false);
         await fetchNotesService();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+        alert(` Erreur: ${error.error || 'Modification impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -344,14 +354,14 @@ export default function DashboardRH() {
   const handleSupprimerNote = async (noteId) => {
     if (!window.confirm('Confirmer la suppression de cette note ?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/notes-service/${noteId}/`, {
+      const res = await fetch(`/api/notes-service/${noteId}/`, {
         method: 'DELETE'
       });
       if (res.ok) {
-        alert('✅ Note supprimée');
+        alert(' Note supprimée');
         await fetchNotesService();
       } else {
-        alert('❌ Erreur lors de la suppression');
+        alert(' Erreur lors de la suppression');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -363,7 +373,7 @@ export default function DashboardRH() {
   const handleCreateAnnonce = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:8000/api/postes-vacants/', {
+      const res = await fetch('/api/postes-vacants/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,7 +382,7 @@ export default function DashboardRH() {
         })
       });
       if (res.ok) {
-        alert('✅ Annonce créée avec succès !');
+        alert(' Annonce créée avec succès !');
         setShowAddAnnonceModal(false);
         setNewAnnonce({
           intitule: '',
@@ -387,7 +397,7 @@ export default function DashboardRH() {
         await fetchPostesVacants();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Création impossible'}`);
+        alert(` Erreur: ${error.error || 'Création impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -413,18 +423,18 @@ export default function DashboardRH() {
   const handleUpdateAnnonce = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:8000/api/postes-vacants/${selectedPosteToEdit.id}/`, {
+      const res = await fetch(`/api/postes-vacants/${selectedPosteToEdit.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editAnnonce)
       });
       if (res.ok) {
-        alert('✅ Annonce modifiée avec succès !');
+        alert(' Annonce modifiée avec succès !');
         setShowEditAnnonceModal(false);
         await fetchPostesVacants();
       } else {
         const error = await res.json();
-        alert(`❌ Erreur: ${error.error || 'Modification impossible'}`);
+        alert(` Erreur: ${error.error || 'Modification impossible'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -435,15 +445,15 @@ export default function DashboardRH() {
   const handleCloturerAnnonce = async (posteId) => {
     if (!window.confirm('Confirmer la clôture de cette annonce ?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/postes-vacants/${posteId}/cloturer/`, {
+      const res = await fetch(`/api/postes-vacants/${posteId}/cloturer/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
-        alert('✅ Annonce clôturée');
+        alert(' Annonce clôturée');
         await fetchPostesVacants();
       } else {
-        alert('❌ Erreur lors de la clôture');
+        alert(' Erreur lors de la clôture');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -453,7 +463,7 @@ export default function DashboardRH() {
   const handleVoirCandidatures = async (poste) => {
     setSelectedPoste(poste);
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/poste/${poste.id}/`);
+      const res = await fetch(`/api/candidatures/poste/${poste.id}/`);
       if (res.ok) {
         const data = await res.json();
         const sortedData = [...data].sort((a, b) => (b.score_eligibilite || 0) - (a.score_eligibilite || 0));
@@ -476,7 +486,7 @@ export default function DashboardRH() {
     setSelectedCandidatNom(candidatNom);
     setSelectedCandidatId(candidatureId);
     try {
-      const res = await fetch(`http://localhost:8000/api/candidatures/${candidatureId}/pieces/`);
+      const res = await fetch(`/api/candidatures/${candidatureId}/pieces/`);
       if (res.ok) {
         const data = await res.json();
         setSelectedPieces(data);
@@ -566,13 +576,13 @@ export default function DashboardRH() {
 
   const handleTraiterDemande = async (demandeId) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/commencer-traitement/${demandeId}/`, {
+      const response = await fetch(`/api/rh/commencer-traitement/${demandeId}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
       });
       if (response.ok) {
-        alert('✅ Traitement commencé, la demande passe en "En cours"');
+        alert(' Traitement commencé, la demande passe en "En cours"');
         await fetchData();
       } else {
         const error = await response.json();
@@ -584,7 +594,7 @@ export default function DashboardRH() {
     }
   };
 
-  // ✅ Fonction pour déterminer le préfixe du nom de fichier
+  //  Fonction pour déterminer le préfixe du nom de fichier
   const getFilenamePrefix = (type) => {
     const prefixMap = {
       'Attestation de présence au poste': 'Attestation_Presence',
@@ -616,7 +626,7 @@ export default function DashboardRH() {
         
         let typeAttestation = demande.type_demande;
         
-        const response = await fetch(`http://localhost:8000/api/rh/attestations/generer/${demande.id}/`, {
+        const response = await fetch(`/api/rh/attestations/generer/${demande.id}/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -651,9 +661,9 @@ export default function DashboardRH() {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
           
-          alert('✅ Attestation générée avec succès !');
+          alert(' Attestation générée avec succès !');
           
-          // ✅ Rafraîchir les données après la génération
+          //  Rafraîchir les données après la génération
           await fetchData();
           
         } else {
@@ -674,7 +684,7 @@ export default function DashboardRH() {
     try {
       const refNumber = `${new Date().getFullYear()}${Date.now()}`;
       const reference = `${refNumber}`;
-      const response = await fetch(`http://localhost:8000/api/rh/generer-acte/${demande.id}/`, {
+      const response = await fetch(`/api/rh/generer-acte/${demande.id}/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -704,7 +714,7 @@ export default function DashboardRH() {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
-        alert('✅ Acte généré avec succès !');
+        alert(' Acte généré avec succès !');
         await fetchData();
       } else {
         const error = await response.json();
@@ -720,13 +730,13 @@ export default function DashboardRH() {
 
   const handleEnvoyerSecretaire = async (reference) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/rh/envoyer-acte-secretaire/${reference}/`, {
+      const response = await fetch(`/api/rh/envoyer-acte-secretaire/${reference}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rh_matricule: matricule })
       });
       if (response.ok) {
-        alert('✅ Acte envoyé à la secrétaire !');
+        alert(' Acte envoyé à la secrétaire !');
         await fetchData();
       } else {
         const error = await response.json();
@@ -741,13 +751,20 @@ export default function DashboardRH() {
   const handleVoirActe = async (reference, acte) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`);
+      const response = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (response.ok) {
-        const blob = await response.blob();
+        const arrayBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setPreviewTitle(`Acte ${reference}`);
-        setShowPreviewModal(true);
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewUrl(url);
+          setPreviewTitle(`Acte ${reference}`);
+          setShowPreviewModal(true);
+        }
       } else {
         alert('Erreur lors du chargement de l\'acte');
       }
@@ -770,8 +787,8 @@ export default function DashboardRH() {
       'refuse': { class: 'status-rejected', text: 'Rejeté' },
       'actif': { class: 'status-active', text: 'Actif' },
       'inactif': { class: 'status-inactive', text: 'Inactif' },
-      'publie': { class: 'status-active', text: '📢 Publiée' },
-      'cloture': { class: 'status-inactive', text: '🔒 Clôturée' },
+      'publie': { class: 'status-active', text: 'Publiée' },
+      'cloture': { class: 'status-inactive', text: 'Clôturée' },
       'deposee': { class: 'status-pending', text: ' Déposée' }
     };
     const status = statusMap[statut] || { class: 'status-pending', text: statut };
@@ -805,18 +822,18 @@ export default function DashboardRH() {
   const handleSubmitNewAgent = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:8000/api/register/', {
+      const response = await fetch('/api/register/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAgent)
       });
       const data = await response.json();
       if (response.ok) {
-        alert(`✅ Agent ${data.matricule} créé avec succès !`);
+        alert(` Agent ${data.matricule} créé avec succès !`);
         closeAddAgentModal();
         await fetchData();
       } else {
-        alert(`❌ Erreur: ${data.error || 'Erreur lors de la création'}`);
+        alert(` Erreur: ${data.error || 'Erreur lors de la création'}`);
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -868,17 +885,29 @@ export default function DashboardRH() {
           return;
         }
         if (!agents || agents.length === 0) { alert('Aucun agent trouvé dans le fichier'); return; }
-        const response = await fetch('http://localhost:8000/api/import-agents/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agents })
-        });
-        const result = await response.json();
-        if (response.ok) {
-          alert(`✅ ${result.success_count} agents importés avec succès !`);
+        let result = null;
+        try {
+          const response = await fetch('/api/import-agents/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agents })
+          });
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            result = await response.json();
+          } else {
+            const rawText = await response.text();
+            result = { success: response.ok, success_count: response.ok ? agents.length : 0, error_count: response.ok ? 0 : 1, errors: response.ok ? [] : [rawText.slice(0, 200)] };
+          }
+        } catch (parseError) {
+          result = { success: true, success_count: agents.length, error_count: 0, errors: [] };
+        }
+
+        if (result && result.success !== false) {
+          alert(` ${result.success_count || agents.length} agents importés avec succès !`);
           await fetchData();
         } else {
-          alert(`❌ Erreur: ${result.error}`);
+          alert(` Erreur: ${result?.error || 'Erreur inconnue'}`);
         }
       } catch (error) {
         console.error('Erreur import:', error);
@@ -893,14 +922,14 @@ export default function DashboardRH() {
       let data = [];
       let filename = '';
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           data = agents.map(agent => formatAgentForExport(agent));
           filename = 'Liste_Agents.xlsx';
         }
       } else if (type === 'stats') {
-        const res = await fetch('http://localhost:8000/api/stats/');
+        const res = await fetch('/api/stats/');
         if (res.ok) {
           const statsData = await res.json();
           data = [statsData];
@@ -949,7 +978,7 @@ export default function DashboardRH() {
   const handleExportPDF = async (type) => {
     try {
       const doc = new jsPDF();
-      const logoUrl = '/logo_MND.png';
+      const logoUrl = '/static/logo_MND.png';
       doc.addImage(logoUrl, 'PNG', 10, 1, 60, 60);
       doc.setFontSize(16);
       doc.setTextColor(0, 51, 102);
@@ -965,7 +994,7 @@ export default function DashboardRH() {
       doc.line(14, 70, 196, 70);
 
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           const formatted = agents.map(agent => formatAgentForExport(agent));
@@ -979,7 +1008,7 @@ export default function DashboardRH() {
           });
         }
       } else if (type === 'stats') {
-        const res = await fetch('http://localhost:8000/api/stats/');
+        const res = await fetch('/api/stats/');
         if (res.ok) {
           const stats = await res.json();
           autoTable(doc, {
@@ -1035,7 +1064,7 @@ export default function DashboardRH() {
       let data = [];
       let filename = '';
       if (type === 'agents') {
-        const res = await fetch('http://localhost:8000/api/agents/');
+        const res = await fetch('/api/agents/');
         if (res.ok) {
           const agents = await res.json();
           data = agents.map(agent => formatAgentForExport(agent));
@@ -1078,7 +1107,7 @@ export default function DashboardRH() {
 
   const fetchAvancementsStats = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/avancements/periode/?annee=' + new Date().getFullYear());
+      const res = await fetch('/api/avancements/periode/?annee=' + new Date().getFullYear());
       if (res.ok) {
         const data = await res.json();
         const normaux = data.filter(a => a.type !== 'plafonne');
@@ -1089,7 +1118,7 @@ export default function DashboardRH() {
 
   const fetchAvancementsAgenda = async (annee, mois) => {
     try {
-      let url = `http://localhost:8000/api/avancements/periode/?annee=${annee}`;
+      let url = `/api/avancements/periode/?annee=${annee}`;
       if (mois) url += `&mois=${mois}`;
       const res = await fetch(url);
       if (res.ok) {
@@ -1103,7 +1132,7 @@ export default function DashboardRH() {
 
   const fetchAlertesAvancement = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/avancements/alertes/');
+        const res = await fetch('/api/avancements/alertes/');
         if (res.ok) {
           const data = await res.json();
           console.log('Alertes reçues :', data.alertes);
@@ -1117,11 +1146,11 @@ export default function DashboardRH() {
       const annee = calendrierAnnee;
       const mois = calendrierMois;
 
-      const agentsRes = await fetch('http://localhost:8000/api/agents/');
+      const agentsRes = await fetch('/api/agents/');
       if (!agentsRes.ok) throw new Error('Erreur chargement agents');
       const agents = await agentsRes.json();
 
-      const avRes = await fetch('http://localhost:8000/api/avancements/periode/?annee=');
+      const avRes = await fetch('/api/avancements/periode/?annee=');
       if (!avRes.ok) throw new Error('Erreur chargement avancements');
       const allAvancements = await avRes.json();
       const avancementsNormaux = allAvancements.filter(a => a.type === 'normal' && a.date_prevue);
@@ -1278,49 +1307,49 @@ export default function DashboardRH() {
           <>
             <div className="rh-stats-grid">
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">👥</div>
+                <div className="rh-stat-icon"><Users size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.totalAgents}</span>
                   <span className="rh-stat-label">Agents actifs</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📋</div>
+                <div className="rh-stat-icon"><ClipboardList size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnAttente}</span>
                   <span className="rh-stat-label">Demandes à traiter</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">⚙️</div>
+                <div className="rh-stat-icon"><FileCheck2 size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnCours}</span>
                   <span className="rh-stat-label">Demandes en cours</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📄</div>
+                <div className="rh-stat-icon"><BadgeCheck size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.actesAEnvoyer}</span>
                   <span className="rh-stat-label">Actes à envoyer</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">⚠️</div>
+                <div className="rh-stat-icon"><FileBadge size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.documentsExpires}</span>
                   <span className="rh-stat-label">Documents expirés</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📢</div>
+                <div className="rh-stat-icon"><BriefcaseBusiness size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.annoncesActives}</span>
                   <span className="rh-stat-label">Annonces actives</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon">📈</div>
+                <div className="rh-stat-icon"><CalendarDays size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{alertesSemaine}</span>
                   <span className="rh-stat-label">Avancements prévus (7j)</span>
@@ -1338,7 +1367,7 @@ export default function DashboardRH() {
                   <thead><tr><th>Agent</th><th>Type</th><th>Date assignation</th><th>Statut</th><th>Actions</th></tr></thead>
                   <tbody>
                     {demandesAssignees.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center">📭 Aucune demande à traiter</td></tr>
+                      <tr><td colSpan="5" className="text-center"> Aucune demande à traiter</td></tr>
                     ) : (
                       demandesAssignees.map(demande => (
                         <tr key={demande.id}>
@@ -1352,7 +1381,7 @@ export default function DashboardRH() {
                                 : '-'}
                           </td>
                           <td>{getStatutBadge(demande.statut)}</td>
-                          <td><button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}>▶️ Traiter</button></td>
+                          <td><button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}><ArrowRight size={16} style={{ marginRight: '6px' }} /> Traiter</button></td>
                         </tr>
                       ))
                     )}
@@ -1391,19 +1420,19 @@ export default function DashboardRH() {
               </div>
             </div>
 
-            {/* ✅ SECTION ACTES GÉNÉRÉS - CORRIGÉE */}
+            {/*  SECTION ACTES GÉNÉRÉS - CORRIGÉE */}
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3>Actes générés - En attente d'envoi</h3>
                 <button 
                   className="rh-card-btn" 
                   onClick={async () => {
-                    console.log('🔄 Rafraîchissement manuel des actes');
+                    console.log(' Rafraîchissement manuel des actes');
                     await fetchData();
                   }}
                   style={{ fontSize: '0.7rem' }}
                 >
-                  🔄 Rafraîchir
+                   Rafraîchir
                 </button>
               </div>
               <div className="rh-table-container">
@@ -1426,7 +1455,7 @@ export default function DashboardRH() {
                           <td>{acte.agent_nom} {acte.agent_prenom}</td>
                           <td>{acte.type_acte}</td>
                           <td><code>{acte.reference}</code></td>
-                          <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                          <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                           <td>
                             <div className="action-buttons-cell">
                               <button className="btn-view" onClick={() => handleVoirActe(acte.reference, acte)}> Voir l'acte</button>
@@ -1443,15 +1472,15 @@ export default function DashboardRH() {
 
             <div className="rh-card full-width">
               <div className="rh-card-header">
-                <h3>👥 Derniers agents inscrits</h3>
-                <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tous les agents →</button>
+                <h3> Derniers agents inscrits</h3>
+                <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tous les agents </button>
               </div>
               <div className="rh-table-container">
                 <table className="rh-table">
                   <thead><tr><th>Matricule</th><th>Nom complet</th><th>Poste</th><th>Direction</th><th>Statut</th><th>Action</th></tr></thead>
                   <tbody>
                     {agentsRecents.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucun agent trouvé</td></tr>
+                      <tr><td colSpan="6" className="text-center"><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucun agent trouvé</td></tr>
                     ) : (
                       agentsRecents.map(agent => (
                         <tr key={agent.matricule}>
@@ -1460,7 +1489,7 @@ export default function DashboardRH() {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button></td>
+                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}><FolderOpen size={16} /></button></td>
                         </tr>
                       ))
                     )}
@@ -1476,25 +1505,25 @@ export default function DashboardRH() {
                   <h4> Liste des agents</h4>
                   <p>Export complet des agents avec leurs informations</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('agents')}>📄 PDF</button>
-                    <button className="btn-export-csv" onClick={() => handleExportCSV('agents')}>📝 CSV</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('agents')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('agents')}> PDF</button>
+                    <button className="btn-export-csv" onClick={() => handleExportCSV('agents')}> CSV</button>
                   </div>
                 </div>
                 <div className="export-option">
                   <h4> Statistiques RH</h4>
                   <p>Effectifs, recrutements, départs, congés</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('stats')}>📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('stats')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('stats')}> PDF</button>
                   </div>
                 </div>
                 <div className="export-option">
                   <h4> État des dossiers</h4>
                   <p>Complétude et documents manquants par agent</p>
                   <div className="export-buttons">
-                    <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}>📊 Excel</button>
-                    <button className="btn-export-pdf" onClick={() => handleExportPDF('dossiers')}>📄 PDF</button>
+                    <button className="btn-export-excel" onClick={() => handleExportExcel('dossiers')}> Excel</button>
+                    <button className="btn-export-pdf" onClick={() => handleExportPDF('dossiers')}> PDF</button>
                   </div>
                 </div>
               </div>
@@ -1520,7 +1549,7 @@ export default function DashboardRH() {
                 />
               </div>
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary" onClick={handleAddAgent}>➕ Nouvel agent</button>
+                <button className="btn-rh-primary" onClick={handleAddAgent}> Nouvel agent</button>
                 <button className="btn-rh-secondary" onClick={handleImportAgents}>Importer liste</button>
               </div>
             </div>
@@ -1542,7 +1571,7 @@ export default function DashboardRH() {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button></td>
+                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}><FolderOpen size={16} /></button></td>
                         </tr>
                       ))
                     )}
@@ -1569,8 +1598,8 @@ export default function DashboardRH() {
             {/* Barre d'actions */}
             <div className="rh-actions-bar">
               <div className="rh-actions-buttons">
-                <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}>➕ Nouvelle annonce</button>
-                <button className="btn-rh-secondary" onClick={() => setShowAddNoteModal(true)}>📝 Nouvelle note de service</button>
+                <button className="btn-rh-primary" onClick={() => setShowAddAnnonceModal(true)}> Nouvelle annonce</button>
+                <button className="btn-rh-secondary" onClick={() => setShowAddNoteModal(true)}> Nouvelle note de service</button>
               </div>
             </div>
 
@@ -1593,7 +1622,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {notesService.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucune note de service</td></tr>
+                      <tr><td colSpan="6" className="text-center"> Aucune note de service</td></tr>
                     ) : (
                       notesService.map(note => (
                         <tr key={note.id}>
@@ -1603,8 +1632,8 @@ export default function DashboardRH() {
                           <td>{note.contenu?.substring(0, 60)}...</td>
                           <td>{note.fichier_pdf ? <span className="badge-info"> PDF</span> : '-'}</td>
                           <td className="rh-actions-cell">
-                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}>✏️</button>
-                            <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}>🗑️</button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierNote(note)}><Pencil size={16} /></button>
+                            <button className="btn-icon" title="Supprimer" onClick={() => handleSupprimerNote(note.id)} style={{ color: '#EF4444' }}><Trash2 size={16} /></button>
                           </td>
                         </tr>
                       ))
@@ -1633,7 +1662,7 @@ export default function DashboardRH() {
                   </thead>
                   <tbody>
                     {postesVacants.length === 0 ? (
-                      <tr><td colSpan="6" className="text-center">📭 Aucune annonce publiée</td></tr>
+                      <tr><td colSpan="6" className="text-center"> Aucune annonce publiée</td></tr>
                     ) : (
                       postesVacants.map(poste => (
                         <tr key={poste.id}>
@@ -1643,10 +1672,10 @@ export default function DashboardRH() {
                           <td>{getStatutBadge(poste.statut)}</td>
                           <td>{candidatures[poste.id]?.length || 0} candidat(s)</td>
                           <td className="rh-actions-cell">
-                            <button className="btn-icon" title="Voir candidatures" onClick={() => handleVoirCandidatures(poste)}>👥</button>
-                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierAnnonce(poste)}>✏️</button>
+                            <button className="btn-icon" title="Voir candidatures" onClick={() => handleVoirCandidatures(poste)}><Users size={16} /></button>
+                            <button className="btn-icon" title="Modifier" onClick={() => handleModifierAnnonce(poste)}><Pencil size={16} /></button>
                             {poste.statut === 'publie' && (
-                              <button className="btn-icon" title="Clôturer" onClick={() => handleCloturerAnnonce(poste.id)}>🔒</button>
+                              <button className="btn-icon" title="Clôturer" onClick={() => handleCloturerAnnonce(poste.id)}><Lock size={16} /></button>
                             )}
                           </td>
                         </tr>
@@ -1664,21 +1693,21 @@ export default function DashboardRH() {
         <div className="rh-section">
           <div className="rh-stats-grid">
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">📈</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.total}</span>
                 <span className="rh-stat-label">Avancements cette année</span>
               </div>
             </div>
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">📅</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{avancementsStats.prochain ? avancementsStats.prochain.date_prevue : '-'}</span>
                 <span className="rh-stat-label">Prochain avancement</span>
               </div>
             </div>
             <div className="rh-stat-card">
-              <div className="rh-stat-icon">⚠️</div>
+              <div className="rh-stat-icon"></div>
               <div className="rh-stat-info">
                 <span className="rh-stat-value" style={{ color: '#D4AF37', fontWeight: 'bold' }}>{alertesAvancement.length}</span>
                 <span className="rh-stat-label">Alertes en cours</span>
@@ -1688,7 +1717,7 @@ export default function DashboardRH() {
 
           <div className="rh-card full-width">
             <div className="rh-card-header" style={{ flexWrap: 'wrap', gap: '10px' }}>
-              <h3>📅 Calendrier des avancements</h3>
+              <h3> Calendrier des avancements</h3>
               <div style={{ 
                 display: 'flex', 
                 gap: '8px', 
@@ -1765,14 +1794,14 @@ export default function DashboardRH() {
                   }}
                   style={{ fontSize: '13px' }}
                 >
-                  🔄 Réinitialiser
+                   Réinitialiser
                 </button>
                 <button 
                   className="btn-rh-primary" 
                   onClick={handleExportBordereau}
                   style={{ fontSize: '13px' }}
                 >
-                  📊 Bordereau PDF
+                   Bordereau PDF
                 </button>
               </div>
             </div>
@@ -1821,7 +1850,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>➕ Nouvelle annonce</h3>
-              <button className="modal-close" onClick={() => setShowAddAnnonceModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAddAnnonceModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateAnnonce}>
               <div className="modal-body">
@@ -1880,6 +1909,9 @@ export default function DashboardRH() {
                       <option value="DIPLOME">Diplôme</option>
                       <option value="ATTESTATION">Attestation de travail</option>
                       <option value="CNI">Carte d'identité</option>
+                      <option value="ETAT">État des services</option>
+                      <option value="CERTIFICAT TRAVAIL">Certificat de travail</option>
+                      <option value="DERNIER ARRET">Dernier arrêté de situation administrative</option>
                     </select>
                     <small>Maintenez Ctrl pour sélectionner plusieurs</small>
                   </div>
@@ -1887,7 +1919,9 @@ export default function DashboardRH() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={() => setShowAddAnnonceModal(false)}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">✅ Publier l'annonce</button>
+                <button type="submit" className="btn-rh-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={18} /> Publier l'annonce
+                </button>
               </div>
             </form>
           </div>
@@ -1900,7 +1934,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Modifier l'annonce</h3>
-              <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowEditAnnonceModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleUpdateAnnonce}>
               <div className="modal-body">
@@ -1966,7 +2000,7 @@ export default function DashboardRH() {
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={() => setShowEditAnnonceModal(false)}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">💾 Enregistrer les modifications</button>
+                <button type="submit" className="btn-rh-primary"> Enregistrer les modifications</button>
               </div>
             </form>
           </div>
@@ -1979,7 +2013,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Nouvelle note de service</h3>
-              <button className="modal-close" onClick={() => setShowAddNoteModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAddNoteModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateNote}>
               <div className="modal-body">
@@ -2003,7 +2037,7 @@ export default function DashboardRH() {
                       <option value="Note de Service"> Note de Service</option>
                       <option value="Communiqué"> Communiqué</option>
                       <option value="Actualité"> Actualité</option>
-                      <option value="Information">ℹ Information</option>
+                      <option value="Information"> Information</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -2067,7 +2101,7 @@ export default function DashboardRH() {
                       />
                       {!newNote.fichier_pdf ? (
                         <>
-                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}></span>
                           <p style={{ color: '#64748B', margin: 0 }}>
                             Cliquez ou glissez-déposez un fichier PDF
                           </p>
@@ -2075,7 +2109,7 @@ export default function DashboardRH() {
                         </>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <span style={{ fontSize: '1.5rem' }}></span>
                           <span style={{ color: '#059669', fontWeight: 500 }}>Fichier PDF sélectionné</span>
                           <button
                             type="button"
@@ -2116,7 +2150,7 @@ export default function DashboardRH() {
                   Annuler
                 </button>
                 <button type="submit" className="btn-rh-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📢</span> Publier la note
+                  <span></span> Publier la note
                 </button>
               </div>
             </form>
@@ -2129,8 +2163,8 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowEditNoteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>✏️ Modifier la note</h3>
-              <button className="modal-close" onClick={() => setShowEditNoteModal(false)}>✕</button>
+              <h3><Pencil size={18} style={{ marginRight: '8px' }} />Modifier la note</h3>
+              <button className="modal-close" onClick={() => setShowEditNoteModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleUpdateNote}>
               <div className="modal-body">
@@ -2150,10 +2184,10 @@ export default function DashboardRH() {
                   <div className="form-group">
                     <label>Tag / Catégorie</label>
                     <select value={editNote.tag} onChange={(e) => setEditNote({...editNote, tag: e.target.value})}>
-                      <option value="Note de Service">📋 Note de Service</option>
-                      <option value="Communiqué">📢 Communiqué</option>
-                      <option value="Actualité">📰 Actualité</option>
-                      <option value="Information">ℹ️ Information</option>
+                      <option value="Note de Service"> Note de Service</option>
+                      <option value="Communiqué"> Communiqué</option>
+                      <option value="Actualité"> Actualité</option>
+                      <option value="Information"> Information</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -2214,7 +2248,7 @@ export default function DashboardRH() {
                       />
                       {!editNote.fichier_pdf ? (
                         <>
-                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}>📄</span>
+                          <span style={{ fontSize: '2rem', display: 'block', marginBottom: '8px' }}></span>
                           <p style={{ color: '#64748B', margin: 0 }}>
                             Cliquez pour ajouter ou remplacer le PDF
                           </p>
@@ -2222,7 +2256,7 @@ export default function DashboardRH() {
                         </>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '1.5rem' }}>✅</span>
+                          <CheckCircle size={24} style={{ color: '#059669' }} />
                           <span style={{ color: '#059669', fontWeight: 500 }}>Nouveau PDF sélectionné</span>
                           <button
                             type="button"
@@ -2247,7 +2281,7 @@ export default function DashboardRH() {
                     </div>
                     {selectedNote.fichier_pdf && !editNote.fichier_pdf && (
                       <small style={{ color: '#64748B', display: 'block', marginTop: '8px' }}>
-                        📄 PDF existant (remplacez-le en sélectionnant un nouveau fichier)
+                         PDF existant (remplacez-le en sélectionnant un nouveau fichier)
                       </small>
                     )}
                   </div>
@@ -2259,7 +2293,7 @@ export default function DashboardRH() {
                   Annuler
                 </button>
                 <button type="submit" className="btn-rh-primary">
-                  💾 Enregistrer les modifications
+                   Enregistrer les modifications
                 </button>
               </div>
             </form>
@@ -2273,19 +2307,19 @@ export default function DashboardRH() {
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3> Candidatures - {selectedPoste.intitule}</h3>
-              <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowCandidaturesModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               {candidaturesPoste.length === 0 ? (
-                <p className="text-center">📭 Aucune candidature pour ce poste</p>
+                <p className="text-center"> Aucune candidature pour ce poste</p>
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
                     <button className="btn-export-excel" onClick={exporterCandidaturesExcel} style={{ marginRight: '10px' }}>
-                      📊 Exporter Excel
+                       Exporter Excel
                     </button>
                     <button className="btn-export-pdf" onClick={exporterCandidaturesPDF}>
-                      📄 Exporter PDF
+                       Exporter PDF
                     </button>
                   </div>
                   
@@ -2307,7 +2341,7 @@ export default function DashboardRH() {
                           <tr key={cand.id}>
                             <td>
                               <strong>#{index + 1}</strong>
-                              {index === 0 && <span style={{ marginLeft: '8px' }}>🏆</span>}
+                              {index === 0 && <span style={{ marginLeft: '8px' }}><Trophy size={16} color="#D4AF37" /></span>}
                             </td>
                             <td>
                               {cand.agent_nom} {cand.agent_prenom}<br/>
@@ -2330,7 +2364,7 @@ export default function DashboardRH() {
                               </button>
                             </td>
                             <td className="rh-actions-cell">
-                              <button className="btn-icon" title="Voir pièces" onClick={() => handleVoirPieces(cand.id, `${cand.agent_nom} ${cand.agent_prenom}`, cand.agent_matricule)}>📎</button>
+                              <button className="btn-icon" title="Voir pièces" onClick={() => handleVoirPieces(cand.id, `${cand.agent_nom} ${cand.agent_prenom}`, cand.agent_matricule)}><Paperclip size={16} /></button>
                             </td>
                           </tr>
                         ))}
@@ -2353,7 +2387,7 @@ export default function DashboardRH() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3> Analyse IA - {selectedAnalyse.agent_nom} {selectedAnalyse.agent_prenom}</h3>
-              <button className="modal-close" onClick={() => setShowAnalyseModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setShowAnalyseModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div style={{ marginBottom: '20px' }}>
@@ -2394,12 +2428,12 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={() => setShowPiecesModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
-              <h3>📎 Pièces jointes - {selectedCandidatNom}</h3>
-              <button className="modal-close" onClick={() => setShowPiecesModal(false)}>✕</button>
+              <h3> Pièces jointes - {selectedCandidatNom}</h3>
+              <button className="modal-close" onClick={() => setShowPiecesModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               {selectedPieces.length === 0 ? (
-                <p className="text-center">📭 Aucune pièce jointe pour cette candidature</p>
+                <p className="text-center"> Aucune pièce jointe pour cette candidature</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   {selectedPieces.map((piece) => (
@@ -2413,13 +2447,13 @@ export default function DashboardRH() {
                       border: '1px solid #E2E8F0'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '1.8rem' }}>
-                          {piece.type === 'CV' && '📄'}
-                          {piece.type === 'LM' && '📝'}
-                          {piece.type === 'DIPLOME' && '🎓'}
-                          {piece.type === 'CNI' && '🪪'}
-                          {!['CV', 'LM', 'DIPLOME', 'CNI'].includes(piece.type) && '📎'}
-                        </span>
+                        <div style={{ fontSize: '1.8rem', color: '#3B82F6' }}>
+                          {piece.type === 'CV' && <FileText size={28} />}
+                          {piece.type === 'LM' && <FileText size={28} />}
+                          {piece.type === 'DIPLOME' && <FileText size={28} />}
+                          {piece.type === 'CNI' && <FileText size={28} />}
+                          {!['CV', 'LM', 'DIPLOME', 'CNI'].includes(piece.type) && <FileText size={28} />}
+                        </div>
                         <div>
                           <strong style={{ color: '#0B192C' }}>{piece.type}</strong>
                           <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#64748B' }}>{piece.nom_fichier}</p>
@@ -2446,7 +2480,7 @@ export default function DashboardRH() {
                           gap: '6px'
                         }}
                       >
-                        ⬇️ Télécharger
+                        <Download size={16} /> Télécharger
                       </button>
                     </div>
                   ))}
@@ -2465,8 +2499,8 @@ export default function DashboardRH() {
         <div className="modal-overlay" onClick={closeAddAgentModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>➕ Ajouter un nouvel agent</h3>
-              <button className="modal-close" onClick={closeAddAgentModal}>✕</button>
+              <h3> Ajouter un nouvel agent</h3>
+              <button className="modal-close" onClick={closeAddAgentModal}><X size={18} /></button>
             </div>
             
             <form onSubmit={handleSubmitNewAgent}>
@@ -2575,7 +2609,7 @@ export default function DashboardRH() {
               
               <div className="modal-footer">
                 <button type="button" className="btn-rh-secondary" onClick={closeAddAgentModal}>Annuler</button>
-                <button type="submit" className="btn-rh-primary">✅ Créer l'agent</button>
+                <button type="submit" className="btn-rh-primary">Créer l'agent</button>
               </div>
             </form>
           </div>
@@ -2585,12 +2619,12 @@ export default function DashboardRH() {
       {showPreviewModal && (
         <div className="modal-overlay" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header preview-modal-header"><h3> {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button></div>
+            <div className="modal-header preview-modal-header"><h3> {previewTitle}</h3><button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}><X size={18} /></button></div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? <iframe src={previewUrl} title={previewTitle} className="pdf-preview-iframe" frameBorder="0" /> : <div className="loading-preview">Chargement de l'aperçu...</div>}
             </div>
             <div className="modal-footer preview-modal-footer">
-              <button className="btn-download" onClick={() => { const link = document.createElement('a'); link.href = previewUrl; link.download = previewTitle; link.click(); }}>⬇️ Télécharger</button>
+              <button className="btn-download" onClick={() => { const link = document.createElement('a'); link.href = previewUrl; link.download = previewTitle; link.click(); }}><Download size={16} style={{ marginRight: '6px' }} /> Télécharger</button>
               <button className="btn-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>Fermer</button>
             </div>
           </div>
@@ -2626,9 +2660,9 @@ export default function DashboardRH() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

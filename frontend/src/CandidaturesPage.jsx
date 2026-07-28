@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { MapPin, Phone, Mail, Inbox } from 'lucide-react';
 import './App.css';
 
 export default function CandidaturesPage() {
@@ -21,7 +22,7 @@ export default function CandidaturesPage() {
   const fetchCandidatures = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/candidatures/?matricule=${matricule}`);
+      const response = await fetch(`/api/candidatures/?matricule=${matricule}`);
       if (response.ok) {
         const data = await response.json();
         setCandidatures(data);
@@ -38,7 +39,7 @@ export default function CandidaturesPage() {
       <header className="intranet-navbar">
         <a href="/" className="logo-nav-link">
           <img 
-            src="/logo_MND.png" 
+            src="/static/logo_MND.png" 
             alt="Logo Ministère du Numérique et de la Digitalisation" 
             className="mnd-official-logo" 
           />
@@ -52,7 +53,7 @@ export default function CandidaturesPage() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>🎯 Mes candidatures</h2>
+            <h2> Mes candidatures</h2>
             <p>Consultez toutes vos candidatures aux postes vacants et leur état d'avancement</p>
           </div>
         </section>
@@ -61,10 +62,11 @@ export default function CandidaturesPage() {
           <div className="loading-screen">Chargement...</div>
         ) : candidatures.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '50px' }}>
-            <p style={{ fontSize: '18px', marginBottom: '15px' }}>📭 Aucune candidature</p>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}><Inbox size={36} style={{ color: '#D4AF37' }} /></div>
+            <p style={{ fontSize: '18px', marginBottom: '15px' }}>Aucune candidature</p>
             <p style={{ color: '#666', marginBottom: '20px' }}>Vous n'avez pas encore postulé à un poste vacant.</p>
             <button className="btn-rh-primary" onClick={() => navigate('/#opportunites')}>
-            🎯 Consulter les postes vacants
+             Consulter les postes vacants
             </button>
           </div>
         ) : (
@@ -111,7 +113,7 @@ export default function CandidaturesPage() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">
@@ -133,9 +135,9 @@ export default function CandidaturesPage() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

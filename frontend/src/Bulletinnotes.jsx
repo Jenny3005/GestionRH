@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { FileText, CheckCircle2, PencilLine } from 'lucide-react';
 import './App.css';
 
 const CRITERES_PAR_CATEGORIE = {
@@ -82,7 +83,7 @@ export default function BulletinNotes() {
 
   const fetchAgent = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/`);
+      const res = await fetch(`/api/agent/${matricule}/bulletin/`);
       if (res.ok) {
         const data = await res.json();
         setAgent(data);
@@ -106,7 +107,7 @@ export default function BulletinNotes() {
 
   const fetchEnfants = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/`);
+      const res = await fetch(`/api/agent/${matricule}/enfants/`);
       if (res.ok) {
         const data = await res.json();
         setEnfants(data);
@@ -125,7 +126,7 @@ export default function BulletinNotes() {
     setSaveSuccess(false);
     try {
       // Sauvegarde de TOUTES les informations (agent + bulletin)
-      const response = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/`, {
+      const response = await fetch(`/api/agent/${matricule}/bulletin/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +167,7 @@ export default function BulletinNotes() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/`, {
+      const res = await fetch(`/api/agent/${matricule}/enfants/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +193,7 @@ export default function BulletinNotes() {
   const handleSupprimerEnfant = async (id) => {
     if (!window.confirm('Supprimer cet enfant ?')) return;
     try {
-      await fetch(`http://localhost:8000/api/agent/${matricule}/enfants/${id}/`, { method: 'DELETE' });
+      await fetch(`/api/agent/${matricule}/enfants/${id}/`, { method: 'DELETE' });
       setEnfants(prev => prev.filter(e => e.id !== id));
     } catch (e) {
       console.error('Erreur suppression enfant:', e);
@@ -202,7 +203,7 @@ export default function BulletinNotes() {
   const handleGenererPDF = async () => {
     setGenerating(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/agent/${matricule}/bulletin/generer/`, {
+      const res = await fetch(`/api/agent/${matricule}/bulletin/generer/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -215,7 +216,19 @@ export default function BulletinNotes() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        // Déterminer le nom de fichier à partir des headers si fournis
+        const disposition = res.headers.get('content-disposition');
+        const contentType = res.headers.get('content-type') || '';
+        let filename = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        if (disposition && disposition.includes('filename=')) {
+          const match = disposition.match(/filename\*=UTF-8''([^\n;]+)|filename=\"?([^\"]+)\"?/);
+          if (match) filename = decodeURIComponent(match[1] || match[2]);
+        } else if (contentType.includes('wordprocessingml')) {
+          filename = `bulletin_notes_${matricule}_${anneeActuelle}.docx`;
+        } else if (contentType.includes('pdf')) {
+          filename = `bulletin_notes_${matricule}_${anneeActuelle}.pdf`;
+        }
+        a.download = filename;
         a.click();
         window.URL.revokeObjectURL(url);
       } else {
@@ -273,7 +286,10 @@ export default function BulletinNotes() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📋 Bulletin Individuel de Notes</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <FileText size={32} />
+              <h2>Bulletin Individuel de Notes</h2>
+            </div>
             <p>Vérifiez vos informations et téléchargez votre bulletin — Année {anneeActuelle}</p>
           </div>
         </section>
@@ -285,7 +301,7 @@ export default function BulletinNotes() {
             <div className="agent-card-header">
               <h3>Informations administratives</h3>
               <span style={{ fontSize: '12px', color: '#10B981', background: '#D1FAE5', padding: '3px 10px', borderRadius: '12px' }}>
-                ✓ Récupérées automatiquement
+                <CheckCircle2 size={14} style={{ marginRight: '6px', color: '#10B981' }} />Récupérées automatiquement
               </span>
             </div>
             <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -323,7 +339,7 @@ export default function BulletinNotes() {
                     <strong>{i + 1}.</strong> {enfant.nom} {enfant.prenom} — {formatDate(enfant.date_naissance)}
                   </span>
                   <button onClick={() => handleSupprimerEnfant(enfant.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '13px' }}>
-                    🗑️ Supprimer
+                     Supprimer
                   </button>
                 </div>
               ))}
@@ -359,7 +375,7 @@ export default function BulletinNotes() {
             <div className="agent-card-header">
               <h3>Informations complémentaires</h3>
               <span style={{ fontSize: '12px', color: '#F59E0B', background: '#FEF3C7', padding: '3px 10px', borderRadius: '12px' }}>
-                ✏️ Ces champs apparaîtront dans le bulletin
+                <PencilLine size={14} style={{ marginRight: '6px', color: '#D4AF37' }} />Ces champs apparaîtront dans le bulletin
               </span>
             </div>
             <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -416,7 +432,7 @@ export default function BulletinNotes() {
 
           {/* BOUTONS */}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            {saveSuccess && <span style={{ color: '#10B981', fontSize: '14px' }}>✓ Informations sauvegardées</span>}
+            {saveSuccess && <span style={{ color: '#10B981', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><CheckCircle2 size={14} />Informations sauvegardées</span>}
             <button onClick={handleSaveInfos} disabled={saving} className="btn-close-modal" style={{ padding: '12px 24px' }}>{saving ? 'Enregistrement...' : '💾 Sauvegarder'}</button>
             <button onClick={handleGenererPDF} disabled={generating} className="btn-demander-conge" style={{ padding: '12px 28px' }}>{generating ? 'Génération...' : '📥 Télécharger mon bulletin'}</button>
           </div>
@@ -427,7 +443,7 @@ export default function BulletinNotes() {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
         </div>

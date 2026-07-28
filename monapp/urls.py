@@ -16,6 +16,7 @@ urlpatterns = [
     path('roles/<int:role_id>/delete/', views.delete_role, name='delete_role'),
     path('agents/<int:agent_id>/role/', views.update_agent_role, name='update_agent_role'),
     path('import-agents/', views.import_agents, name='import_agents'),
+    path('smtp-test/', views.smtp_test, name='smtp_test'),
     path('agent/<str:matricule>/', views.get_agent_by_matricule, name='get_agent'),
     path('agents/<str:matricule>/role/update/', views.update_agent_role_by_matricule, name='update_agent_role_by_matricule'),
     path('agents/<str:agent_id>/role/add/', views.add_role_to_agent, name='add_role_to_agent'),
@@ -195,6 +196,10 @@ urlpatterns = [
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('verify-reset-code/', views.verify_reset_code, name='verify_reset_code'),
     path('reset-password/', views.reset_password, name='reset_password'),
+
+    # Health checks
+    path('health/ollama/', views.health_ollama, name='health_ollama'),
+    path('health/', views.health, name='health'),
 
     
 ]
