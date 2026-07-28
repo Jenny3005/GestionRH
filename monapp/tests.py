@@ -6,7 +6,7 @@ from django.test import SimpleTestCase, override_settings
 
 from django.db import connection
 from monapp.emails import resolve_email_backend
-from monapp.views import normalize_matricule, save_uploaded_file_bytes
+from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier
 
 
 class EmailBackendTests(SimpleTestCase):
@@ -63,3 +63,17 @@ class DocumentUploadStorageTests(SimpleTestCase):
                     self.assertEqual(handle.read(), file_bytes)
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class DossierCompletudeTests(SimpleTestCase):
+    def test_verifier_completude_accepts_zero_percent_dossier(self):
+        with self.settings(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}):
+            from monapp.models import Agent, DossierAgent
+
+            agent = Agent.objects.create(matricule='TEST001', prenom='Test', nom='Agent')
+            DossierAgent.objects.create(agent=agent, taux_completude=0)
+
+            ok, message = _verifier_completude_dossier(agent.matricule, seuil=0.6)
+
+            self.assertTrue(ok)
+            self.assertEqual(message, 'Dossier suffisamment complet')

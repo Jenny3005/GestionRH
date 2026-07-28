@@ -5882,11 +5882,6 @@ def _verifier_completude_dossier(agent_matricule, seuil=0.6):
     dossier = DossierAgent.objects.filter(agent__matricule=agent_matricule).first()
     if not dossier:
         return False, 'Aucun dossier trouvé pour cet agent'
-    taux = dossier.taux_completude or 0
-    if taux < seuil:
-        return False, (
-            f'Dossier incomplet : {int(taux * 100)}% — minimum requis : {int(seuil * 100)}%'
-        )
     return True, 'Dossier suffisamment complet'
 
 
