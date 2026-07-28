@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserMenu from './UserMenu';
+import { AlertCircle, X } from 'lucide-react';
 import './App.css';
+
+const parseDate = (s) => {
+  if (!s) return null;
+  // backend renvoie 'DD/MM/YYYY'
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+    const [d, m, y] = s.split('/');
+    return new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }
+  return new Date(s);
+};
 
 export default function ArchivagePage() {
   const navigate = useNavigate();
@@ -29,7 +40,7 @@ export default function ArchivagePage() {
   const fetchActes = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/actes/archives/');
+      const res = await fetch('/api/actes/archives/');
       if (res.ok) {
         const data = await res.json();
         setActes(data.filter(a => a.statut !== 'archive'));
@@ -45,7 +56,7 @@ export default function ArchivagePage() {
   const handleArchiverUn = async (reference) => {
     if (!window.confirm(`Archiver l'acte ${reference} ?`)) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/archiver/`, {
+      const res = await fetch(`/api/actes/${encodeURIComponent(reference)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -53,7 +64,7 @@ export default function ArchivagePage() {
         fetchActes();
         setSelectedActes([]);
       } else {
-        alert('❌ Erreur lors de l\'archivage');
+        alert('Erreur lors de l\'archivage');
       }
     } catch (error) {
       console.error('Erreur:', error);
@@ -68,7 +79,7 @@ export default function ArchivagePage() {
     if (!window.confirm(`Archiver ${selectedActes.length} acte(s) ?`)) return;
     
     for (const ref of selectedActes) {
-      await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(ref)}/archiver/`, {
+      await fetch(`/api/actes/${encodeURIComponent(ref)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -81,7 +92,7 @@ export default function ArchivagePage() {
     if (!window.confirm(`Archiver tous les actes (${actes.length}) ?`)) return;
     
     for (const acte of actes) {
-      await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(acte.reference)}/archiver/`, {
+      await fetch(`/api/actes/${encodeURIComponent(acte.reference)}/archiver/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -108,23 +119,30 @@ export default function ArchivagePage() {
 
   const handleVoirActe = async (reference) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/actes/${encodeURIComponent(reference)}/download/`);
+      const res = await fetch(`/api/actes/${encodeURIComponent(reference)}/download/`);
       if (res.ok) {
-        const blob = await res.blob();
+        const arrayBuffer = await res.arrayBuffer();
+        const contentType = res.headers.get('content-type') || 'application/pdf';
+        const blob = new Blob([arrayBuffer], { type: contentType });
         const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setShowPreviewModal(true);
+
+        const opened = window.open(url);
+        if (opened) opened.focus();
+        else {
+          setPreviewUrl(url);
+          setShowPreviewModal(true);
+        }
       }
     } catch (error) {
       console.error('Erreur:', error);
     }
   };
 
-  // ✅ Filtrage par date UNIQUEMENT pour les actes archivés
+  //  Filtrage par date UNIQUEMENT pour les actes archivés
   const actesArchivesFiltres = actesArchives.filter(a => {
     if (!a.date_generation) return false;
 
-    const dateActe = new Date(a.date_generation);
+    const dateActe = parseDate(a.date_generation);
     const anneeActe = dateActe.getFullYear().toString();
     const moisActe = (dateActe.getMonth() + 1).toString();
 
@@ -152,7 +170,7 @@ export default function ArchivagePage() {
       <div className="intranet-home">
         <header className="intranet-navbar">
           <div className="nav-left-zone">
-            <img src="/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/static/logo_MND.png" alt="Logo MND" className="mnd-official-logo" />
           </div>
           <div className="nav-right"><UserMenu /></div>
         </header>
@@ -206,7 +224,7 @@ export default function ArchivagePage() {
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#10B981' }}>
             <div className="stat-number">{actesArchives.length}</div>
-            <div className="stat-label">✅ Actes archivés</div>
+            <div className="stat-label"> Actes archivés</div>
           </div>
         </div>
 
@@ -220,7 +238,7 @@ export default function ArchivagePage() {
                  Archiver la sélection ({selectedActes.length})
               </button>
               <button className="btn-rh-secondary" onClick={handleToutArchiver}>
-                📥 Tout archiver
+                 Tout archiver
               </button>
             </div>
           )}
@@ -261,14 +279,14 @@ export default function ArchivagePage() {
                       <td>{acte.type_acte}</td>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.agent_direction}</td>
-                      <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
-                            👁️ Voir
+                             Voir
                           </button>
                           <button className="btn-view" onClick={() => handleArchiverUn(acte.reference)} style={{ background: '#F59E0B', color: '#fff' }}>
-                            🗄️ Archiver
+                             Archiver
                           </button>
                         </div>
                       </td>
@@ -280,7 +298,7 @@ export default function ArchivagePage() {
           </div>
         </div>
 
-        {/* ✅ Tableau des actes archivés AVEC filtres année/mois */}
+        {/*  Tableau des actes archivés AVEC filtres année/mois */}
         <div className="admin-section" style={{ marginTop: '30px' }}>
           <h3> Actes archivés ({actesArchivesFiltres.length})</h3>
           
@@ -320,7 +338,7 @@ export default function ArchivagePage() {
               }}
               style={{ padding: '8px 15px' }}
             >
-              🔄 Réinitialiser
+               Réinitialiser
             </button>
           </div>
 
@@ -344,10 +362,10 @@ export default function ArchivagePage() {
                       <td>{acte.type_acte}</td>
                       <td>{acte.agent_nom} {acte.agent_prenom}</td>
                       <td>{acte.agent_direction}</td>
-                      <td>{acte.date_generation ? new Date(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
+                      <td>{acte.date_generation ? parseDate(acte.date_generation).toLocaleDateString('fr-FR') : '-'}</td>
                       <td>
                         <button className="btn-view" onClick={() => handleVoirActe(acte.reference)}>
-                          👁️ Voir
+                           Voir
                         </button>
                       </td>
                     </tr>
@@ -367,7 +385,7 @@ export default function ArchivagePage() {
           <div className="modal-content preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header preview-modal-header">
               <h3> Aperçu de l'acte</h3>
-              <button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>✕</button>
+              <button className="modal-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}><X size={18} /></button>
             </div>
             <div className="modal-body preview-modal-body">
               {previewUrl ? (

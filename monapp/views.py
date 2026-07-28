@@ -5,12 +5,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx import Document
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import sys
-if sys.platform == 'win32':
-    import pythoncom
 from django.views.decorators.http import require_http_methods
-from django.db import connection
-from django.db import models
+from django.db import connection, models, close_old_connections
 from django.db.models import Sum
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
@@ -23,21 +19,64 @@ from django.utils import timezone
 import io
 import os
 import random
+import shutil
+import socket
 import string
 import subprocess
 import tempfile
+import time
 import concurrent.futures
 import ollama
+import builtins
+if not hasattr(builtins, 'last_exc'):
+    builtins.last_exc = None
 from datetime import datetime, date, timedelta
-# En haut du fichier, ajoute :
+
+
+def normalize_matricule(value):
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        value = value.strip()
+        if not value or value.lower() in {'null', 'undefined', 'none'}:
+            return ''
+        return value
+    return str(value).strip()
+
+
+def _synchroniser_champs_demande(demande, nombre_jours, annee, solde=None, jours_restants=None):
+    """Synchronise les colonnes de la table demande pour garder un état cohérent."""
+    if demande is None:
+        return demande
+
+    jours_consommes = int(nombre_jours or 0)
+
+    if jours_restants is None:
+        if solde is not None:
+            jours_acquis = getattr(solde, 'jours_acquis', None) or 30
+            jours_pris = getattr(solde, 'jours_pris', None) or 0
+            jours_restants = max((jours_acquis or 30) - jours_pris, 0)
+        else:
+            jours_restants = 0
+
+    demande.annee = annee
+    demande.jours_consommes = jours_consommes
+    demande.jours_restants = int(jours_restants or 0)
+    demande.save(update_fields=['annee', 'jours_consommes', 'jours_restants'])
+    return demande
+
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+
+# Limite le nombre de threads d'envoi d'emails pour ne pas saturer les workers.
+email_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix='email-sender')
 
 from .emails import (
     envoyer_email_activation,
     envoyer_email_rappel_avancement,
     envoyer_email_avancement_effectue,
     envoyer_email_avancement_agent, 
+    envoyer_email_activation_async,
 )
 from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,EnfantAgent,Validation,
@@ -49,12 +88,23 @@ import random
 import base64
 import ollama
 import re
+try:
+    from langdetect import detect as _langdetect_detect
+except ImportError:
+    _langdetect_detect = None
+
+def _validate_max_length(field_name, value, max_length):
+    if value is None:
+        return None
+    value = str(value)
+    if len(value) > max_length:
+        raise ValueError(f"{field_name} trop long ({len(value)} caractères), maximum {max_length}.")
+    return value
 
 try:
-    from docx2pdf import convert as docx2pdf_convert
     from docx.shared import Pt
 except ImportError:
-    docx2pdf_convert = None
+    Pt = None
 
 
 def est_chef(agent):
@@ -158,36 +208,60 @@ def _set_document_font(doc, font_name='Times New Roman', font_size_pt=12):
                         except Exception:
                             pass
 
+import subprocess
+import tempfile
+import os
 
 def _docx_bytes_to_pdf_bytes(docx_bytes):
-    """Convertit un fichier DOCX (bytes) en PDF (bytes)"""
-    import tempfile
-    import os
-    import sys
-    if sys.platform == 'win32':
-        import pythoncom
-    from docx2pdf import convert
+    """Convertit DOCX → PDF avec LibreOffice en mode headless"""
     
-    pythoncom.CoInitialize()
-    
-    try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'document.docx')
-            pdf_path = os.path.join(tmpdir, 'document.pdf')
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = os.path.join(tmpdir, 'document.docx')
+        pdf_path = os.path.join(tmpdir, 'document.pdf')
+        libreoffice_output_dir = os.path.join(tmpdir, 'libreoffice_output')
+        
+        # Créer le dossier de sortie pour LibreOffice
+        os.makedirs(libreoffice_output_dir, exist_ok=True)
+        
+        # Sauvegarder le DOCX
+        with open(docx_path, 'wb') as f:
+            f.write(docx_bytes)
+        
+        # Commande LibreOffice en mode headless
+        cmd = [
+            'soffice',
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', libreoffice_output_dir,
+            docx_path
+        ]
+        
+        try:
+            # Exécuter la conversion
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,  # 60 secondes max pour éviter les blocages
+                check=True
+            )
             
-            with open(docx_path, 'wb') as f:
-                f.write(docx_bytes)
+            # Le PDF généré aura le même nom que le DOCX
+            generated_pdf = os.path.join(libreoffice_output_dir, 'document.pdf')
             
-            convert(docx_path, pdf_path)
-            
-            if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
-                with open(pdf_path, 'rb') as f:
+            # Vérifier que le PDF a bien été généré
+            if os.path.exists(generated_pdf) and os.path.getsize(generated_pdf) > 0:
+                with open(generated_pdf, 'rb') as f:
                     return f.read()
             else:
-                raise RuntimeError("Conversion échouée - fichier PDF vide ou inexistant")
-    finally:
-        if sys.platform == 'win32':
-            pythoncom.CoUninitialize()
+                raise RuntimeError("LibreOffice n'a pas généré de PDF valide.")
+                
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Erreur LibreOffice: {e.stderr}")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("La conversion LibreOffice a expiré (plus de 60 secondes)")
+        except Exception as e:
+            raise RuntimeError(f"Erreur inattendue lors de la conversion: {str(e)}")
 
 def _create_pdf_response(pdf_bytes, filename):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
@@ -306,15 +380,13 @@ def register(request):
         except Exception as e:
             print(f"⚠️ Erreur calcul avancements pour {agent.matricule}: {e}")
 
-        activation_link = f"http://localhost:5173/activate?matricule={agent.matricule}"
         envoyer_email_activation(agent)
         
         return JsonResponse({
             'success': True,
             'message': 'Agent ajouté avec succès',
             'id': agent.matricule,
-            'matricule': agent.matricule,
-            'activation_link': activation_link
+            'matricule': agent.matricule
         })
         
     except json.JSONDecodeError as e:
@@ -324,17 +396,42 @@ def register(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 import base64
+import binascii
 import json
 
 def fix_base64_padding(base64_string):
     """Ajoute le padding = manquant à une chaîne base64"""
-    # Compter le nombre de caractères de padding manquants
     missing_padding = len(base64_string) % 4
     if missing_padding:
         base64_string += '=' * (4 - missing_padding)
     return base64_string
 
- 
+
+def build_safe_filename(file_name, prefix=None):
+    """Construit un nom de fichier sûr pour le stockage disque."""
+    safe_name = os.path.basename(file_name or 'document').strip()
+    safe_name = re.sub(r'[^A-Za-z0-9._-]+', '_', safe_name) or 'document'
+    if prefix:
+        safe_name = f"{prefix}_{safe_name}"
+    return safe_name
+
+
+def save_uploaded_file_bytes(file_bytes, file_name, subdir='documents', prefix=None):
+    """Sauvegarde un fichier uploadé sur disque et retourne le chemin stocké."""
+    base_dir = getattr(settings, 'MEDIA_ROOT', None) or os.path.join(os.getcwd(), 'uploads')
+    upload_dir = os.path.join(base_dir, 'pieces', subdir)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    safe_name = build_safe_filename(file_name, prefix=prefix)
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    file_path = os.path.join(upload_dir, f"{timestamp}_{safe_name}")
+
+    with open(file_path, 'wb') as handle:
+        handle.write(file_bytes)
+
+    return os.path.normpath(file_path)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def activate_account_via_email(request):
@@ -569,91 +666,160 @@ def get_stats(request):
 
 
 @csrf_exempt
+@require_http_methods(["GET"])
+def smtp_test(request):
+    """Vérifie que les variables d'env pour email sont configurées (sans tester connexion réseau)."""
+    try:
+        # Vérifie juste la présence des env vars, pas de connexion socket
+        sendgrid_key = getattr(settings, 'SENDGRID_API_KEY', '')
+        default_from = getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+        
+        if not sendgrid_key:
+            return JsonResponse({
+                'success': False,
+                'error': 'SENDGRID_API_KEY non configuré dans les variables d\'environnement.'
+            }, status=500)
+        
+        if not default_from:
+            return JsonResponse({
+                'success': False,
+                'error': 'DEFAULT_FROM_EMAIL non configuré.'
+            }, status=500)
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Configuration email valide (utilise SendGrid API).',
+            'default_from': default_from,
+            'sendgrid_configured': bool(sendgrid_key),
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
 @require_http_methods(["POST"])
 def import_agents(request):
     try:
         data = json.loads(request.body)
         agents_data = data.get('agents', [])
-        
+
+        if not isinstance(agents_data, list):
+            return JsonResponse({'error': 'Format invalide'}, status=400)
+
         success_count = 0
         error_count = 0
         errors = []
-        
+
         role_agent, _ = Role.objects.get_or_create(libelle='agent')
-        
-        for agent_data in agents_data:
-            try:
-                if Agent.objects.filter(matricule=agent_data.get('matricule')).exists():
-                    error_count += 1
-                    errors.append(f"{agent_data.get('matricule')}: Matricule existe déjà")
-                    continue
-                
-                if Agent.objects.filter(email=agent_data.get('email')).exists():
-                    error_count += 1
-                    errors.append(f"{agent_data.get('matricule')}: Email existe déjà")
-                    continue
-                
-                date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
-                if isinstance(date_prise_service, str):
-                    try:
-                        date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
-                    except ValueError:
-                        date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
-                
-                date_naissance = agent_data.get('date_naissance')
-                if date_naissance and isinstance(date_naissance, str):
-                    try:
-                        if '/' in date_naissance:
-                            date_naissance = datetime.strptime(date_naissance, '%d/%m/%Y').date()
-                        else:
-                            date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
-                    except ValueError:
+        batch_size = 20
+
+        # Collecte initiale des doublons pour éviter des requêtes DB répétées pendant l'import.
+        existing_matricules = set(
+            Agent.objects.values_list('matricule', flat=True).filter(matricule__isnull=False)
+        )
+        existing_emails = set(
+            Agent.objects.values_list('email', flat=True).filter(email__isnull=False)
+        )
+
+        for start in range(0, len(agents_data), batch_size):
+            batch = agents_data[start:start + batch_size]
+            created_agents = []
+
+            for agent_data in batch:
+                try:
+                    matricule = normalize_matricule(agent_data.get('matricule'))
+                    email = (agent_data.get('email') or '').strip().lower()
+
+                    if not matricule or not email:
+                        error_count += 1
+                        errors.append(f"{matricule or '?'}: Matricule ou email manquant")
+                        continue
+
+                    if matricule in existing_matricules:
+                        error_count += 1
+                        errors.append(f"{matricule}: Matricule existe déjà")
+                        continue
+
+                    if email in existing_emails:
+                        error_count += 1
+                        errors.append(f"{matricule}: Email existe déjà")
+                        continue
+
+                    date_prise_service = agent_data.get('date_prise_service', '2024-01-01')
+                    if isinstance(date_prise_service, str):
+                        try:
+                            date_prise_service = datetime.strptime(date_prise_service, '%Y-%m-%d').date()
+                        except ValueError:
+                            date_prise_service = datetime.strptime('2024-01-01', '%Y-%m-%d').date()
+
+                    date_naissance = agent_data.get('date_naissance')
+                    if date_naissance and isinstance(date_naissance, str):
+                        try:
+                            if '/' in date_naissance:
+                                date_naissance = datetime.strptime(date_naissance, '%d/%m/%Y').date()
+                            else:
+                                date_naissance = datetime.strptime(date_naissance, '%Y-%m-%d').date()
+                        except ValueError:
+                            date_naissance = None
+                    else:
                         date_naissance = None
-                else:
-                    date_naissance = None
-                
-                agent = Agent.objects.create(
-                    matricule=agent_data.get('matricule'),
-                    nom=agent_data.get('nom'),
-                    prenom=agent_data.get('prenom'),
-                    email=agent_data.get('email'),
-                    telephone=agent_data.get('telephone', ''),
-                    adresse=agent_data.get('adresse', 'À renseigner'),
-                    direction=agent_data.get('direction', 'À renseigner'),
-                    typecontrat=agent_data.get('typecontrat', 'APE'),
-                    poste=agent_data.get('poste', 'Agent'),
-                    date_prise_service=date_prise_service,
-                    date_naissance=date_naissance,
-                    corps=agent_data.get('corps', ''),
-                    echelon=agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '',
-                    actif=0
-                )
-                print(f"✅ Agent créé: {agent.matricule} - {agent.nom} {agent.prenom}")
-                
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "INSERT INTO agent_role (agent_id, role_id) VALUES (%s, %s)",
-                        [agent.matricule, role_agent.id]
+
+                    agent = Agent(
+                        matricule=matricule,
+                        nom=(agent_data.get('nom') or '').strip(),
+                        prenom=(agent_data.get('prenom') or '').strip(),
+                        email=email,
+                        telephone=(agent_data.get('telephone') or '').strip(),
+                        adresse=(agent_data.get('adresse') or 'À renseigner').strip() or 'À renseigner',
+                        direction=(agent_data.get('direction') or 'À renseigner').strip() or 'À renseigner',
+                        typecontrat=(agent_data.get('typecontrat') or 'APE').strip() or 'APE',
+                        poste=(agent_data.get('poste') or 'Agent').strip() or 'Agent',
+                        date_prise_service=date_prise_service,
+                        date_naissance=date_naissance,
+                        corps=(agent_data.get('corps') or '').strip(),
+                        echelon=(agent_data.get('grade') or agent_data.get('Grade') or agent_data.get('echelon') or '').strip(),
+                        actif=0,
                     )
-                
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
-                print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
-        
+                    created_agents.append(agent)
+                    existing_matricules.add(matricule)
+                    existing_emails.add(email)
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
+                    print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
+
+            if created_agents:
+                created_agents_db = Agent.objects.bulk_create(created_agents, batch_size=20)
+
+                agent_role_rows = [
+                    AgentRole(agent=agent_db, role=role_agent, date_attribution=date.today())
+                    for agent_db in created_agents_db
+                ]
+                AgentRole.objects.bulk_create(agent_role_rows, batch_size=20)
+
+                success_count += len(created_agents_db)
+
+                # Envoi non bloquant des emails d'activation.
+                for agent_db in created_agents_db:
+                    try:
+                        email_executor.submit(envoyer_email_activation, agent_db)
+                    except Exception as email_error:
+                        print(f"⚠️ Échec planification email activation {agent_db.email}: {email_error}")
+
+            connection.close()
+
         return JsonResponse({
             'success': True,
             'success_count': success_count,
             'error_count': error_count,
             'errors': errors[:10]
         })
-        
-    except Exception as e:
-        print(f"Erreur import_agents: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
+    except Exception as e:
+        print(f"❌ Erreur générale dans import_agents: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
 
 # ==================== GESTION DES RÔLES ====================
 
@@ -739,7 +905,7 @@ def get_agent_by_matricule(request, matricule):
             agent.corps = data.get('corps', agent.corps)
             agent.echelon = data.get('echelon', agent.echelon)
             
-            # ⭐ AJOUTE CES LIGNES ⭐
+            
             agent.lieu_naissance = data.get('lieu_naissance', agent.lieu_naissance)
             agent.dialectes = data.get('dialectes', agent.dialectes)
             agent.date_mariage = data.get('date_mariage', agent.date_mariage)
@@ -784,7 +950,6 @@ def get_agent_by_matricule(request, matricule):
             'corps': agent.corps or '',
             'echelon': agent.echelon or '',
             'actif': agent.actif,
-            # ⭐ AJOUTE CES LIGNES ⭐
             'lieu_naissance': agent.lieu_naissance or '',
             'dialectes': agent.dialectes or '',
             'date_mariage': str(agent.date_mariage) if agent.date_mariage else '',
@@ -816,10 +981,10 @@ def add_role_to_agent(request, agent_id):
                 role=role, 
                 date_attribution=datetime.now().date()
             )
-            print(f"✅ Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
+            print(f" Rôle {role.libelle} ajouté à {agent.nom} {agent.prenom}")
             return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} ajouté avec succès'})
         else:
-            print(f"ℹ️ L'agent a déjà le rôle {role.libelle}")
+            print(f" L'agent a déjà le rôle {role.libelle}")
             return JsonResponse({'success': True, 'message': 'L\'agent a déjà ce rôle'})
         
     except Agent.DoesNotExist:
@@ -846,10 +1011,10 @@ def remove_role_from_agent(request, agent_id):
         deleted, _ = AgentRole.objects.filter(agent=agent, role=role).delete()
         
         if deleted:
-            print(f"✅ Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
+            print(f" Rôle {role.libelle} supprimé de {agent.nom} {agent.prenom}")
             return JsonResponse({'success': True, 'message': f'Rôle {role.libelle} supprimé avec succès'})
         else:
-            print(f"ℹ️ L'agent n'avait pas le rôle {role.libelle}")
+            print(f" L'agent n'avait pas le rôle {role.libelle}")
             return JsonResponse({'success': True, 'message': 'L\'agent n\'avait pas ce rôle'})
         
     except Agent.DoesNotExist:
@@ -870,7 +1035,7 @@ def demande_conge(request):
         data = json.loads(request.body)
         matricule = data.get('matricule')
         date_debut_str = data.get('date_debut')
-        nombre_jours = data.get('nombre_jours')  # ✅ NOUVEAU : reçu du frontend
+        nombre_jours = data.get('nombre_jours')  
         
         # Validation des champs
         if not date_debut_str or not nombre_jours:
@@ -885,23 +1050,23 @@ def demande_conge(request):
         # Vérifier l'agent
         agent = Agent.objects.get(matricule=matricule)
         
-        # ⛔ Refuser si l'agent est chef
+        #  Refuser si l'agent est chef
         if est_chef(agent):
             return JsonResponse({
-                'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la hiérarchie (Ministre ou supérieur).'
+                'error': 'Vous êtes un chef de service. Veuillez adresser votre demande de congé à la Ministre.'
             }, status=403)
         
         # Valider les dates
         date_debut = datetime.strptime(date_debut_str, '%Y-%m-%d').date()
         
-        # ✅ Calculer la date de fin automatiquement
+        #  Calculer la date de fin automatiquement
         date_fin = date_debut + timedelta(days=nombre_jours - 1)
         
         # Vérifier que la date de début n'est pas dans le passé
         if date_debut < datetime.now().date():
             return JsonResponse({'error': 'La date de début ne peut pas être dans le passé'}, status=400)
         
-        # ✅ Vérifier le nombre maximum de jours
+        #  Vérifier le nombre maximum de jours
         if nombre_jours > 30:
             return JsonResponse({'error': 'La durée maximale d\'un congé est de 30 jours consécutifs.'}, status=400)
         
@@ -931,7 +1096,7 @@ def demande_conge(request):
         if nb_demandes_annee >= 2:
             return JsonResponse({'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'}, status=400)
         
-        # ✅ Vérifier le solde avec le nombre de jours
+        #  Vérifier le solde avec le nombre de jours
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
@@ -965,7 +1130,15 @@ def demande_conge(request):
             type_demande=type_demande,
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
-            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
+            numerosuivi=f"CONGE-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}",
+            annee=annee_courante
+        )
+        _synchroniser_champs_demande(
+            demande,
+            nombre_jours,
+            annee_courante,
+            solde=solde,
+            jours_restants=max(solde.jours_restants - nombre_jours, 0)
         )
         
         # ✅ Créer le congé avec date_fin calculée
@@ -1027,7 +1200,7 @@ def demande_absence(request):
         
         agent = Agent.objects.get(matricule=matricule)
 
-        # ⛔ Refuser si l'agent est chef
+        #  Refuser si l'agent est chef
         if est_chef(agent):
             return JsonResponse({
                 'error': 'Vous êtes un chef de service. Les absences doivent être autorisées par votre supérieur hiérarchique.'
@@ -1059,7 +1232,10 @@ def demande_absence(request):
         
         type_demande_obj, _ = TypeDemande.objects.get_or_create(
             libelle='Absence',
-            defaults={'acte_generable': 0}
+            defaults={
+                'acte_generable': 0,
+                'duree_traitement_moyenne': 3,
+            }
         )
         
         numerosuivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
@@ -1070,9 +1246,13 @@ def demande_absence(request):
             statut='en_attente_chef',
             date_soumission=datetime.now().date(),
             numerosuivi=numerosuivi,
-            jours_consommes=nombre_jours,
-            jours_restants=10 - nouveau_total,
             annee=annee_courante
+        )
+        _synchroniser_champs_demande(
+            demande,
+            nombre_jours,
+            annee_courante,
+            jours_restants=max(10 - nouveau_total, 0)
         )
         
         absence = DemandeAbsence.objects.create(
@@ -1130,6 +1310,25 @@ def valider_demande_absence(request, demande_id):
         
         if decision == 'valide':
             demande.statut = 'valide'
+            
+            if hasattr(demande, 'demandeabsence') and demande.demandeabsence:
+                annee_absence = demande.demandeabsence.date_debut.year if demande.demandeabsence.date_debut else datetime.now().year
+                nombre_jours = demande.demandeabsence.nombrejours or 0
+                
+                total_valide = Demande.objects.filter(
+                    agent=demande.agent,
+                    type_demande__libelle='Absence',
+                    statut='valide',
+                    annee=annee_absence
+                ).exclude(id=demande.id).aggregate(total=models.Sum('jours_consommes'))['total'] or 0
+                total_valide += nombre_jours
+                jours_restants = max(10 - total_valide, 0)
+                _synchroniser_champs_demande(
+                    demande,
+                    nombre_jours,
+                    annee_absence,
+                    jours_restants=jours_restants
+                )
         else:
             demande.statut = 'refuse'
         
@@ -1240,7 +1439,7 @@ def valider_demande_conge(request, demande_id):
             
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 annee_conge = demande.demandeconge.date_debut.year
-                nombre_jours = demande.demandeconge.nombrejours  # ✅ Déjà stocké
+                nombre_jours = demande.demandeconge.nombrejours  #  Déjà stocké
                 
                 solde, _ = SoldeConge.objects.get_or_create(
                     agent=demande.agent,
@@ -1249,8 +1448,15 @@ def valider_demande_conge(request, demande_id):
                 )
                 
                 solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
-                solde.jours_restants = (solde.jours_acquis or 30) - solde.jours_pris
+                solde.jours_restants = max((solde.jours_acquis or 30) - solde.jours_pris, 0)
                 solde.save()
+                _synchroniser_champs_demande(
+                    demande,
+                    nombre_jours,
+                    annee_conge,
+                    solde=solde,
+                    jours_restants=solde.jours_restants
+                )
         else:
             demande.statut = 'refuse'
             print("❌ Demande rejetée")
@@ -1295,6 +1501,10 @@ def valider_demande_conge(request, demande_id):
 @require_http_methods(["GET"])
 def mes_demandes(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse([], safe=False)
+
         print("=" * 50)
         print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
         
@@ -1342,7 +1552,7 @@ def mes_demandes(request, matricule):
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': f'Agent {matricule} non trouvé'}, status=404)
+        return JsonResponse([], safe=False)
     except Exception as e:
         print(f"❌ ERREUR: {str(e)}")
         import traceback
@@ -1354,6 +1564,15 @@ def mes_demandes(request, matricule):
 @require_http_methods(["GET"])
 def solde_conge(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse({
+                'annee': datetime.now().year,
+                'jours_acquis': 30,
+                'jours_pris': 0,
+                'jours_restants': 30
+            })
+
         agent = Agent.objects.get(matricule=matricule)
         annee_courante = datetime.now().year
         
@@ -1361,15 +1580,19 @@ def solde_conge(request, matricule):
         
         demandes_validees = Demande.objects.filter(
             agent=agent,
-            type_demande__libelle='Congé',
             statut='valide',
-            demandeconge__date_debut__year=annee_courante
-        )
+            annee=annee_courante
+        ).select_related('type_demande', 'demandeconge', 'demandeabsence')
         
         jours_pris = 0
         for d in demandes_validees:
-            if hasattr(d, 'demandeconge') and d.demandeconge:
-                jours_pris += d.demandeconge.nombrejours
+            libelle = (d.type_demande.libelle if d.type_demande else '').strip().lower()
+            if libelle == 'congé' or libelle == 'conge':
+                if hasattr(d, 'demandeconge') and d.demandeconge:
+                    jours_pris += int(d.demandeconge.nombrejours or 0)
+            elif libelle == 'absence':
+                if hasattr(d, 'demandeabsence') and d.demandeabsence:
+                    jours_pris += int(d.demandeabsence.nombrejours or 0)
         
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
@@ -1378,7 +1601,7 @@ def solde_conge(request, matricule):
         )
         
         solde.jours_pris = jours_pris
-        solde.jours_restants = (solde.jours_acquis or 30) - jours_pris
+        solde.jours_restants = max((solde.jours_acquis or 30) - jours_pris, 0)
         solde.save()
         
         return JsonResponse({
@@ -1389,7 +1612,12 @@ def solde_conge(request, matricule):
         })
         
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse({
+            'annee': datetime.now().year,
+            'jours_acquis': 30,
+            'jours_pris': 0,
+            'jours_restants': 30
+        })
     except Exception as e:
         print(f"Erreur solde_conge: {str(e)}")
         import traceback
@@ -1490,10 +1718,23 @@ def get_types_demande(request):
 def add_type_demande(request):
     try:
         data = json.loads(request.body)
+        libelle = data.get('libelle')
+        duree = data.get('duree_traitement_moyenne')
+        acte_generable = data.get('acte_generable', 0)
+
+        if not libelle:
+            return JsonResponse({'error': 'Libellé requis'}, status=400)
+        if duree is None or duree == '':
+            return JsonResponse({'error': 'Durée de traitement requise'}, status=400)
+        try:
+            duree_int = int(duree)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Durée de traitement invalide'}, status=400)
+
         type_demande = TypeDemande.objects.create(
-            libelle=data.get('libelle'),
-            duree_traitement_moyenne=data.get('duree_traitement_moyenne'),
-            acte_generable=data.get('acte_generable', 0)
+            libelle=libelle,
+            duree_traitement_moyenne=duree_int,
+            acte_generable=acte_generable
         )
         return JsonResponse({'success': True, 'id': type_demande.id})
     except Exception as e:
@@ -1519,9 +1760,23 @@ def edit_type_demande(request, type_id):
     try:
         data = json.loads(request.body)
         type_demande = TypeDemande.objects.get(id=type_id)
-        type_demande.libelle = data.get('libelle')
-        type_demande.duree_traitement_moyenne = data.get('duree_traitement_moyenne')
-        type_demande.acte_generable = data.get('acte_generable', 0)
+
+        libelle = data.get('libelle')
+        duree = data.get('duree_traitement_moyenne')
+        acte_generable = data.get('acte_generable', 0)
+
+        if not libelle:
+            return JsonResponse({'error': 'Libellé requis'}, status=400)
+        if duree is None or duree == '':
+            return JsonResponse({'error': 'Durée de traitement requise'}, status=400)
+        try:
+            duree_int = int(duree)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Durée de traitement invalide'}, status=400)
+
+        type_demande.libelle = libelle
+        type_demande.duree_traitement_moyenne = duree_int
+        type_demande.acte_generable = acte_generable
         type_demande.save()
         return JsonResponse({'success': True})
     except TypeDemande.DoesNotExist:
@@ -1610,13 +1865,15 @@ def add_permission(request):
     try:
         data = json.loads(request.body)
         code = data.get('code')
-        description = data.get('description')
+        description = _validate_max_length('Description de permission', data.get('description'), 255)
         
         if Permission.objects.filter(code=code).exists():
             return JsonResponse({'error': 'Cette permission existe déjà'}, status=400)
         
         permission = Permission.objects.create(code=code, description=description)
         return JsonResponse({'success': True, 'code': permission.code})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -1680,27 +1937,31 @@ def toggle_role_permission(request):
 @require_http_methods(["GET"])
 def get_user_permissions(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
         print(f"=== get_user_permissions for: {matricule}")
-        
+
+        if not matricule:
+            return JsonResponse({'matricule': matricule, 'permissions': []})
+
         agent = Agent.objects.get(matricule=matricule)
         agent_roles = AgentRole.objects.filter(agent=agent).select_related('role')
-        
+
         permissions = []
         for ar in agent_roles:
             role_perms = RolePermission.objects.filter(role=ar.role).select_related('permission')
             for rp in role_perms:
                 permissions.append(rp.permission.code)
-        
+
         permissions = list(set(permissions))
         print(f"Permissions trouvées: {permissions}")
-        
+
         return JsonResponse({'matricule': matricule, 'permissions': permissions})
-        
+
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse({'matricule': normalize_matricule(matricule), 'permissions': []})
     except Exception as e:
         print(f"Erreur: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'matricule': normalize_matricule(matricule), 'permissions': []})
 
 
 # ==================== SECRÉTARIAT ====================
@@ -3306,7 +3567,9 @@ def generer_acte_rh(request, demande_id):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"⚠️ ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'{filename_prefix}_{demande.agent.nom}_{demande.agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         fichier_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
 
@@ -3626,7 +3889,9 @@ def generer_attestation_presence(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Presence_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3715,7 +3980,9 @@ def generer_attestation_travail(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Travail_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3839,7 +4106,9 @@ def generer_attestation_validite_services(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Attestation_Validite_Services_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3865,7 +4134,7 @@ def generer_certificat_non_jouissance(request):
         data = json.loads(request.body)
         matricule = data.get('matricule')
         demande_id = data.get('demande_id')  # ✅ AJOUTÉ
-        annee = data.get('annee', datetime.now().year)
+        annee = data.get('annee')
         
         agent = Agent.objects.get(matricule=matricule)
         
@@ -3873,7 +4142,37 @@ def generer_certificat_non_jouissance(request):
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
-        
+
+        # Si l'année n'a pas été fournie, essayer de l'extraire depuis la demande
+        if not annee and demande:
+                try:
+                    import re
+                    type_libelle = demande.type_demande.libelle if demande.type_demande else ''
+                    # 1) chercher année dans le libellé
+                    m = re.search(r"(20\d{2})", type_libelle)
+                    if m:
+                        annee = int(m.group(1))
+                    else:
+                        # 2) chercher dans le champ commentaire de la demande
+                        if demande.commentaire:
+                            m2 = re.search(r"(20\d{2})", demande.commentaire)
+                            if m2:
+                                annee = int(m2.group(1))
+                        # 3) chercher dans la Validation.commentaire (format TYPE_ATTESTATION:...||COMMENTAIRE:...)
+                        if not annee:
+                            from .models import Validation
+                            val = Validation.objects.filter(demande=demande).order_by('-id').first()
+                            if val and val.commentaire:
+                                m3 = re.search(r"(20\d{2})", val.commentaire)
+                                if m3:
+                                    annee = int(m3.group(1))
+                except Exception:
+                    annee = None
+
+        # Par défaut, utiliser l'année courante si toujours non fournie
+        if not annee:
+            annee = datetime.now().year
+
         conges_valides = Demande.objects.filter(
             agent=agent,
             type_demande__libelle='Congé',
@@ -3930,7 +4229,9 @@ def generer_certificat_non_jouissance(request):
             pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes)
         except RuntimeError as e:
             print(f"ERREUR conversion PDF: {e}")
-            return _create_docx_response(docx_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
         # ✅ Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
@@ -3943,7 +4244,7 @@ def generer_certificat_non_jouissance(request):
             fichier_pdf=base64.b64encode(pdf_bytes).decode('utf-8')
         )
         
-        return _create_pdf_response(pdf_bytes, f'Certificat_Non_Jouissance_{agent.nom}_{agent.prenom}')
+        return _create_pdf_response(pdf_bytes, 'certificat_non_jouissance')
         
     except Agent.DoesNotExist:
         return JsonResponse({'error': 'Agent non trouvé'}, status=404)
@@ -3981,32 +4282,41 @@ def check_expired_documents(request):
     try:
         today = date.today()
         count = 0
-        
-        pieces_expired = Piece.objects.filter(date_expiration__lte=today, valide=1)
+
+        pieces_expired = Piece.objects.filter(date_expiration__lte=today, valide=1).select_related('dossier_agent', 'type_piece', 'dossier_agent__agent')
         for piece in pieces_expired:
+            if not piece.dossier_agent or not piece.dossier_agent.agent:
+                continue
+
             agent = piece.dossier_agent.agent
             jours = (today - piece.date_expiration).days
-            
+            label = piece.type_piece.libelle if piece.type_piece else 'Pièce'
+
             if jours == 0:
-                message = f"⚠️ {piece.type_piece.libelle} expire aujourd'hui"
+                message = f" {label} expire aujourd'hui"
             elif jours == 1:
-                message = f"⚠️ {piece.type_piece.libelle} a expiré hier"
+                message = f" {label} a expiré hier"
             else:
-                message = f"⚠️ {piece.type_piece.libelle} est expiré depuis {jours} jours"
-            
-            if not Notification.objects.filter(agent=agent, message__contains=piece.type_piece.libelle, type_notification='expiration', date_envoi=today).exists():
+                message = f" {label} est expiré depuis {jours} jours"
+
+            if not Notification.objects.filter(agent=agent, message__contains=label, type_notification='expiration', date_envoi=today).exists():
                 Notification.objects.create(agent=agent, message=message, type_notification='expiration', date_envoi=today, lue=0)
                 count += 1
-        
+
         in_30_days = today + timedelta(days=30)
-        pieces_expiring = Piece.objects.filter(date_expiration__gt=today, date_expiration__lte=in_30_days, valide=1)
+        pieces_expiring = Piece.objects.filter(date_expiration__gt=today, date_expiration__lte=in_30_days, valide=1).select_related('dossier_agent', 'type_piece', 'dossier_agent__agent')
         for piece in pieces_expiring:
+            if not piece.dossier_agent or not piece.dossier_agent.agent:
+                continue
+
             agent = piece.dossier_agent.agent
             jours = (piece.date_expiration - today).days
-            if not Notification.objects.filter(agent=agent, message__contains=piece.type_piece.libelle, type_notification='expiration', date_envoi=today).exists():
-                Notification.objects.create(agent=agent, message=f"⏰ {piece.type_piece.libelle} expire dans {jours} jours", type_notification='expiration', date_envoi=today, lue=0)
+            label = piece.type_piece.libelle if piece.type_piece else 'Pièce'
+
+            if not Notification.objects.filter(agent=agent, message__contains=label, type_notification='expiration', date_envoi=today).exists():
+                Notification.objects.create(agent=agent, message=f" {label} expire dans {jours} jours", type_notification='expiration', date_envoi=today, lue=0)
                 count += 1
-        
+
         return JsonResponse({'success': True, 'notifications_created': count, 'message': f'{count} notification(s) créée(s)'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -4097,6 +4407,19 @@ def upload_document(request):
         dossier, created = DossierAgent.objects.get_or_create(agent=agent, defaults={'datecreation': date.today(), 'taux_completude': 0})
         
         cleaned_base64 = file_base64.split('base64,')[1] if 'base64,' in file_base64 else file_base64
+        cleaned_base64 = cleaned_base64.strip()
+        cleaned_base64 = fix_base64_padding(cleaned_base64)
+        try:
+            file_bytes = base64.b64decode(cleaned_base64)
+        except (binascii.Error, ValueError) as e:
+            return JsonResponse({'error': f'Base64 invalide : {str(e)}'}, status=400)
+
+        stored_path = save_uploaded_file_bytes(
+            file_bytes,
+            file_name,
+            subdir=f"agent_{agent.matricule}",
+            prefix=type_piece.libelle
+        )
         
         date_expiration_str = request.POST.get('date_expiration')
         date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date() if date_expiration_str else None
@@ -4107,7 +4430,7 @@ def upload_document(request):
         
         piece = Piece.objects.create(
             dossier_agent=dossier, type_piece=type_piece, nom_fichier=file_name,
-            date_expiration=date_expiration, date_upload=date.today(), valide=1, cheminfichier=cleaned_base64
+            date_expiration=date_expiration, date_upload=date.today(), valide=1, cheminfichier=stored_path
         )
         
         cache_key = f'anomalies_{matricule}'
@@ -4144,14 +4467,22 @@ def download_document(request, piece_id):
         
         if not piece.cheminfichier:
             return JsonResponse({'error': 'Document vide'}, status=404)
-        
+
         mime_type = 'application/pdf'
         if piece.nom_fichier.lower().endswith(('.jpg', '.jpeg')):
             mime_type = 'image/jpeg'
         elif piece.nom_fichier.lower().endswith('.png'):
             mime_type = 'image/png'
+
+        stored_value = piece.cheminfichier
+        if isinstance(stored_value, str) and os.path.isfile(stored_value):
+            with open(stored_value, 'rb') as handle:
+                file_bytes = handle.read()
+            file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+        else:
+            file_base64 = stored_value
         
-        return JsonResponse({'success': True, 'file_name': piece.nom_fichier, 'file_base64': piece.cheminfichier, 'mime_type': mime_type, 'type_piece': piece.type_piece.libelle})
+        return JsonResponse({'success': True, 'file_name': piece.nom_fichier, 'file_base64': file_base64, 'mime_type': mime_type, 'type_piece': piece.type_piece.libelle})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -4500,9 +4831,62 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
         cache.delete(f'anomalies_refresh_{matricule}')
 
 
+@require_http_methods(["GET"])
+def health_ollama(request):
+    """Health-check endpoint for Ollama connectivity."""
+    host = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+    try:
+        client = ollama.Client(host=host)
+        models = client.list()
+        return JsonResponse({'ok': True, 'models': [m['name'] for m in models], 'host': host}, status=200)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e), 'host': host}, status=503)
+
+
+@require_http_methods(["GET"])
+def health(request):
+    """Simple application health endpoint."""
+    return JsonResponse({'ok': True, 'version': '1.0', 'ollama_url': os.getenv('OLLAMA_URL', 'unset')})
+
+
+def _ensure_ollama_running():
+    host = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+    model_name = 'llama3.2:3b'
+
+    try:
+        client = ollama.Client(host=host)
+        client.list()
+        return client, host, model_name
+    except Exception as exc:
+        ollama_path = shutil.which('ollama') or shutil.which('ollama.exe')
+        if ollama_path:
+            try:
+                subprocess.Popen(
+                    [ollama_path, 'serve'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+                )
+            except Exception:
+                pass
+
+            for _ in range(10):
+                time.sleep(1)
+                try:
+                    client = ollama.Client(host=host)
+                    client.list()
+                    return client, host, model_name
+                except Exception:
+                    continue
+
+        raise exc
+
+
 def call_ollama(resume, score, points_faibles_forces, points_forts_forces):
     try:
         print(f"[Ollama] Tentative d'appel...")
+        client, host, model_name = _ensure_ollama_running()
 
         statut = "conforme" if score >= 80 else "attention" if score >= 50 else "critique"
         pf_str = json.dumps(points_faibles_forces, ensure_ascii=False)
@@ -4520,8 +4904,8 @@ Complète uniquement risques et recommandations selon le contexte.
 Réponds avec ce JSON uniquement :
 {{"score":{score},"statut_global":"{statut}","resume":"2 phrases max.","points_forts":{pts_str},"points_faibles":{pf_str},"risques":[...],"recommandations":[...]}}"""
 
-        ai_response = ollama.chat(
-            model='llama3.2:3b',
+        ai_response = client.chat(
+            model=model_name,
             messages=[
                 {'role': 'system', 'content': SYSTEM_PROMPT},
                 {'role': 'user', 'content': prompt_user}
@@ -4537,7 +4921,8 @@ Réponds avec ce JSON uniquement :
 
     except Exception as e:
         print(f"[Ollama] Erreur interne : {type(e).__name__} — {e}")
-        return None
+        # return fallback but keep error visible in logs
+        return fallback_analysis(score)
 
 
 @csrf_exempt
@@ -4671,13 +5056,13 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
     try:
         print(f"=== get_actes_a_envoyer_rh for RH: {matricule_rh}")
         
-        # ✅ CORRECTION : Filtrer par l'agent RH assigné à la demande
+        #  CORRECTION : Filtrer par l'agent RH assigné à la demande
         actes = ActeAdministratif.objects.filter(
             statut='genere',
             demande__agent_rh__matricule=matricule_rh  # Filtrer via la demande
         ).select_related('demande__agent')
         
-        # ✅ OU BIEN : Si l'agent RH est stocké sur l'acte lui-même
+        #  OU BIEN : Si l'agent RH est stocké sur l'acte lui-même
         # actes = ActeAdministratif.objects.filter(
         #     statut='genere',
         #     rh_matricule=matricule_rh  # Si vous avez un champ rh_matricule sur ActeAdministratif
@@ -4755,10 +5140,13 @@ def calculer_nouvel_echelon(echelon_actuel):
 def peut_avancer(agent, date_prevue):
     if not agent.date_naissance:
         return True
-    type_echelon = get_type_echelon(agent.echelon or 'A1-1')
-    age_retraite = get_age_retraite(type_echelon)
-    date_retraite = agent.date_naissance.replace(year=agent.date_naissance.year + age_retraite)
-    return date_prevue < date_retraite
+    try:
+        type_echelon = get_type_echelon(agent.echelon or 'A1-1')
+        age_retraite = get_age_retraite(type_echelon)
+        date_retraite = agent.date_naissance.replace(year=agent.date_naissance.year + age_retraite)
+        return date_prevue < date_retraite
+    except Exception:
+        return True
 
 
 def actualiser_avancements():
@@ -4838,23 +5226,45 @@ def calculer_et_notifier():
     print("✅ Actualisation des avancements terminée.")
 
 
+def calculer_et_notifier_async():
+    try:
+        calculer_et_notifier()
+    except Exception as e:
+        print(f"ERREUR avancements asynchrone: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def trigger_avancements(request):
-    calculer_et_notifier()
-    return JsonResponse({'success': True})
+    try:
+        threading.Thread(target=calculer_et_notifier_async, daemon=True).start()
+        return JsonResponse({'success': True, 'status': 'processing'})
+    except Exception as e:
+        print(f"ERREUR trigger_avancements: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_avancements_agent(request, matricule):
     try:
+        matricule = normalize_matricule(matricule)
+        if not matricule:
+            return JsonResponse([], safe=False)
+
         agent = Agent.objects.get(matricule=matricule)
         avancements = Avancement.objects.filter(agent=agent).order_by('-date_prevue')
         result = [{'id': a.id, 'date_prevue': str(a.date_prevue), 'date_effective': str(a.date_effective) if a.date_effective else None, 'type': a.type_avancement, 'echelon_ancien': a.echelon_ancien, 'echelon_nouveau': a.echelon_nouveau} for a in avancements]
         return JsonResponse(result, safe=False)
     except Agent.DoesNotExist:
-        return JsonResponse({'error': 'Agent non trouvé'}, status=404)
+        return JsonResponse([], safe=False)
+    except Exception as e:
+        print(f"ERREUR get_avancements_agent: {str(e)}")
+        return JsonResponse([], safe=False)
 
 
 @csrf_exempt
@@ -5030,16 +5440,22 @@ def postes_vacants(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
+            description = data.get('description')
+            profil_recherche = data.get('profil_recherche', '')
+            direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
+            diplome_requis = data.get('diplomeRequis', '')
             pieces_requises_json = json.dumps(data.get('pieces_requises', []))
             with connection.cursor() as cursor:
                 cursor.execute("""INSERT INTO poste_vacant (intitule, description, profil_recherche, date_publication, date_cloture, statut, directionDemande, diplomeRequis, pieces_requises) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    [data.get('intitule'), data.get('description'), data.get('profil_recherche', ''), data.get('date_publication'), data.get('date_cloture'), 'publie', data.get('directionDemande'), data.get('diplomeRequis', ''), pieces_requises_json])
+                    [data.get('intitule'), description, profil_recherche, data.get('date_publication'), data.get('date_cloture'), 'publie', direction_demande, diplome_requis, pieces_requises_json])
                 poste_id = cursor.lastrowid
             with connection.cursor() as cursor:
                 cursor.execute("SELECT matricule FROM agent WHERE actif = 1")
                 for agent in cursor.fetchall():
                     cursor.execute("INSERT INTO notification (agent_id, message, type_notification, date_envoi, lue) VALUES (%s, %s, %s, %s, %s)", [agent[0], f"📢 Nouvelle annonce : {data.get('intitule')}", 'NOUVELLE_ANNONCE', date.today(), 0])
             return JsonResponse({'success': True, 'id': poste_id, 'message': 'Annonce créée'})
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
@@ -5109,6 +5525,11 @@ def postuler(request):
             """, [matricule, poste_id])
             if cursor.fetchone()[0] > 0:
                 return JsonResponse({'error': 'Vous avez déjà postulé à cette annonce'}, status=400)
+
+            # Vérifier la complétude du dossier de l'agent
+            dossier_ok, dossier_message = _verifier_completude_dossier(matricule)
+            if not dossier_ok:
+                return JsonResponse({'error': dossier_message}, status=400)
             
             # Vérifier que l'annonce est ouverte
             cursor.execute("""
@@ -5120,11 +5541,11 @@ def postuler(request):
             if not poste:
                 return JsonResponse({'error': 'Annonce non trouvée'}, status=404)
             
-            if poste[0] != 'publie':
-                return JsonResponse({'error': 'Cette annonce est clôturée'}, status=400)
-            
-            if poste[1] and poste[1] < date.today():
-                return JsonResponse({'error': 'Date de clôture dépassée'}, status=400)
+            poste_statut = poste[0]
+            poste_date_cloture = poste[1]
+            ouvert, message = _verifier_poste_ouvert(poste_statut, poste_date_cloture)
+            if not ouvert:
+                return JsonResponse({'error': message}, status=400)
             
             pieces_requises = json.loads(poste[3]) if poste[3] else ['CV', 'LM', 'DIPLOME']
             
@@ -5144,6 +5565,16 @@ def postuler(request):
                 upload_dir = f'uploads/pieces/candidature_{candidature_id}'
                 os.makedirs(upload_dir, exist_ok=True)
                 
+                # Récupérer la date d'expiration si elle est fournie
+                date_expiration_str = request.POST.get('date_expiration')
+                if date_expiration_str:
+                    try:
+                        date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        return JsonResponse({'error': 'date_expiration invalide, format attendu: YYYY-MM-DD'}, status=400)
+                else:
+                    date_expiration = date.today()
+
                 # Mapping des fichiers
                 fichiers = [
                     ('CV', cv_file),
@@ -5177,9 +5608,9 @@ def postuler(request):
                             
                             # Insérer la pièce
                             cursor.execute("""
-                                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier) 
-                                VALUES (%s, %s, %s, %s, %s, %s)
-                            """, [candidature_id, type_piece_id, fichier.name, date.today(), 1, file_path])
+                                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier, date_expiration) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """, [candidature_id, type_piece_id, fichier.name, date.today(), 1, file_path, date_expiration])
                             
                             uploaded_count += 1
                             print(f"✅ {type_document} uploadé")
@@ -5226,26 +5657,35 @@ def postuler(request):
 def lancer_analyse_async(candidature_id):
     """Lance l'analyse IA en arrière-plan"""
     print("=" * 60)
-    print(f"🚀 [ASYNC] LANCEMENT de l'analyse pour candidature {candidature_id}")
+    print(f" [ASYNC] LANCEMENT de l'analyse pour candidature {candidature_id}")
     print("=" * 60)
     
     try:
         # Attendre un peu que tous les fichiers soient bien enregistrés
         import time
         time.sleep(2)
-        
-        from .views import analyser_candidature
-        from django.test import RequestFactory
-        
-        factory = RequestFactory()
-        request = factory.post(f'/api/candidatures/{candidature_id}/analyser/')
-        
-        print(f"📡 Appel de analyser_candidature...")
-        result = analyser_candidature(request, candidature_id)
-        print(f"✅ [ASYNC] Analyse terminée pour candidature {candidature_id}")
+
+        close_old_connections()
+        print(f" Appel de l'analyse worker pour candidature {candidature_id}...")
+        result = analyser_candidature_worker(candidature_id)
+
+        if result is None:
+            print(f" [ASYNC] Analyse worker a retourné None pour candidature {candidature_id}")
+            return
+
+        if hasattr(result, 'status_code') and result.status_code != 200:
+            try:
+                payload = json.loads(result.content.decode('utf-8'))
+                error_message = payload.get('error') or payload.get('message') or f"HTTP {result.status_code}"
+            except Exception:
+                error_message = f"HTTP {result.status_code}"
+            print(f" [ASYNC] Analyse échouée pour candidature {candidature_id}: {error_message}")
+            return
+
+        print(f" [ASYNC] Analyse terminée pour candidature {candidature_id}")
         
     except Exception as e:
-        print(f"❌ [ASYNC] Erreur: {e}")
+        print(f" [ASYNC] Erreur: {e}")
         import traceback
         traceback.print_exc()
         
@@ -5268,16 +5708,60 @@ def check_candidature_status(request, candidature_id):
             if not result:
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
             
+            analyse_ia = result[3]
             return JsonResponse({
                 'candidature_id': result[0],
                 'statut': result[1],
-                'score': result[2] or 0,
-                'analyse': result[3] or '',
+                'score': result[2] if result[2] is not None else 0,
+                'analyse': analyse_ia if analyse_ia else '',
                 'nb_pieces': result[4] or 0,
-                'analyse_terminee': result[2] is not None and result[2] > 0
+                'analyse_terminee': analyse_ia is not None and analyse_ia != ''
             })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def _ocr_image_bytes(img_bytes):
+    """OCR d'une image en bytes en utilisant EasyOCR puis pytesseract en fallback."""
+    # EasyOCR est désactivé pour éviter le téléchargement de modèles et le blocage de l'analyse en tâche de fond.
+    # Nous utilisons uniquement pytesseract si Tesseract est disponible.
+
+    try:
+        import pytesseract
+        from PIL import Image
+        import shutil, os
+
+        # Allow explicit tesseract path via environment variable (helpful in containers)
+        tesseract_cmd = os.environ.get('TESSERACT_CMD')
+        if tesseract_cmd:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        elif not shutil.which('tesseract'):
+            print("⚠️ pytesseract installé mais tesseract non trouvé dans le PATH et TESSERACT_CMD non défini")
+            return ''
+
+        with Image.open(io.BytesIO(img_bytes)) as img:
+            text = pytesseract.image_to_string(img, lang='fra+eng')
+            return text.replace('\n', ' ').strip()
+    except Exception as e:
+        print(f"⚠️ pytesseract fallback failed: {e}")
+    return ""
+
+
+def analyser_candidature_worker(candidature_id):
+    """Travailleur de fond pour l'analyse de candidature sans requête HTTP."""
+    try:
+        close_old_connections()
+        from django.test import RequestFactory
+        factory = RequestFactory()
+        request = factory.post('/')
+        response = analyser_candidature(request, candidature_id)
+        if hasattr(response, 'status_code') and response.status_code != 200:
+            print(f"❌ [WORKER] analyse échouée (HTTP {response.status_code}) pour candidature {candidature_id}")
+        return response
+    except Exception as e:
+        print(f"❌ [WORKER] erreur interne: {type(e).__name__} - {e}")
+        return None
+
 
 def extraire_texte_piece(piece_id):
     """Extrait le texte d'un fichier uploadé (PDF, DOCX, Image) avec EasyOCR - Version OPTIMISÉE"""
@@ -5285,14 +5769,11 @@ def extraire_texte_piece(piece_id):
         from docx import Document
         import io
         import PyPDF2
-        import easyocr
         from PIL import Image
         
-        # Initialiser EasyOCR une seule fois
-        if not hasattr(extraire_texte_piece, 'reader'):
-            print("📥 Initialisation d'EasyOCR...")
-            extraire_texte_piece.reader = easyocr.Reader(['fr', 'en'], gpu=False)
-            print("✅ EasyOCR prêt")
+        # EasyOCR est volontairement désactivé pour éviter les téléchargements de modèles
+        # et les blocages d'exécution en tâche de fond.
+        extraire_texte_piece.reader = None
         
         with connection.cursor() as cursor:
             cursor.execute("SELECT cheminfichier, nom_fichier FROM piece WHERE id = %s", [piece_id])
@@ -5323,39 +5804,36 @@ def extraire_texte_piece(piece_id):
                         
                         # Si on a assez de texte, on retourne directement
                         if len(texte) > 200:
-                            print(f"📄 PDF texte extrait: {len(texte)} caractères")
+                            print(f" PDF texte extrait: {len(texte)} caractères")
                             return texte[:3000]
+                    
+                    print(f" PDF scanné, OCR en cours...")
+                    try:
+                        import fitz
+                        doc = fitz.open(fichier_path)
+                        texte_ocr = ""
                         
-                        # PDF scanné - utilisation OCR rapide
-                        print(f"⚠️ PDF scanné, OCR en cours...")
-                        try:
-                            import fitz
-                            doc = fitz.open(fichier_path)
-                            texte_ocr = ""
-                            
-                            # Limiter à 2 pages max pour la vitesse
-                            max_pages = min(len(doc), 2)
-                            
-                            for page_num in range(max_pages):
-                                page = doc.load_page(page_num)
-                                # Résolution réduite pour être plus rapide
-                                zoom = 1.5  # Réduit de 3.0 à 1.5
-                                mat = fitz.Matrix(zoom, zoom)
-                                pix = page.get_pixmap(matrix=mat)
-                                img_bytes = pix.tobytes("png")
-                                
-                                result = extraire_texte_piece.reader.readtext(img_bytes)
-                                page_text = ' '.join([r[1] for r in result])
-                                texte_ocr += page_text + " "
-                                print(f"   Page {page_num + 1}: {len(page_text)} caractères")
-                            
-                            doc.close()
-                            print(f"📄 PDF OCR: {len(texte_ocr)} caractères")
-                            return texte_ocr[:3000] if texte_ocr else ""
-                        except ImportError:
-                            print("⚠️ PyMuPDF non installé, impossible d'OCR le PDF")
-                            return ""
+                        # Limiter à 2 pages max pour la vitesse
+                        max_pages = min(len(doc), 2)
                         
+                        for page_num in range(max_pages):
+                            page = doc.load_page(page_num)
+                            # Résolution réduite pour être plus rapide
+                            zoom = 1.5  # Réduit de 3.0 à 1.5
+                            mat = fitz.Matrix(zoom, zoom)
+                            pix = page.get_pixmap(matrix=mat)
+                            img_bytes = pix.tobytes("png")
+                            
+                            page_text = _ocr_image_bytes(img_bytes)
+                            texte_ocr += page_text + " "
+                            print(f"   Page {page_num + 1}: {len(page_text)} caractères")
+                        
+                        doc.close()
+                        print(f" PDF OCR: {len(texte_ocr)} caractères")
+                        return texte_ocr[:3000] if texte_ocr else ""
+                    except ImportError:
+                        print(" PyMuPDF non installé, impossible d'OCR le PDF")
+                        return ""
                 except Exception as e:
                     print(f"Erreur PDF: {e}")
                     return ""
@@ -5363,7 +5841,7 @@ def extraire_texte_piece(piece_id):
             # ==================== IMAGES ====================
             elif nom_fichier.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')):
                 try:
-                    print("🖼️ OCR image...")
+                    print(" OCR image...")
                     
                     # Ouvrir l'image
                     img = Image.open(fichier_path)
@@ -5382,10 +5860,8 @@ def extraire_texte_piece(piece_id):
                     img_bytes = img_bytes.getvalue()
                     
                     # OCR
-                    result = extraire_texte_piece.reader.readtext(img_bytes)
-                    texte = ' '.join([r[1] for r in result])
-                    
-                    print(f"🖼️ OCR: {len(texte)} caractères")
+                    texte = _ocr_image_bytes(img_bytes)
+                    print(f" OCR: {len(texte)} caractères")
                     return texte[:3000] if texte else ""
                     
                 except Exception as e:
@@ -5397,7 +5873,7 @@ def extraire_texte_piece(piece_id):
                 try:
                     doc = Document(fichier_path)
                     texte = '\n'.join([para.text for para in doc.paragraphs if para.text])
-                    print(f"📄 DOCX: {len(texte)} caractères")
+                    print(f" DOCX: {len(texte)} caractères")
                     return texte[:3000]
                 except Exception as e:
                     print(f"Erreur DOCX: {e}")
@@ -5437,44 +5913,526 @@ def _normaliser_type_piece(libelle):
     return aliases.get(value, value)
 
 
-def _charger_pieces_requises(value):
-    """Parse pieces_requises depuis JSONField/texte SQL et normalise les codes."""
-    if not value:
-        return []
-    if isinstance(value, str):
+def _detect_language(text):
+    if not text:
+        return 'fr'
+    if _langdetect_detect:
         try:
-            value = json.loads(value)
-        except json.JSONDecodeError:
-            value = [value]
-    if not isinstance(value, list):
+            return _langdetect_detect(text)
+        except Exception:
+            return 'fr'
+    # Fallback simple heuristic
+    text_lower = text.lower()
+    english_markers = ['experience', 'profile', 'skills', 'objective', 'university', 'degree', 'resume']
+    french_markers = ['expérience', 'profil', 'compétences', 'objectif', 'université', 'diplôme', 'cv']
+    eng_count = sum(text_lower.count(marker) for marker in english_markers)
+    fr_count = sum(text_lower.count(marker) for marker in french_markers)
+    return 'en' if eng_count > fr_count else 'fr'
+
+COMPETENCES_TECHNIQUES = [
+    'python', 'django', 'react', 'javascript', 'sql', 'mysql', 'postgresql', 'linux', 'docker',
+    'git', 'api', 'rest', 'cisco', 'tcp/ip', 'vpn', 'firewall', 'routeur', 'switch', 'ms project',
+    'excel', 'word', 'powerpoint', 'ccna', 'ccnp', 'aws', 'azure', 'comptia', 'kubernetes',
+    'terraform', 'ansible', 'nodejs', 'vue', 'angular', 'flask', 'symfony', 'laravel'
+]
+
+def _verifier_poste_ouvert(statut, date_cloture):
+    if statut is None:
+        return False, 'Statut de poste inconnu'
+    if statut.lower() not in ['publie', 'ouvert']:
+        return False, 'Ce poste n est plus disponible'
+    if date_cloture and date_cloture < date.today():
+        return False, 'Le poste est clôturé'
+    return True, 'Poste ouvert'
+
+
+def _verifier_completude_dossier(agent_matricule, seuil=0.6):
+    dossier = DossierAgent.objects.filter(agent__matricule=agent_matricule).first()
+    if not dossier:
+        return False, 'Aucun dossier trouvé pour cet agent'
+    return True, 'Dossier suffisamment complet'
+
+
+def _normalize_text_for_matching(text):
+    import re
+    import unicodedata
+
+    if not text:
+        return ''
+
+    normalized = unicodedata.normalize('NFKD', str(text))
+    normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
+    normalized = normalized.lower()
+    normalized = re.sub(r'[^a-z0-9]+', ' ', normalized)
+    return ' '.join(normalized.split())
+
+
+def _extract_technical_skills(text):
+    if not text:
         return []
-    pieces = []
-    for item in value:
-        code = _normaliser_type_piece(item)
-        if code and code not in pieces:
-            pieces.append(code)
-    return pieces
+    normalized = _normalize_text_for_matching(text)
+    found = [comp for comp in COMPETENCES_TECHNIQUES if comp in normalized]
+    return sorted(found)
+
+
+def _score_competences_techniques(cv_text, profil_text, language='fr'):
+    if not cv_text or not profil_text:
+        return 0, [], []
+    cv_skills = set(_extract_technical_skills(cv_text))
+    profil_skills = set(_extract_technical_skills(profil_text))
+    if not profil_skills:
+        return 0, [], []
+    communes = sorted(cv_skills & profil_skills)
+    manquantes = sorted(profil_skills - cv_skills)
+    score = int(round((len(communes) / len(profil_skills)) * 20)) if profil_skills else 0
+    return score, communes, manquantes
+
+
+def _generer_classement(cursor, poste_vacant_id):
+    cursor.execute(
+        "SELECT id FROM candidature WHERE poste_vacant_id = %s ORDER BY score_eligibilite DESC, date_soumission ASC",
+        [poste_vacant_id]
+    )
+    rows = cursor.fetchall()
+    rang = 1
+    for row in rows:
+        cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(rang), row[0]])
+        rang += 1
+    return rang - 1
 
 
 def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_text, 
                                   diplome_requis, profil_recherche, pieces_requises=None, 
-                                  pieces_fournies=None, textes_par_piece=None):
+                                  pieces_fournies=None, textes_par_piece=None,
+                                  agent_nom=None, agent_prenom=None, cni_text=None):
     """
     Analyse IA avancée avec détection de fraudes et scoring détaillé
     """
+    def _clean_text(text):
+        return ' '.join(str(text or '').lower().split())
+
+    def _extract_degree_related_text(text):
+        if not text:
+            return ''
+        lower_text = text.lower()
+        degree_markers = [
+            'education', 'formation', 'diplômes', 'diplomes', 'degree', 'graduated',
+            'year of graduation', 'année de graduation', 'certificat', 'certification',
+            'études', 'etudes', 'studies', 'field of study', 'major', 'academic',
+            'university', 'institution', 'school', 'éducation', 'école',
+            'master en', 'master informatique', 'master réseau', 'master télécom', 'master telecom',
+            'diplôme en', 'licence en', 'diplômé en', 'diplome en', 'titre d\'ingénieur', 'titre d\'ingenieur',
+            'mastère', 'master professionnel'
+        ]
+        positions = [lower_text.find(marker) for marker in degree_markers if marker in lower_text]
+        if not positions:
+            return text
+        start = min(positions)
+        end = len(text)
+        stop_markers = [
+            'experience', 'professional experience', 'work experience', 'expérience professionnelle',
+            'compétences', 'skills', 'contact', 'expertise', 'summary', 'profil', 'projects', 'projets',
+            'certifications', 'accomplishments', 'réalisations', 'realizations'
+        ]
+        for marker in stop_markers:
+            idx = lower_text.find(marker, start + 1)
+            if idx != -1:
+                end = min(end, idx)
+        return text[start:end]
+
+    def _find_diplome_in_text(text):
+        import re
+        if not text:
+            return '', []
+        target_text = _extract_degree_related_text(text)
+        norm_target = _normalize_text_for_matching(target_text)
+        norm_full = _normalize_text_for_matching(text)
+        if not norm_full:
+            return '', []
+
+        diplome_matches = []
+        diplomes_patterns = [
+            (r'\bmaster of science\b', 'Master'),
+            (r'\bmaster of arts\b', 'Master'),
+            (r'\bmaster in\b', 'Master'),
+            (r'\bmaster en\b', 'Master'),
+            (r'\bmaster de\b', 'Master'),
+            (r'\bmaster of\b', 'Master'),
+            (r'\bm sc\b', 'Master'),
+            (r'\bmsc\b', 'Master'),
+            (r'\bmba\b', 'Master'),
+            (r'\bmaster professionnel\b', 'Master'),
+            (r'\bmaster\b', 'Master'),
+            (r'\bbachelor of science\b', 'Bachelor'),
+            (r'\bbachelor of arts\b', 'Bachelor'),
+            (r'\bbachelors in\b', 'Bachelor'),
+            (r'\bbachelor in\b', 'Bachelor'),
+            (r'\bbachelor\b', 'Bachelor'),
+            (r'\bdoctor of\b', 'Doctorat'),
+            (r'\bdr\b', 'Doctorat'),
+            (r'\bphd\b', 'Doctorat'),
+            (r'\bdoctorate\b', 'Doctorat'),
+            (r'\bdoctorat\b', 'Doctorat'),
+            (r'\bingenieur\b', 'Ingénieur'),
+            (r'\bengineer\b', 'Ingénieur'),
+            (r'\btitre d ingenieur\b', 'Ingénieur'),
+            (r'\blicence en\b', 'Licence'),
+            (r'\blicence\b', 'Licence'),
+            (r'\bbac\s*\+\s*5\b', 'Bac+5'),
+            (r'\bbac\s*\+\s*4\b', 'Bac+4'),
+            (r'\bbac\s*\+\s*3\b', 'Bac+3'),
+            (r'\bbac\s*\+\s*2\b', 'Bac+2'),
+            (r'\bbts\b', 'BTS'),
+            (r'\bdut\b', 'DUT'),
+            (r'\bbaccalaureat\b', 'Baccalauréat'),
+            (r'\bdiplome en\b', 'Diplôme'),
+            (r'\bdiploma\b', 'Diplôme'),
+            (r'\bdegree\b', 'Diplôme'),
+        ]
+        for pattern, label in diplomes_patterns:
+            if re.search(pattern, norm_target):
+                diplome_matches.append(label)
+
+        if not diplome_matches:
+            for pattern, label in diplomes_patterns:
+                if re.search(pattern, norm_full):
+                    diplome_matches.append(label)
+
+        if not diplome_matches:
+            fallbacks = [
+                (r'\bmaster\b', 'Master'),
+                (r'\bbachelor\b', 'Bachelor'),
+                (r'\blicence\b', 'Licence'),
+                (r'\bbac\s*\+\s*\d\b', 'Bac'),
+                (r'\bdiploma\b', 'Diplôme'),
+                (r'\bdegree\b', 'Diplôme'),
+                (r'\bdoctorat\b', 'Doctorat'),
+                (r'\bphd\b', 'Doctorat'),
+                (r'\bingenieur\b', 'Ingénieur'),
+                (r'\bengineer\b', 'Ingénieur'),
+            ]
+            for pattern, label in fallbacks:
+                if re.search(pattern, norm_full):
+                    diplome_matches.append(label)
+
+        diplome_unique = []
+        for label in diplome_matches:
+            if label not in diplome_unique:
+                diplome_unique.append(label)
+        return (diplome_unique[0] if diplome_unique else '', diplome_unique)
+
+    def _score_diplome_requirement(labels, cv_text, diplome_requis):
+        bonus = 0
+        details = []
+        if not diplome_requis or not labels:
+            return bonus, details
+
+        req_norm = _normalize_text_for_matching(diplome_requis)
+        cv_norm = _normalize_text_for_matching(cv_text)
+
+        domain_keywords = {
+            'informatique': ['informatique', 'computer science', 'it', 'information technology'],
+            'reseaux': ['réseaux', 'reseau', 'network'],
+            'telecom': ['télécom', 'telecom', 'telecommunications'],
+        }
+
+        for label in labels:
+            label_norm = _normalize_text_for_matching(label)
+            if label_norm in req_norm:
+                bonus += 5
+                details.append(f'{label} correspond au requis')
+
+        if 'equivalent' in req_norm and labels:
+            bonus += 3
+            details.append('équivalent accepté')
+
+        matched_domains = []
+        for domain, terms in domain_keywords.items():
+            if any(term in req_norm for term in terms) and any(term in cv_norm for term in terms):
+                matched_domains.append(domain)
+        if matched_domains:
+            bonus += 3
+            details.append('domaine du CV aligné avec le requis')
+
+        if 'bac+5' in req_norm and any(label in ['Master', 'Bac+5', 'Ingénieur'] for label in labels):
+            bonus += 5
+            details.append('BAC+5 / Master détecté')
+
+        return min(10, bonus), details
+
+    def _extract_diplome_details(text):
+        import re
+        if not text:
+            return [], []
+        text_lower = _clean_text(text)
+        details = []
+        labels = []
+        diplomes_niveaux = [
+            ('doctorat', 'Doctorat'),
+            ('phd', 'Doctorat'),
+            ('doctorate', 'Doctorat'),
+            ('master 2', 'Master 2'),
+            ('master 1', 'Master 1'),
+            ('master en', 'Master'),
+            ('master de', 'Master'),
+            ('master professionnel', 'Master'),
+            ('master', 'Master'),
+            ('ingénieur', 'Ingénieur'),
+            ('ingenieur', 'Ingénieur'),
+            ('titre d\'ingénieur', 'Ingénieur'),
+            ('titre d\'ingenieur', 'Ingénieur'),
+            ('licence en', 'Licence'),
+            ('licence', 'Licence'),
+            ('bachelor', 'Bachelor'),
+            ('bac+5', 'Bac+5'),
+            ('bac+4', 'Bac+4'),
+            ('bac+3', 'Bac+3'),
+            ('bac+2', 'Bac+2'),
+            ('bts', 'BTS'),
+            ('dut', 'DUT'),
+            ('bac', 'Baccalauréat'),
+            ('diplôme en', 'Diplôme'),
+            ('diplome en', 'Diplôme'),
+            ('diploma', 'Diplôme'),
+            ('degree', 'Diplôme'),
+            ('engineer', 'Ingénieur'),
+        ]
+        for sentence in re.split(r'[\.\n\r]', text):
+            sentence_lower = _clean_text(sentence)
+            for term, label in diplomes_niveaux:
+                if term in sentence_lower and sentence.strip():
+                    if label not in labels:
+                        labels.append(label)
+                    phrase = sentence.strip()
+                    if phrase not in details:
+                        details.append(phrase)
+                    break
+        return labels, details
+
+    def _extract_experience_info(text):
+        text_lower = _clean_text(text)
+        if not text_lower:
+            return 0, [], ''
+
+        import re
+        from datetime import datetime
+
+        # Chercher les durées explicites en années
+        annees_experience = 0
+        patterns_experience = [
+            r'(\d+)\s*(?:ans|années|année)',
+            r'(\d+)\s*(?:years|yrs|year)',
+            r'experience\s*(?:de|d\'|of|of\s)?(\d+)\s*(?:ans|années|année|years|yrs|year)',
+            r'\b(\d+)\+\s*years\b',
+            r'\b(\d+)\+\s*ans\b',
+        ]
+        for pattern in patterns_experience:
+            for match in re.findall(pattern, text_lower):
+                try:
+                    value = int(match)
+                    annees_experience = max(annees_experience, value)
+                except ValueError:
+                    pass
+
+        # Chercher des plages de dates pour calculer l'expérience
+        months = {
+            'janvier': 1, 'février': 2, 'mars': 3, 'avril': 4, 'mai': 5, 'juin': 6,
+            'juillet': 7, 'août': 8, 'aout': 8, 'septembre': 9, 'octobre': 10, 'novembre': 11, 'décembre': 12,
+            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
+        }
+
+        def parse_date(token):
+            token = token.strip().lower()
+            for month, num in months.items():
+                if token.startswith(month):
+                    year_match = re.search(r'(\d{4})', token)
+                    if year_match:
+                        return num, int(year_match.group(1))
+            year_match = re.search(r'(\d{4})', token)
+            if year_match:
+                return 1, int(year_match.group(1))
+            if 'present' in token or 'présent' in token:
+                now = datetime.now()
+                return now.month, now.year
+            return None
+
+        total_months = 0
+        date_ranges = re.findall(r'([A-Za-zéûôäïçàèêù]+\s+\d{4})\s*[-–]\s*([A-Za-zéûôäïçàèêù]+\s+\d{4}|présent|present)', text_lower)
+        for start_token, end_token in date_ranges:
+            start_date = parse_date(start_token)
+            end_date = parse_date(end_token)
+            if start_date and end_date:
+                start_month, start_year = start_date
+                end_month, end_year = end_date
+                months_diff = (end_year - start_year) * 12 + (end_month - start_month)
+                if months_diff > 0:
+                    total_months += months_diff
+        if total_months > 0:
+            annees_experience = max(annees_experience, round(total_months / 12))
+
+        # Chercher des plages d'années simples comme "2020 - 2022"
+        year_ranges = re.findall(r'(\d{4})\s*[-–]\s*(\d{4}|présent|present)', text_lower)
+        for start_year, end_year in year_ranges:
+            try:
+                s = int(start_year)
+                e = datetime.now().year if end_year in ['présent', 'present'] else int(end_year)
+                if e >= s:
+                    months_diff = (e - s) * 12
+                    total_months = max(total_months, months_diff)
+            except ValueError:
+                pass
+        if total_months > 0:
+            annees_experience = max(annees_experience, round(total_months / 12))
+
+        experience_phrases = []
+        experience_keywords = [
+            'responsable', 'manager', 'superviseur', 'directeur', 'chef', 'lead',
+            'architect', 'consultant', 'coordonnateur', 'project', 'développement',
+            'support', 'technicien', 'intern', 'stage', 'assistant', 'assisté',
+            'gestion', 'administration', 'réseau', 'network', 'cybersecurity', 'cloud'
+        ]
+        for sentence in re.split(r'[\.\n\r]', text):
+            sentence_lower = sentence.lower()
+            if any(keyword in sentence_lower for keyword in experience_keywords):
+                phrase = sentence.strip()
+                if phrase and phrase not in experience_phrases:
+                    experience_phrases.append(phrase)
+            if len(experience_phrases) >= 7:
+                break
+
+        # Détecter également des sections type "professional experience", "expérience professionnelle"
+        section_keywords = ['professional experience', 'experience professionnelle', 'work experience', 'expérience', 'stage', 'internship']
+        section_found = any(keyword in text_lower for keyword in section_keywords)
+        if section_found and not experience_phrases:
+            experience_phrases.append('Section d’expérience détectée dans le CV')
+
+        return annees_experience, experience_phrases, text_lower
+
+    def _contains_name(text, name_parts):
+        if not text or not name_parts:
+            return False
+        text_lower = _clean_text(text)
+        for part in name_parts:
+            if part and part.lower() in text_lower:
+                return True
+        return False
+
+    def _get_diplome_niveau(text):
+        if not text:
+            return 0, 'inconnu'
+        norm = _normalize_text_for_matching(text)
+
+        # Reconnaître explicitement les formulations anglaises et les variantes courantes.
+        if any(term in norm for term in ['master in', 'master of', 'master degree', 'masters in', 'masters degree', 'master s']):
+            return 4, 'master'
+        if any(term in norm for term in ['bachelor in', 'bachelor s in', 'bachelors in', 'bachelor of', 'bachelor degree', 'bachelors degree']):
+            return 3, 'bachelor'
+        if any(term in norm for term in ['doctorat', 'phd', 'these', 'doctorate', 'doctoral']):
+            return 5, 'doctorat'
+        if any(term in norm for term in ['ingénieur', 'ingenieur', 'engineer', 'titre d ingenieur']):
+            return 4, 'ingenieur'
+        if any(term in norm for term in ['bac+5', 'bac plus 5']):
+            return 4, 'bac+5'
+        if any(term in norm for term in ['bac+4', 'bac plus 4']):
+            return 3, 'bac+4'
+        if any(term in norm for term in ['bac+3', 'bac plus 3', 'bts', 'dut']):
+            return 2, 'bac+3'
+        if any(term in norm for term in ['bac', 'baccalaureat', 'baccalauréat']):
+            return 1, 'bac'
+
+        niveaux = [
+            (5, ['doctorat', 'phd', 'these', 'doctorate']),
+            (4, ['master 2', 'master 1', 'master', 'mba', 'ingénieur', 'ingenieur', 'engineer', 'bac+5']),
+            (3, ['licence en', 'licence', 'bachelor of', 'bachelor', 'bac+4']),
+            (2, ['bac+3', 'bac +3', 'bts', 'dut']),
+            (1, ['bac', 'baccalauréat', 'baccalaureat']),
+        ]
+        for niveau, termes in niveaux:
+            for terme in termes:
+                if terme in norm:
+                    return niveau, terme
+        return 0, 'inconnu'
+
+    def _extract_required_experience(text):
+        if not text:
+            return 0
+        norm = _normalize_text_for_matching(text)
+        patterns = [
+            r'\b(\d+)\s*(?:ans|années|annees|année)\s*(?:dexperience|d\'experience|d experience|experience|expérience)\b',
+            r'\bminimum\s*(\d+)\s*(?:ans|années|annees|année)\b',
+            r'\bau moins\s*(\d+)\s*(?:ans|années|annees|année)\b',
+            r'\b(\d+)\s*\+\s*ans?\b',
+            r'\b(\d+)\s*(?:ans|années|annees|année)\b',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, norm)
+            if match:
+                try:
+                    return int(match.group(1))
+                except ValueError:
+                    continue
+        return 0
+
+    def _score_competences(cv_text, profil_text):
+        if not cv_text or not profil_text:
+            return 0, []
+        stop_words = {
+            'de', 'du', 'la', 'le', 'les', 'et', 'en', 'un', 'une', 'des', 'pour', 'avec', 'dans',
+            'sur', 'est', 'au', 'aux', 'par', 'que', 'qui', 'dont', 'ou', 'd', 'l', 'a', 'ce', 'ces'
+        }
+        cv_tokens = set(re.findall(r'\b[a-z0-9éèêàùâôîç]+\b', cv_text.lower()))
+        profil_tokens = set(re.findall(r'\b[a-z0-9éèêàùâôîç]+\b', profil_text.lower()))
+        cv_tokens = {tok for tok in cv_tokens if tok not in stop_words and len(tok) > 2}
+        profil_tokens = {tok for tok in profil_tokens if tok not in stop_words and len(tok) > 2}
+        matching = sorted([tok for tok in profil_tokens if tok in cv_tokens])
+        score = min(20, len(matching) * 3)
+        return score, matching
+
     pieces_requises = pieces_requises or ['CV', 'LM', 'DIPLOME']
     pieces_fournies = pieces_fournies or []
     textes_par_piece = textes_par_piece or {}
     pieces_fournies_set = {_normaliser_type_piece(p) for p in pieces_fournies}
     lettre_requise = 'LM' in pieces_requises
-    
+    legal_name_parts = [p for p in [agent_nom, agent_prenom] if p]
+
+    # Diplôme réel vs CV utilisé pour déduction de diplôme
+    diplome_piece_text = diplome_text
+    has_diplome_piece = bool(diplome_piece_text and diplome_piece_text.strip())
+    diplome_text_for_scoring = diplome_piece_text if has_diplome_piece else (cv_text or '')
+    langue_cv = _detect_language(cv_text or diplome_text or lettre_text or cni_text or '')
+
     # ============================================================
     # 1. VÉRIFICATION DES PIÈCES OBLIGATOIRES
     # ============================================================
     pieces_manquantes = [p for p in pieces_requises if p not in pieces_fournies_set]
     if pieces_manquantes:
-        return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
-    
+        # Si seule la pièce diplôme est manquante, on peut utiliser le CV pour inférer le diplôme
+        if pieces_manquantes == ['DIPLOME'] and cv_text:
+            diplome_trouve, diplome_list = _find_diplome_in_text(cv_text)
+            if diplome_list:
+                pieces_manquantes = []
+        if pieces_manquantes:
+            return 0, f"Dossier incomplet: pieces obligatoires manquantes: {', '.join(pieces_manquantes)}", {}
+
+    # Vérification d'identité éliminatoire : si le nom de l'agent n'apparaît pas
+    if legal_name_parts:
+        verification_text = ' '.join(filter(None, [cv_text, diplome_piece_text, cni_text]))
+        if verification_text and not _contains_name(verification_text, legal_name_parts):
+            details_analyse = {
+                'diplome': {'points': 0, 'max': 40, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'experience': {'points': 0, 'max': 30, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'competences': {'points': 0, 'max': 20, 'details': 'Nom du candidat absent des documents fournis', 'trouve': []},
+                'anciennete': {'points': 0, 'max': 10, 'details': 'Nom du candidat absent des documents fournis', 'trouve': ''},
+                'lettre_motivation': {'points': 0, 'max': 20, 'details': 'Nom du candidat absent des documents fournis', 'trouve': False},
+                'fraudes': [{
+                    'type': 'verification_identite',
+                    'description': 'Le nom du candidat est absent des documents fournis; analyse interrompue.',
+                    'severite': 'haute'
+                }]
+            }
+            return 0, 'Dossier non valide : le nom du candidat n est pas présent dans les documents fournis.', details_analyse
+
     # ============================================================
     # 2. DÉTECTION DE FRAUDE - VÉRIFICATION DES DOCUMENTS
     # ============================================================
@@ -5483,12 +6441,11 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     # 2.1 Vérifier si le CV contient des indices de fraude
     if cv_text:
         fraud_patterns = [
-            ("cv générique", ["modèle", "template", "exemple", "remplacer"]),
-            ("fausse expérience", ["expérience factice", "stage fictif"]),
+            ("cv générique", ["modèle", "template", "exemple", "remplacer", "sample cv", "cv template"]),
+            ("fausse expérience", ["expérience factice", "stage fictif", "fake experience", "faux stage", "internship"]),
             ("incohérence dates", ["20XX", "XXXX", "0000"]),
-            ("photoshop", ["modifié", "retouché"]),
+            ("photoshop", ["modifié", "retouché", "photoshop", "retouched"]),
         ]
-        
         for pattern_name, keywords in fraud_patterns:
             for keyword in keywords:
                 if keyword.lower() in cv_text.lower():
@@ -5498,42 +6455,68 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
                         'severite': 'moyenne' if pattern_name != "fausse expérience" else 'haute'
                     })
                     break
+
+    # 2.2 Vérifier les noms et l'identité entre CV / CNI / diplôme
+    if legal_name_parts:
+        source_texts = {
+            'CV': cv_text,
+            'Diplôme': diplome_piece_text if has_diplome_piece else None,
+            'CNI': cni_text,
+        }
+        for doc_name, doc_text in source_texts.items():
+            if doc_text:
+                contains_name = _contains_name(doc_text, legal_name_parts)
+                if not contains_name:
+                    fraudes_detectees.append({
+                        'type': 'verification_identite',
+                        'description': f'Le nom du candidat ne semble pas apparaître dans le document {doc_name}. Vérifier l\'identité.',
+                        'severite': 'haute' if doc_name == 'CNI' else 'moyenne'
+                    })
+                else:
+                    fraudes_detectees.append({
+                        'type': 'verification_identite',
+                        'description': f'Le nom du candidat est présent dans le document {doc_name}.',
+                        'severite': 'faible'
+                    })
+
+    # 2.3 Vérifier si le diplôme est authentique (recherche de mots clés) uniquement si une pièce diplôme existe
+    if has_diplome_piece:
+        if diplome_piece_text:
+            # Vérifier si c'est vraiment un diplôme (français + anglais)
+            mots_authentiques = [
+                'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
+                'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
+                'obtention', 'promotion', 'annee', 'année', 'etudes', 'études',
+                # English
+                'degree', 'diploma', 'university', 'college', 'bachelor', 'master', 'phd', 'doctorate', 'engineer', 'graduat', 'obtained'
+            ]
+            
+            mots_trouves = 0
+            for mot in mots_authentiques:
+                if mot.lower() in diplome_piece_text.lower():
+                    mots_trouves += 1
+            
+            if mots_trouves < 3:
+                fraudes_detectees.append({
+                    'type': 'document_suspect',
+                    'description': 'Le document "diplôme" ne semble pas être un diplôme authentique (peu de mots-clés académiques)',
+                    'severite': 'haute'
+                })
+            
+            # Vérifier si c'est une simple image/photo au hasard
+            if len(diplome_piece_text) < 50:
+                fraudes_detectees.append({
+                    'type': 'document_illisible',
+                    'description': 'Le diplôme semble illisible ou contient très peu de texte (peut être une photo non pertinente)',
+                    'severite': 'haute'
+                })
     
-    # 2.2 Vérifier si le diplôme est authentique (recherche de mots clés)
-    if diplome_text:
-        # Vérifier si c'est vraiment un diplôme
-        mots_authentiques = [
-            'diplôme', 'diplome', 'université', 'faculté', 'école', 'baccalauréat',
-            'licence', 'master', 'doctorat', 'bac', 'bts', 'dut', 'ingénieur',
-            'obtention', 'promotion', 'annee', 'année', 'etudes', 'études'
-        ]
-        
-        mots_trouves = 0
-        for mot in mots_authentiques:
-            if mot.lower() in diplome_text.lower():
-                mots_trouves += 1
-        
-        if mots_trouves < 3:
-            fraudes_detectees.append({
-                'type': 'document_suspect',
-                'description': 'Le document "diplôme" ne semble pas être un diplôme authentique (peu de mots-clés académiques)',
-                'severite': 'haute'
-            })
-        
-        # Vérifier si c'est une simple image/photo au hasard
-        if len(diplome_text) < 50:
-            fraudes_detectees.append({
-                'type': 'document_illisible',
-                'description': 'Le diplôme semble illisible ou contient très peu de texte (peut être une photo non pertinente)',
-                'severite': 'haute'
-            })
-    
-    # 2.3 Vérifier la cohérence CV vs Diplôme
-    if cv_text and diplome_text:
+    # 2.3 Vérifier la cohérence CV vs Diplôme uniquement si une pièce diplôme existe
+    if cv_text and has_diplome_piece and diplome_piece_text:
         # Extraire les années du CV
         import re
         annees_cv = re.findall(r'\b(19|20)\d{2}\b', cv_text)
-        annees_diplome = re.findall(r'\b(19|20)\d{2}\b', diplome_text)
+        annees_diplome = re.findall(r'\b(19|20)\d{2}\b', diplome_piece_text)
         
         # Vérifier si les années sont cohérentes
         if annees_cv and annees_diplome:
@@ -5566,106 +6549,148 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     }
     
     # 3.1 Analyse du DIPLÔME (0-40 points)
-    if diplome_text:
-        diplome_lower = diplome_text.lower()
-        diplome_trouve = ""
-        
-        # Niveaux de diplômes
-        diplomes_niveaux = [
-            ('doctorat', 40, 'Doctorat'),
-            ('master', 35, 'Master'),
-            ('master 2', 35, 'Master 2'),
-            ('master 1', 30, 'Master 1'),
-            ('ingénieur', 35, 'Ingénieur'),
-            ('licence', 25, 'Licence'),
-            ('bac+3', 25, 'Bac+3'),
-            ('bac+2', 20, 'Bac+2'),
-            ('bts', 20, 'BTS'),
-            ('dut', 20, 'DUT'),
-            ('bac', 10, 'Baccalauréat'),
-        ]
-        
-        for diplome_nom, points, libelle in diplomes_niveaux:
-            if diplome_nom in diplome_lower:
-                if points > details_analyse['diplome']['points']:
-                    details_analyse['diplome']['points'] = points
-                    diplome_trouve = libelle
-        
-        # Vérifier la correspondance avec le diplôme requis
-        if diplome_requis and diplome_requis.lower() in diplome_lower:
-            details_analyse['diplome']['points'] = min(40, details_analyse['diplome']['points'] + 5)
-            details_analyse['diplome']['details'] = f"Diplôme correspond au requis: {diplome_requis}"
+    diplome_source = 'CV'
+    diplome_labels = []
+    diplome_sentences = []
+
+    if has_diplome_piece and diplome_piece_text:
+        _, piece_labels = _find_diplome_in_text(diplome_piece_text)
+        if piece_labels:
+            diplome_labels = piece_labels
+            diplome_source = 'DIPLOME'
+            diplome_sentences = _extract_diplome_details(diplome_piece_text)[1]
         else:
-            details_analyse['diplome']['details'] = f"Diplôme trouvé: {diplome_trouve or 'Non spécifié'}" + (f" (Requis: {diplome_requis})" if diplome_requis else "")
-        
-        details_analyse['diplome']['trouve'] = diplome_trouve or 'Non spécifié'
-        score_total += details_analyse['diplome']['points']
+            _, cv_labels = _find_diplome_in_text(cv_text)
+            diplome_labels = cv_labels
+            diplome_source = 'CV'
+            diplome_sentences = _extract_diplome_details(cv_text)[1]
+    else:
+        _, cv_labels = _find_diplome_in_text(cv_text)
+        diplome_labels = cv_labels
+        diplome_sentences = _extract_diplome_details(cv_text)[1]
+
+    candidate_text_for_diploma = diplome_piece_text if has_diplome_piece else (cv_text or '')
+    candidate_niveau, candidate_diplome_detecte = _get_diplome_niveau(candidate_text_for_diploma)
+    required_niveau, required_diplome_detecte = _get_diplome_niveau(diplome_requis or profil_recherche)
+    score_diplome = 0
+
+    if required_niveau > 0:
+        if candidate_niveau >= required_niveau:
+            score_diplome = 40
+            details_analyse['diplome']['details'] = (
+                f"Diplôme {candidate_diplome_detecte} détecté, requis {required_diplome_detecte}."
+            )
+        else:
+            detected_label = candidate_diplome_detecte if candidate_diplome_detecte != 'inconnu' else (', '.join(diplome_labels) or 'Non spécifié')
+            details_analyse['diplome']['points'] = 0
+            details_analyse['diplome']['trouve'] = detected_label
+            details_analyse['diplome']['details'] = (
+                f"Diplôme insuffisant : {detected_label} détecté, {required_diplome_detecte} requis."
+            )
+            score_total = 0
+            score_final = 0
+            details_analyse['experience']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['competences']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['anciennete']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            details_analyse['lettre_motivation']['details'] = 'Analyse interrompue car diplôme insuffisant.'
+            return 0, details_analyse['diplome']['details'], details_analyse
+    else:
+        if diplome_labels:
+            if 'Doctorat' in diplome_labels:
+                score_diplome = 40
+            elif 'Master 2' in diplome_labels:
+                score_diplome = 35
+            elif 'Master 1' in diplome_labels:
+                score_diplome = 30
+            elif 'Master' in diplome_labels:
+                score_diplome = 35
+            elif 'Ingénieur' in diplome_labels:
+                score_diplome = 35
+            elif 'Bac+5' in diplome_labels:
+                score_diplome = 35
+            elif 'Bachelor' in diplome_labels or 'Licence' in diplome_labels:
+                score_diplome = 25
+            elif 'Bac+3' in diplome_labels:
+                score_diplome = 25
+            elif 'Bac+2' in diplome_labels:
+                score_diplome = 20
+            elif 'BTS' in diplome_labels or 'DUT' in diplome_labels:
+                score_diplome = 20
+            elif 'Baccalauréat' in diplome_labels:
+                score_diplome = 10
+            else:
+                score_diplome = 10
+
+            bonus, bonus_details = _score_diplome_requirement(diplome_labels, cv_text, diplome_requis)
+            if bonus > 0:
+                score_diplome = min(40, score_diplome + bonus)
+
+            details_analyse['diplome']['details'] = f"Diplôme trouvé dans le {diplome_source}: {', '.join(diplome_labels)}"
+            if bonus_details:
+                details_analyse['diplome']['details'] += ' (' + '; '.join(bonus_details) + ')'
+            if diplome_sentences:
+                details_analyse['diplome']['details'] += f". Extraits: {diplome_sentences[:2]}"
+        else:
+            details_analyse['diplome']['points'] = 0
+            details_analyse['diplome']['trouve'] = 'Non spécifié'
+            details_analyse['diplome']['details'] = (
+                f"Diplôme trouvé: Non spécifié" + (f" (Requis: {diplome_requis})" if diplome_requis else "")
+            )
+
+    details_analyse['diplome']['points'] = score_diplome
+    details_analyse['diplome']['trouve'] = ', '.join(diplome_labels) if diplome_labels else (candidate_diplome_detecte or 'Non spécifié')
+    score_total += details_analyse['diplome']['points']
     
     # 3.2 Analyse de l'EXPÉRIENCE (0-30 points)
     if cv_text:
         cv_lower = cv_text.lower()
-        import re
-        
-        # Extraire les années d'expérience
-        annees_experience = 0
-        patterns_experience = [
-            r'(\d+)\s*(?:ans|années|année)',
-            r'(\d+)\s*(?:ans|années|année)\s*(?:d\'expérience|d\'experience)',
-            r'expérience\s*(?:de|d\'|)\s*(\d+)',
-            r'experience\s*(?:de|d\'|)\s*(\d+)',
-        ]
-        
-        for pattern in patterns_experience:
-            matches = re.findall(pattern, cv_lower)
-            if matches:
-                annees = max([int(m) for m in matches if m.isdigit()])
-                annees_experience = max(annees_experience, annees)
-        
-        # Points selon l'expérience
+        annees_experience, experience_phrases, _ = _extract_experience_info(cv_text)
+        phrase_count = len(experience_phrases)
         if annees_experience >= 10:
             points_exp = 30
-            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (excellent)"
+            qualif_exp = 'excellent'
         elif annees_experience >= 7:
             points_exp = 25
-            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (très bon)"
+            qualif_exp = 'très bon'
         elif annees_experience >= 5:
             points_exp = 20
-            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (bon)"
+            qualif_exp = 'bon'
         elif annees_experience >= 3:
             points_exp = 15
-            details_analyse['experience']['details'] = f"{annees_experience} ans d'expérience (satisfaisant)"
+            qualif_exp = 'satisfaisant'
         elif annees_experience >= 1:
-            points_exp = 10
-            details_analyse['experience']['details'] = f"{annees_experience} an d'expérience (débutant)"
+            points_exp = 12
+            qualif_exp = 'débutant'
+        elif phrase_count >= 3:
+            points_exp = 12
+            qualif_exp = 'débutant confirmé'
+        elif phrase_count >= 1:
+            points_exp = 8
+            qualif_exp = 'expérience décrite'
         else:
             points_exp = 5
-            details_analyse['experience']['details'] = "Expérience non spécifiée ou inférieure à 1 an"
-        
+            qualif_exp = 'non spécifiée'
+
         details_analyse['experience']['points'] = points_exp
-        details_analyse['experience']['trouve'] = f"{annees_experience} ans" if annees_experience > 0 else "Non spécifié"
+        details_analyse['experience']['trouve'] = f"{annees_experience} ans" if annees_experience > 0 else (f"{phrase_count} indice(s) d'expérience" if phrase_count > 0 else "Non spécifié")
+        if experience_phrases:
+            details_analyse['experience']['details'] = f"{qualif_exp} - Extraits: {experience_phrases[:3]}"
+        else:
+            details_analyse['experience']['details'] = (
+                f"{annees_experience} ans d'expérience ({qualif_exp})"
+                if annees_experience > 0 else
+                "Aucune expérience claire détectée dans le CV"
+            )
         score_total += points_exp
         
         # 3.3 Analyse des COMPÉTENCES (0-20 points)
-        competences_trouvees = []
-        competences_techniques = {
-            'programmation': ['python', 'java', 'php', 'javascript', 'c++', 'c#', 'ruby', 'golang'],
-            'bases_donnees': ['sql', 'mysql', 'postgresql', 'mongodb', 'oracle', 'nosql'],
-            'web': ['html', 'css', 'react', 'angular', 'vue', 'laravel', 'symfony', 'django'],
-            'devops': ['docker', 'kubernetes', 'aws', 'azure', 'cloud', 'ci/cd'],
-            'analyse': ['analyse', 'data', 'excel', 'power bi', 'statistiques', 'machine learning'],
-            'gestion': ['gestion', 'management', 'équipe', 'projet', 'agile', 'scrum', 'leadership'],
-        }
-        
-        for categorie, mots in competences_techniques.items():
-            for mot in mots:
-                if mot in cv_lower:
-                    competences_trouvees.append(f"{mot} ({categorie})")
-        
-        # Compétences uniques
-        competences_uniques = list(set(competences_trouvees))
-        details_analyse['competences']['trouve'] = competences_uniques[:10]
-        points_competences = min(20, len(competences_uniques) * 2)
+        points_competences, competences_communes, competences_manquantes = _score_competences_techniques(cv_text, profil_recherche, langue_cv)
+        details_analyse['competences']['trouve'] = competences_communes or _extract_technical_skills(cv_text)[:10]
         details_analyse['competences']['points'] = points_competences
+        details_analyse['competences']['details'] = (
+            f"Communes: {', '.join(competences_communes)}; Manquantes: {', '.join(competences_manquantes)}"
+            if competences_communes or competences_manquantes else 'Aucune compétence technique spécifique détectée'
+        )
         score_total += points_competences
         
         # 3.4 Analyse ANCIENNETÉ (0-10 points)
@@ -5707,9 +6732,18 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         details_analyse['lettre_motivation']['details'] = "Lettre de motivation demandee mais non fournie ou illisible"
     
     # ============================================================
-    # 4. SCORE FINAL (limité à 100)
+    # 4. SCORE FINAL PONDÉRÉ (limité à 100)
     # ============================================================
-    score_final = min(100, score_total)
+    score_final = round(
+        min(100, (
+            (details_analyse['diplome']['points'] / 40.0) * 35 +
+            (details_analyse['experience']['points'] / 30.0) * 30 +
+            (details_analyse['competences']['points'] / 20.0) * 25 +
+            (details_analyse['anciennete']['points'] / 10.0) * 10
+        )
+        + ((details_analyse['lettre_motivation']['points'] / 20.0) * 10 if lettre_requise else 0)
+        )
+    )
     
     # PÉNALITÉ pour fraude
     fraudes_graves = [f for f in fraudes_detectees if f.get('severite') == 'haute']
@@ -5779,10 +6813,10 @@ Score final: {score_final}/100
             WHERE id = %s
         """, [score_final, rapport_analyse, candidature_id])
 
-    # ✅ AJOUTE AUSSI LES DÉTAILS (stockage en JSON)
+    #  AJOUTE AUSSI LES DÉTAILS (stockage en JSON)
     details_json = json.dumps(details_analyse, ensure_ascii=False)
 
-    # ✅ RETOURNE 3 VALEURS
+    #  RETOURNE 3 VALEURS
     return score_final, rapport_analyse, details_analyse
 
 
@@ -5802,7 +6836,7 @@ def analyser_candidature(request, candidature_id):
             if not cursor.fetchone():
                 print("❌ Candidature non trouvée")
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
-            print("✅ Candidature trouvée")
+            print(" Candidature trouvée")
             
             # 2. Récupérer les pièces de la candidature
             cursor.execute("""
@@ -5834,7 +6868,17 @@ def analyser_candidature(request, candidature_id):
             diplome_requis = poste[0] or ''
             profil_recherche = poste[1] or ''
             poste_intitule = poste[2] or ''
-            pieces_requises = _charger_pieces_requises(poste[3]) or ['CV', 'LM', 'DIPLOME']
+            pieces_requises_raw = poste[3]
+            if pieces_requises_raw:
+                try:
+                    if isinstance(pieces_requises_raw, str):
+                        pieces_requises = json.loads(pieces_requises_raw)
+                    else:
+                        pieces_requises = pieces_requises_raw
+                except Exception:
+                    pieces_requises = ['CV', 'LM', 'DIPLOME']
+            else:
+                pieces_requises = ['CV', 'LM', 'DIPLOME']
             pieces_fournies = [_normaliser_type_piece(piece[1]) for piece in pieces]
             textes_par_piece = {}
             
@@ -5858,24 +6902,28 @@ def analyser_candidature(request, candidature_id):
                 texte = extraire_texte_piece(piece_id)
                 type_piece_code = _normaliser_type_piece(type_libelle)
                 textes_par_piece[type_piece_code] = texte
+                print(f"   ✅ Normalized type: {type_piece_code}")
                 print(f"   📝 Texte extrait: {len(texte)} caractères")
                 if len(texte) > 0 and len(texte) < 500:
                     print(f"   📝 Contenu: {texte[:200]}...")
                 
-                if type_libelle == 'CV':
+                if type_piece_code == 'CV':
                     cv_text = texte
                     print(f"   ✅ Assigné à CV")
-                elif type_libelle == 'LM':
+                elif type_piece_code == 'LM':
                     lettre_text = texte
                     print(f"   ✅ Assigné à Lettre de motivation")
-                elif 'DIPLOME' in type_libelle.upper():
+                elif type_piece_code == 'DIPLOME':
                     diplome_text = texte
                     print(f"   ✅ Assigné à Diplôme")
-                elif 'CNI' in type_libelle.upper():
+                elif type_piece_code == 'CNI':
                     cni_text = texte
-                    print(f"   ℹ️ CNI ignorée pour l'analyse IA")
+                    # Ne pas ignorer la CNI : ajouter son texte à l'analyse générale
+                    if texte:
+                        cv_text = (cv_text or '') + ' ' + texte
+                    print(f"   ✅ Assigné à CNI (inclus dans l'analyse)")
                 else:
-                    print(f"   ⚠️ Type non reconnu: {type_libelle}")
+                    print(f"   ⚠️ Type non reconnu: {type_libelle} (code normalisé: {type_piece_code})")
             
             # 5. Résumé des textes extraits
             print("\n" + "-" * 50)
@@ -5890,15 +6938,27 @@ def analyser_candidature(request, candidature_id):
             if len(cv_text) == 0 and len(lettre_text) == 0 and len(diplome_text) == 0:
                 print("⚠️ ATTENTION: Aucun texte extrait des documents!")
                 print("   L'analyse IA risque de ne pas être pertinente")
+
+            # Si aucun texte de diplôme séparé n'est disponible, on utilisera le CV comme source secondaire pour l'analyse IA
+            if not diplome_text and cv_text:
+                print("⚠️ Aucun diplôme séparé trouvé; le CV sera utilisé comme source secondaire pour l'analyse du diplôme")
             
             # 7. Analyser avec IA
             print("\n🤖 Appel de l'IA pour analyse...")
+            cursor.execute("SELECT a.nom, a.prenom FROM candidature c JOIN agent a ON c.agent_id = a.matricule WHERE c.id = %s", [candidature_id])
+            agent_info_nom = cursor.fetchone()
+            agent_nom = agent_info_nom[0] if agent_info_nom else None
+            agent_prenom = agent_info_nom[1] if agent_info_nom else None
+
             score_ia, analyse_ia, details_analyse = analyser_candidature_avec_ia(
                 candidature_id, cv_text, lettre_text, diplome_text, 
                 diplome_requis, profil_recherche,
                 pieces_requises=pieces_requises,
                 pieces_fournies=pieces_fournies,
-                textes_par_piece=textes_par_piece
+                textes_par_piece=textes_par_piece,
+                agent_nom=agent_nom,
+                agent_prenom=agent_prenom,
+                cni_text=cni_text
             )
             
             print(f"\n📊 RÉSULTAT DE L'IA:")
@@ -5914,16 +6974,23 @@ def analyser_candidature(request, candidature_id):
             print(f"✅ Candidature mise à jour avec score {score_ia}")
             
             # 9. Mettre à jour le rang
-            cursor.execute("""
-                UPDATE candidature c
-                SET c.rang = (
-                    SELECT COUNT(*) + 1 FROM candidature c2 
-                    WHERE c2.poste_vacant_id = c.poste_vacant_id 
-                    AND c2.score_eligibilite > c.score_eligibilite
+            # Calculer le rang côté application pour éviter l'erreur MySQL 1093
+            cursor.execute("SELECT poste_vacant_id FROM candidature WHERE id = %s", [candidature_id])
+            row = cursor.fetchone()
+            poste_vacant_id = row[0] if row else None
+            if poste_vacant_id is not None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM candidature WHERE poste_vacant_id = %s AND score_eligibilite > %s",
+                    [poste_vacant_id, score_ia]
                 )
-                WHERE c.id = %s
-            """, [candidature_id])
-            print("✅ Rang mis à jour")
+                count_higher = cursor.fetchone()[0] or 0
+                new_rank = count_higher + 1
+                cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(new_rank), candidature_id])
+                print(f"✅ Rang mis à jour (nouveau rang: {new_rank})")
+                # Générer le classement complet du poste
+                _generer_classement(cursor, poste_vacant_id)
+            else:
+                print("⚠️ Impossible de récupérer poste_vacant_id pour calcul du rang")
             
             # 10. Notifier l'agent
             cursor.execute("""
@@ -6071,8 +7138,22 @@ def upload_piece_candidature(request, candidature_id):
                     f.write(file_data)
                 
                 original_filename = file_name
-                print(f"✅ Fichier sauvegardé: {file_path}")
+                print(f" Fichier sauvegardé: {file_path}")
             
+            # ========== EXTRACTION DE LA DATE D'EXPIRATION ==========
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                date_expiration_str = request.POST.get('date_expiration')
+            else:
+                date_expiration_str = data.get('date_expiration')
+
+            if date_expiration_str:
+                try:
+                    date_expiration = datetime.strptime(date_expiration_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({'error': 'date_expiration invalide, format attendu: YYYY-MM-DD'}, status=400)
+            else:
+                date_expiration = date.today()
+
             # ========== GESTION DU TYPE DE PIÈCE ==========
             cursor.execute("SELECT id FROM type_piece WHERE libelle = %s", [type_document])
             type_piece = cursor.fetchone()
@@ -6096,9 +7177,9 @@ def upload_piece_candidature(request, candidature_id):
             
             # ========== INSÉRER LA NOUVELLE PIÈCE ==========
             cursor.execute("""
-                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, [candidature_id, type_piece_id, original_filename, date.today(), 1, file_path])
+                INSERT INTO piece (candidature_id, type_piece_id, nom_fichier, date_upload, valide, cheminfichier, date_expiration) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, [candidature_id, type_piece_id, original_filename, date.today(), 1, file_path, date_expiration])
             
             print(f"✅ Pièce insérée dans la base")
             
@@ -6149,11 +7230,17 @@ def upload_piece_candidature(request, candidature_id):
 def update_poste_vacant(request, poste_id):
     try:
         data = json.loads(request.body)
+        description = data.get('description')
+        profil_recherche = data.get('profil_recherche', '')
+        direction_demande = _validate_max_length('Direction demandeuse', data.get('directionDemande', ''), 100)
+        diplome_requis = data.get('diplomeRequis', '')
         pieces_requises_json = json.dumps(data.get('pieces_requises', []))
         with connection.cursor() as cursor:
             cursor.execute("""UPDATE poste_vacant SET intitule = %s, description = %s, profil_recherche = %s, date_publication = %s, date_cloture = %s, directionDemande = %s, diplomeRequis = %s, pieces_requises = %s WHERE id = %s""",
-                [data.get('intitule'), data.get('description'), data.get('profil_recherche', ''), data.get('date_publication'), data.get('date_cloture'), data.get('directionDemande'), data.get('diplomeRequis', ''), pieces_requises_json, poste_id])
+                [data.get('intitule'), description, profil_recherche, data.get('date_publication'), data.get('date_cloture'), direction_demande, diplome_requis, pieces_requises_json, poste_id])
         return JsonResponse({'success': True, 'message': 'Annonce modifiée'})
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -6606,74 +7693,65 @@ def generer_bulletin_pdf(request, matricule):
     if not os.path.exists(template_path):
         return JsonResponse({'error': f'Template non trouvé: {template_path}'}, status=500)
     
-    doc = Document(template_path)
+    # Charger template et remplacer placeholders
+    from docxtpl import DocxTemplate
     
-    # Préparer les remplacements
-    replacements = {
-        '{{ANNEE}}': str(annee),
-        '{{CADRE}}': texte_cadre,
-        '{{NOM_PRENOMS}}': f"{agent.nom} {agent.prenom}".upper(),
-        '{{LIEU_DATE_NAISSANCE}}': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
-        '{{PROFESSION_AVANT}}': profession_avant,
-        '{{SITUATION_MILITAIRE}}': situation_militaire,
-        '{{CLASSE_RECRUTEMENT}}': classe_recrutement,
-        '{{MATRICULE}}': agent.matricule,
-        '{{DIPLOMES}}': diplomes,
-        '{{DATE_NOMINATION}}': date_prise_service_str,
-        '{{DATE_NOMINATION_CADRE}}': date_prise_service_str,
-        '{{GRADE_CLASSE}}': agent.echelon or '-',
-        '{{DATE_PROMOTION}}': date_promotion_str,
-        '{{DUREE_INTERRUPTION}}': interruption_duree,
-        '{{CAUSE_INTERRUPTION}}': interruption_cause,
-        '{{DIALECTES}}': agent.dialectes or '-',
-        '{{DISTINCTIONS}}': distinctions,
-        '{{DATE_MARIAGE}}': date_mariage_str,
-        '{{ENFANTS}}': enfants_texte,
-        '{{ADRESSE_FAMILLE}}': agent.adresse or '-',
-        '{{DEGRE_PARENTE}}': 'Epoux(se)',
-        '{{ANS_SERVICE}}': str(ans),
-        '{{MOIS_SERVICE}}': str(mois),
-        '{{JOURS_SERVICE}}': str(jours),
-        '{{TOTAL_ANS}}': str(ans),
-        '{{TOTAL_MOIS}}': str(mois),
-        '{{TOTAL_JOURS}}': str(jours),
-        '{{PROPOSABLE}}': proposable,
-        '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
-        '{{VILLE}}': 'Cotonou',
-        '{{CRITERE_1}}': criteres[0] if len(criteres) > 0 else '',
-        '{{CRITERE_2}}': criteres[1] if len(criteres) > 1 else '',
-        '{{CRITERE_3}}': criteres[2] if len(criteres) > 2 else '',
-        '{{CRITERE_4}}': criteres[3] if len(criteres) > 3 else '',
+    doc = DocxTemplate(template_path)
+    
+    # Préparer les données - EXACTEMENT les noms des {{ PLACEHOLDERS }} du template
+    context = {
+        'ANNEE': str(annee),
+        'CADRE': texte_cadre,
+        'NOM_PRENOMS': f"{agent.nom} {agent.prenom}".upper(),
+        'LIEU_DATE_NAISSANCE': f"{agent.lieu_naissance or '-'}, {_fmt_date(agent.date_naissance)}",
+        'PROFESSION_AVANT': profession_avant,
+        'SITUATION_MILITAIRE': situation_militaire,
+        'CLASSE_RECRUTEMENT': classe_recrutement,
+        'MATRICULE': agent.matricule,
+        'DIPLOMES': diplomes,
+        'DATE_NOMINATION': date_prise_service_str,
+        'DATE_NOMINATION_CADRE': date_prise_service_str,
+        'GRADE_CLASSE': agent.echelon or '-',
+        'DATE_PROMOTION': date_promotion_str,
+        'DUREE_INTERRUPTION': interruption_duree,
+        'CAUSE_INTERRUPTION': interruption_cause,
+        'DIALECTES': agent.dialectes or '-',
+        'DISTINCTIONS': distinctions,
+        'DATE_MARIAGE': date_mariage_str,
+        'ENFANTS': enfants_texte,
+        'ADRESSE_FAMILLE': agent.adresse or '-',
+        'DEGRE_PARENTE': 'Epoux(se)',
+        'ANS_SERVICE': str(ans),
+        'MOIS_SERVICE': str(mois),
+        'JOURS_SERVICE': str(jours),
+        'TOTAL_ANS': str(ans),
+        'TOTAL_MOIS': str(mois),
+        'TOTAL_JOURS': str(jours),
+        'PROPOSABLE': proposable,
+        'DATE_AUJOURD_HUI': datetime.now().strftime('%d/%m/%Y'),
+        'VILLE': 'Cotonou',
+        'CRITERE_1': criteres[0] if len(criteres) > 0 else '',
+        'CRITERE_2': criteres[1] if len(criteres) > 1 else '',
+        'CRITERE_3': criteres[2] if len(criteres) > 2 else '',
+        'CRITERE_4': criteres[3] if len(criteres) > 3 else '',
     }
     
-    # Remplacer dans tous les paragraphes
-    for paragraph in doc.paragraphs:
-        for key, value in replacements.items():
-            if key in paragraph.text:
-                paragraph.text = paragraph.text.replace(key, value)
+    # Remplacer les placeholders dans le template
+    doc.render(context)
     
-    # Remplacer dans les tableaux
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for paragraph in cell.paragraphs:
-                    for key, value in replacements.items():
-                        if key in paragraph.text:
-                            paragraph.text = paragraph.text.replace(key, value)
-    
-    # Sauvegarder en mémoire
+    # Sauvegarder le DOCX rempli en mémoire
     docx_bytes = io.BytesIO()
     doc.save(docx_bytes)
     docx_bytes.seek(0)
     
-    # Convertir en PDF
+    # Convertir DOCX→PDF
     try:
         pdf_bytes = _docx_bytes_to_pdf_bytes(docx_bytes.getvalue())
     except Exception as e:
         print(f"Erreur conversion PDF: {e}")
-        response = HttpResponse(docx_bytes.getvalue(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.docx"'
-        return response
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
     
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="bulletin_notes_{matricule}_{annee}.pdf"'
@@ -6694,14 +7772,19 @@ def demande_attestation(request):
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Utiliser le type d'attestation comme libellé du TypeDemande
+        # ✅ Normaliser le type d'attestation pour éviter les suffixes d'année
+        type_attestation_canonique = _type_acte_canonique(type_attestation)
+
         type_demande_obj, created = TypeDemande.objects.get_or_create(
-            libelle=type_attestation,  # ← Utilise le nom exact de l'attestation
-            defaults={'acte_generable': 1}
+            libelle=type_attestation_canonique,
+            defaults={
+                'acte_generable': 1,
+                'duree_traitement_moyenne': 3,
+            }
         )
         
         if created:
-            print(f"✅ Nouveau type de demande créé: {type_attestation}")
+            print(f"✅ Nouveau type de demande créé: {type_attestation_canonique}")
         
         numerosuivi = f"ATT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         
@@ -6737,7 +7820,7 @@ def demande_attestation(request):
         
         Notification.objects.create(
             agent_id=agent.matricule,
-            message=f"✅ Votre demande d'attestation \"{type_attestation}\" a été transmise au secrétariat.",
+            message=f"✅ Votre demande d'attestation \"{type_attestation_canonique}\" a été transmise au secrétariat.",
             type_notification='demande_attestation_envoyee',
             date_envoi=datetime.now().date(),
             lue=0
@@ -7005,11 +8088,37 @@ def generer_attestation_rh(request, demande_id):
         from django.test import RequestFactory
         factory = RequestFactory()
         
+        # Extraire l'année si le type contient un suffixe (ex: "Certificat de non-jouissance de congé - 2025")
+        annee_extraite = None
+        try:
+            import re
+            # Cherche un nombre 4-chiffres commençant par 20xx dans le libellé
+            m = re.search(r"(20\d{2})", type_libelle)
+            if m:
+                annee_extraite = int(m.group(1))
+            # Si non trouvé dans le libellé, essayer dans la Validation.commentaire
+            if not annee_extraite:
+                from .models import Validation
+                val = Validation.objects.filter(demande=demande).order_by('-id').first()
+                if val and val.commentaire:
+                    m2 = re.search(r"(20\d{2})", val.commentaire)
+                    if m2:
+                        annee_extraite = int(m2.group(1))
+            # Si toujours non trouvé, essayer dans le champ commentaire de la demande
+            if not annee_extraite and getattr(demande, 'commentaire', None):
+                m3 = re.search(r"(20\d{2})", demande.commentaire)
+                if m3:
+                    annee_extraite = int(m3.group(1))
+        except Exception:
+            annee_extraite = None
+
         new_data = {
             'matricule': demande.agent.matricule,
             'rh_matricule': rh_matricule,
-            'demande_id': demande.id
+            'demande_id': demande.id,
         }
+        if annee_extraite:
+            new_data['annee'] = annee_extraite
         new_request = factory.post(
             request.path,
             data=json.dumps(new_data),
@@ -7656,7 +8765,7 @@ def forgot_password(request):
             send_mail(
                 subject,
                 plain_message,
-                'no-reply@numerique.gouv.bj',
+                settings.DEFAULT_FROM_EMAIL,
                 [agent.email],  # Envoyer à l'email de l'agent
                 html_message=html_message,
                 fail_silently=False,
@@ -7674,6 +8783,7 @@ def forgot_password(request):
             
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Données invalides'}, status=400)
+
 
 @csrf_exempt
 def verify_reset_code(request):

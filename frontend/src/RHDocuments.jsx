@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import './App.css';
 
 export default function RHDocuments() {
@@ -26,6 +27,7 @@ export default function RHDocuments() {
   const [analyseLoading, setAnalyseLoading] = useState(false);
   const [analysisReady, setAnalysisReady] = useState(false);
   const [analysisRetryCount, setAnalysisRetryCount] = useState(0);
+  const MAX_ANALYSIS_ATTEMPTS = 20;
 
   // État pour le diagramme
   const [chartData, setChartData] = useState(null);
@@ -97,9 +99,9 @@ export default function RHDocuments() {
         setAnalyseLoading(false);
       } else {
         setAnalyseLoading(true);
-        if (attempt < 6) {
-          setAnalysisRetryCount(attempt);
-          setTimeout(() => fetchAnomalies(attempt + 1), 1500);
+        setAnalysisRetryCount(attempt);
+        if (attempt < MAX_ANALYSIS_ATTEMPTS) {
+          setTimeout(() => fetchAnomalies(attempt + 1), 2000);
         } else {
           setAnalyseLoading(false);
         }
@@ -167,7 +169,7 @@ export default function RHDocuments() {
         resume: 'Analyse IA indisponible.'
       });
     }
-  }; // ✅ Ici la fonction loadDocuments se ferme correctement
+  }; //  Ici la fonction loadDocuments se ferme correctement
 
   // Gérer l'upload - ouvre le modal pour la date
   const handleUpload = async (typePieceId, file) => {
@@ -216,7 +218,7 @@ export default function RHDocuments() {
         });
 
         if (response.ok) {
-          showNotification('✅ Document importé avec succès', 'success');
+          showNotification(' Document importé avec succès', 'success');
           loadDocuments();
         } else {
           const data = await response.json();
@@ -267,7 +269,7 @@ export default function RHDocuments() {
       });
 
       if (response.ok) {
-        showNotification('✅ Document supprimé', 'success');
+        showNotification(' Document supprimé', 'success');
         loadDocuments();
       } else {
         const data = await response.json();
@@ -307,7 +309,7 @@ export default function RHDocuments() {
       <main className="intranet-main">
         <section className="hero-banner-intranet">
           <div className="banner-content">
-            <h2>📁 Dossier de {agentInfo?.prenom} {agentInfo?.nom}</h2>
+            <h2> Dossier de {agentInfo?.prenom} {agentInfo?.nom}</h2>
             <p>Matricule : {agentInfo?.matricule} | Complétude : {dossierData?.taux_completude || 0}%</p>
           </div>
         </section>
@@ -316,20 +318,20 @@ export default function RHDocuments() {
         {(expiredDocs.length > 0 || expiringSoonDocs.length > 0) && (
           <section className="alertes-section" style={{ margin: '0 20px' }}>
             <div className="alertes-header">
-              <span className="alertes-icon">🔔</span>
+              <span className="alertes-icon"></span>
               <h3>Alertes d'expiration</h3>
             </div>
             <div className="alertes-list">
               {expiredDocs.map((doc) => (
                 <div key={doc.id} className="alerte-card urgent">
-                  <div className="alerte-icon">⚠️</div>
+                  <div className="alerte-icon"></div>
                   <div className="alerte-content">
                     <div className="alerte-title">
                       {doc.type_piece_libelle}
                       {doc.daysExpired === 0 ? " expire aujourd'hui" : doc.daysExpired === 1 ? " a expiré hier" : ` est expiré depuis ${doc.daysExpired} jours`}
                     </div>
                     <label className="alerte-action">
-                      📤 Remplacer
+                       Remplacer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleUpload(doc.type_piece_id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -343,7 +345,7 @@ export default function RHDocuments() {
                       {doc.type_piece_libelle} expire dans {doc.daysUntilExpiry} jour{doc.daysUntilExpiry > 1 ? 's' : ''} ({new Date(doc.date_expiration).toLocaleDateString('fr-FR')})
                     </div>
                     <label className="alerte-action secondary">
-                      📤 Remplacer
+                       Remplacer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleUpload(doc.type_piece_id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -356,7 +358,7 @@ export default function RHDocuments() {
         {/* ANALYSE IA AVEC DIAGRAMME */}
         <div className="rh-card full-width" style={{ margin: '20px' }}>
           <div className="rh-card-header">
-            <h3>🤖 Analyse IA du dossier</h3>
+            <h3> Analyse IA du dossier</h3>
             {chartData && (
               <span className={`status-badge ${
                 chartData.score >= 80 ? 'status-approved' : 
@@ -376,7 +378,7 @@ export default function RHDocuments() {
                 <p style={{ marginTop: '10px', color: '#666' }}>
                   {analysisReady
                     ? 'Analyse IA terminée.'
-                    : `Analyse IA en cours. Résultat initial disponible${analysisRetryCount ? ` (réessai ${analysisRetryCount}/6)` : ''}.`}
+                    : `Analyse IA en cours.`}
                 </p>
               </div>
             ) : chartData ? (
@@ -471,7 +473,7 @@ export default function RHDocuments() {
                       border: '1px solid #BBF7D0'
                     }}>
                       <strong style={{ color: '#059669', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
-                        ✅ Points forts
+                         Points forts
                       </strong>
                       <ul style={{ margin: 0, paddingLeft: '18px' }}>
                         {chartData.pointsForts.map((p, i) => (
@@ -490,7 +492,7 @@ export default function RHDocuments() {
                       border: '1px solid #FECACA'
                     }}>
                       <strong style={{ color: '#DC2626', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
-                        ⚠️ Points faibles
+                         Points faibles
                       </strong>
                       <ul style={{ margin: 0, paddingLeft: '18px' }}>
                         {chartData.pointsFaibles.map((p, i) => (
@@ -514,15 +516,15 @@ export default function RHDocuments() {
           <section className="missing-reminder-section">
             <div className="missing-reminder-card">
               <div className="missing-reminder-header">
-                <span>⚠️</span>
+                <span></span>
                 <strong>Documents obligatoires manquants ({missingDocs.length})</strong>
               </div>
               <div className="missing-docs-list">
                 {missingDocs.map(doc => (
                   <div key={doc.id} className="missing-doc-row">
-                    <span>📄 {doc.libelle}</span>
+                    <span> {doc.libelle}</span>
                     <label className="missing-doc-upload">
-                      📤 Importer
+                       Importer
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => handleUpload(doc.id, e.target.files[0])} style={{ display: 'none' }} />
                     </label>
                   </div>
@@ -534,7 +536,7 @@ export default function RHDocuments() {
 
         {/* Documents importés */}
         <div className="rh-card full-width" style={{ margin: '20px' }}>
-          <div className="rh-card-header"><h3>📄 Documents importés ({documents.length})</h3></div>
+          <div className="rh-card-header"><h3> Documents importés ({documents.length})</h3></div>
           <div className="rh-table-container">
             <table className="rh-table">
               <thead><tr><th>Document</th><th>Date d'import</th><th>Expiration</th><th>Statut</th><th>Actions</th></tr></thead>
@@ -544,14 +546,14 @@ export default function RHDocuments() {
                 ) : (
                   documents.map(doc => (
                     <tr key={doc.id}>
-                      <td>📄 {doc.type_piece_libelle}</td>
+                      <td> {doc.type_piece_libelle}</td>
                       <td>{new Date(doc.date_upload).toLocaleDateString('fr-FR')}</td>
                       <td>{doc.date_expiration ? new Date(doc.date_expiration).toLocaleDateString('fr-FR') : '-'}</td>
                       <td><span className={`status-badge ${doc.est_expire ? 'status-rejected' : 'status-approved'}`}>{doc.est_expire ? 'Expiré' : 'Valide'}</span></td>
                       <td className="rh-actions-cell">
-                        <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger">📥</button>
-                        <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer">📝</button>
-                        <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer">🗑️</button>
+                        <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"></button>
+                        <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"></button>
+                        <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"></button>
                       </td>
                     </tr>
                   ))
@@ -563,29 +565,29 @@ export default function RHDocuments() {
 
         {/* Ajouter un document */}
         <div className="rh-card full-width" style={{ margin: '20px' }}>
-          <div className="rh-card-header"><h3>➕ Ajouter un document</h3></div>
+          <div className="rh-card-header"><h3> Ajouter un document</h3></div>
           <div style={{ padding: '20px' }}>
             <div style={{ display: 'flex', gap: '15px', alignItems: 'end', flexWrap: 'wrap' }}>
               <div className="form-group">
                 <label>Type de document</label>
                 <select id="typePieceSelect" style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ddd', minWidth: '250px' }}>
                   <option value="">Sélectionner un type...</option>
-                  <option value="1">🆔 Carte Nationale d'Identité</option>
-                  <option value="2">📄 Acte de naissance sécurisé ANIP</option>
-                  <option value="3">📄 Certificat de nationalité</option>
-                  <option value="4">🎓 Diplômes et attestations de formation</option>
-                  <option value="5">📜 Décision de nomination</option>
-                  <option value="6">📋 Certificat de prise de service</option>
-                  <option value="7">⭐ Acte d'avancement</option>
-                  <option value="8">🏥 Certificat médical</option>
-                  <option value="9">✈️ Autorisation d'absence</option>
-                  <option value="10">🏖️ Titre de congé</option>
-                  <option value="11">📑 Attestation de travail</option>
-                  <option value="12">📑 Attestation de présence au poste</option>
+                  <option value="1"> Carte Nationale d'Identité</option>
+                  <option value="2"> Acte de naissance sécurisé ANIP</option>
+                  <option value="3"> Certificat de nationalité</option>
+                  <option value="4"> Diplômes et attestations de formation</option>
+                  <option value="5"> Décision de nomination</option>
+                  <option value="6"> Certificat de prise de service</option>
+                  <option value="7"> Acte d'avancement</option>
+                  <option value="8"> Certificat médical</option>
+                  <option value="9"> Autorisation d'absence</option>
+                  <option value="10"> Titre de congé</option>
+                  <option value="11"> Attestation de travail</option>
+                  <option value="12"> Attestation de présence au poste</option>
                 </select>
               </div>
               <label className="btn-rh-primary" style={{ cursor: 'pointer', padding: '10px 20px' }}>
-                📤 Importer le document
+                 Importer le document
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => {
                   const typeId = document.getElementById('typePieceSelect').value;
                   if (!typeId) { alert('Veuillez sélectionner un type de document'); return; }
@@ -601,7 +603,7 @@ export default function RHDocuments() {
       {showExpiryModal && (
         <div className="modal-overlay" onClick={() => setShowExpiryModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className="modal-header"><h3>📅 Date d'expiration</h3><button className="modal-close" onClick={() => setShowExpiryModal(false)}>✕</button></div>
+            <div className="modal-header"><h3> Date d'expiration</h3><button className="modal-close" onClick={() => setShowExpiryModal(false)}><X size={18} /></button></div>
             <div className="modal-body">
               <p style={{ marginBottom: '15px' }}>Veuillez saisir la date d'expiration pour ce document</p>
               <div className="form-group">
@@ -611,7 +613,7 @@ export default function RHDocuments() {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn-rh-secondary" onClick={() => setShowExpiryModal(false)}>Annuler</button>
-              <button type="button" className="btn-rh-primary" onClick={confirmUpload}>✅ Valider et importer</button>
+              <button type="button" className="btn-rh-primary" onClick={confirmUpload}> Valider et importer</button>
             </div>
           </div>
         </div>

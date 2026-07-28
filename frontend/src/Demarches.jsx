@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
+import { AlertCircle, CheckCircle, AlertTriangle, MapPin, Phone, Mail, X, Clipboard, CalendarDays, Info } from 'lucide-react';
 import './App.css';
 
 export default function Demarches() {
@@ -18,6 +19,7 @@ export default function Demarches() {
   const [showCongeForm, setShowCongeForm] = useState(false);
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
   const [showSoldeModal, setShowSoldeModal] = useState(false);
+  const [showHistoriqueModal, setShowHistoriqueModal] = useState(false);
   const [showDemandeModal, setShowDemandeModal] = useState(false);
   const [demandeEnCours, setDemandeEnCours] = useState('');
   const [commentaireDemande, setCommentaireDemande] = useState('');
@@ -132,7 +134,7 @@ export default function Demarches() {
     return true;
   };
 
-  // ✅ Gestionnaire de changement pour le formulaire de congé
+  //  Gestionnaire de changement pour le formulaire de congé
   const handleCongeChange = (e) => {
     const { name, value } = e.target;
     
@@ -156,12 +158,12 @@ export default function Demarches() {
     setAbsenceForm({ ...absenceForm, [e.target.name]: e.target.value });
   };
 
-  // ✅ Calcul de la date de fin pour l'affichage
+  //  Calcul de la date de fin pour l'affichage
   const dateFinCalculee = congeForm.date_debut && congeForm.nombre_jours 
     ? calculerDateFin(congeForm.date_debut, congeForm.nombre_jours)
     : null;
 
-  // ✅ Soumission de la demande de congé
+  //  Soumission de la demande de congé
   const soumettreDemandeConge = async () => {
     if (!matricule) {
       alert('Veuillez vous connecter');
@@ -212,7 +214,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande de congé envoyée !\n\n📅 Période : ${formaterDateFr(debut)} au ${formaterDateFr(dateFin)}\n📆 ${congeForm.nombre_jours} jour${congeForm.nombre_jours > 1 ? 's' : ''}\n🔢 Numéro de suivi: ${data.numerosuivi}\n🌟 Jours restants: ${data.jours_restants_apres || '?'}`);
+        alert(` Demande de congé envoyée !\n\n Période : ${formaterDateFr(debut)} au ${formaterDateFr(dateFin)}\n📆 ${congeForm.nombre_jours} jour${congeForm.nombre_jours > 1 ? 's' : ''}\n🔢 Numéro de suivi: ${data.numerosuivi}\n🌟 Jours restants: ${data.jours_restants_apres || '?'}`);
         setShowCongeForm(false);
         setCongeForm({ date_debut: '', nombre_jours: 1 });
         fetchSoldeConge(matricule);
@@ -272,7 +274,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande d'absence envoyée !\nNuméro: ${data.numerosuivi}\nJours restants: ${data.jours_restants || '?'}/10`);
+        alert(` Demande d'absence envoyée !\nNuméro: ${data.numerosuivi}\nJours restants: ${data.jours_restants || '?'}/10`);
         setShowAbsenceForm(false);
         setAbsenceForm({ date_debut: '', date_fin: '', motif: '' });
         fetchTotalAbsences(matricule);
@@ -314,7 +316,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande d'attestation "${demandeEnCours}" envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre attestation sera prête.`);
+        alert(` Demande d'attestation "${demandeEnCours}" envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre attestation sera prête.`);
         setShowDemandeModal(false);
         setDemandeEnCours('');
         setCommentaireDemande('');
@@ -387,7 +389,7 @@ export default function Demarches() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Demande de certificat de non-jouissance pour l'année ${certificatAnnee} envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre certificat sera prêt.`);
+        alert(` Demande de certificat de non-jouissance pour l'année ${certificatAnnee} envoyée avec succès !\n\nNuméro de suivi: ${data.numerosuivi || 'N/A'}\nVous serez notifié(e) lorsque votre certificat sera prêt.`);
         setShowCertificatModal(false);
         setCertificatVerification(null);
         setCertificatAnnee(new Date().getFullYear() - 1);
@@ -483,7 +485,7 @@ export default function Demarches() {
 
   const handleHistoriqueCarriere = () => {
     requireLogin("consulter votre historique de carrière", () => {
-      alert("Affichage de l'historique...");
+      setShowHistoriqueModal(true);
     });
   };
 
@@ -515,17 +517,17 @@ export default function Demarches() {
   const conges = [
     {
       id: 1,
-      titre: "📅 Demande de congé administratif",
+      titre: " Demande de congé administratif",
       description: "Soumettez votre demande de congé annuel en ligne.",
     },
     {
       id: 2,
-      titre: "⏰ Autorisation d'absence exceptionnelle",
+      titre: " Autorisation d'absence exceptionnelle",
       description: "Demandez une autorisation pour une absence exceptionnelle.",
     },
     {
       id: 3,
-      titre: "📊 Consulter mon solde de congés",
+      titre: " Consulter mon solde de congés",
       description: "Vérifiez vos jours acquis, pris et restants pour l'année.",
     }
   ];
@@ -534,18 +536,36 @@ export default function Demarches() {
   const carrieres = [
     {
       id: 1,
-      titre: "📈 Consulter mon avancement",
+      titre: " Consulter mon avancement",
       description: "Visualisez votre échelon actuel et la date de votre prochain avancement.",
     },
     {
       id: 2,
-      titre: "💼 Postuler à un poste interne",
+      titre: " Postuler à un poste interne",
       description: "Consultez les postes vacants et soumettez votre candidature en ligne.",
     },
     {
       id: 3,
-      titre: "📜 Historique de carrière",
+      titre: " Historique de carrière",
       description: "Consultez l'ensemble de vos nominations, avancements et positions.",
+    }
+  ];
+
+  const historiqueItems = [
+    {
+      label: 'Échelon actuel',
+      value: soldeConge ? `${soldeConge.jours_restants ?? 0} jours restants` : 'À confirmer',
+      detail: 'Informations disponibles depuis votre solde de congés.'
+    },
+    {
+      label: 'Demandes soumises',
+      value: mesDemandes.length,
+      detail: 'Suivi des demandes déposées dans l’application.'
+    },
+    {
+      label: 'Absences exceptionnelles',
+      value: `${totalAbsences} jour${totalAbsences > 1 ? 's' : ''}`,
+      detail: 'Total de jours consommés cette année.'
     }
   ];
 
@@ -693,7 +713,7 @@ export default function Demarches() {
           
           <div className="dossier-cards-grid">
             <div className="dossier-card">
-              <div className="dossier-card-icon">📂</div>
+              <div className="dossier-card-icon"></div>
               <h3>Consulter mon dossier</h3>
               <p>Accédez à toutes vos pièces administratives enregistrées.</p>
               <div className="dossier-badge">Accès immédiat</div>
@@ -701,7 +721,7 @@ export default function Demarches() {
             </div>
             
             <div className="dossier-card">
-              <div className="dossier-card-icon">📤</div>
+              <div className="dossier-card-icon"></div>
               <h3>Déposer une pièce</h3>
               <p>Ajoutez un document manquant à votre dossier administratif.</p>
               <div className="dossier-badge">PDF, JPG acceptés</div>
@@ -709,7 +729,7 @@ export default function Demarches() {
             </div>
             
             <div className="dossier-card alert">
-              <div className="dossier-card-icon">⚠️</div>
+              <div className="dossier-card-icon"></div>
               <h3>Alertes de mon dossier</h3>
               <p>Consultez les pièces manquantes ou arrivant à expiration.</p>
               <div className="dossier-badge">Notifications auto</div>
@@ -724,8 +744,8 @@ export default function Demarches() {
         <div className="modal-overlay" onClick={() => setShowSoldeModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🌴 Détail du solde de congés</h3>
-              <button className="modal-close" onClick={() => setShowSoldeModal(false)}>✕</button>
+              <h3> Détail du solde de congés</h3>
+              <button className="modal-close" onClick={() => setShowSoldeModal(false)}><X size={18} /></button>
             </div>
             
             <div className="modal-body">
@@ -736,7 +756,7 @@ export default function Demarches() {
               
               <div className="solde-detail-card">
                 <div className="solde-detail-item">
-                  <div className="solde-detail-icon">📅</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours acquis</span>
                     <span className="solde-detail-value">{soldeConge?.jours_acquis || 30} jours</span>
@@ -745,7 +765,7 @@ export default function Demarches() {
                 </div>
                 
                 <div className="solde-detail-item">
-                  <div className="solde-detail-icon">✅</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours pris</span>
                     <span className="solde-detail-value">{soldeConge?.jours_pris || 0} jours</span>
@@ -754,7 +774,7 @@ export default function Demarches() {
                 </div>
                 
                 <div className="solde-detail-item highlight">
-                  <div className="solde-detail-icon">🌟</div>
+                  <div className="solde-detail-icon"></div>
                   <div className="solde-detail-content">
                     <span className="solde-detail-label">Jours restants</span>
                     <span className="solde-detail-value large">{soldeConge?.jours_restants || 30} jours</span>
@@ -778,10 +798,10 @@ export default function Demarches() {
               <div className="solde-historique">
                 <h4> Informations</h4>
                 <ul>
-                  <li>✓ 30 jours de congés par an</li>
-                  <li>✓ Les congés non pris sont perdus en fin d'année</li>
-                  <li>✓ Maximum 2 demandes de congé par an</li>
-                  <li>✓ Maximum 30 jours consécutifs</li>
+                  <li> 30 jours de congés par an</li>
+                  <li> Les congés non pris sont perdus en fin d'année</li>
+                  <li> Maximum 2 demandes de congé par an</li>
+                  <li> Maximum 30 jours consécutifs</li>
                 </ul>
               </div>
             </div>
@@ -801,27 +821,85 @@ export default function Demarches() {
         </div>
       )}
 
-      {/* ✅ MODAL DEMANDE DE CONGÉ - VERSION MODIFIÉE AVEC NOMBRE DE JOURS */}
+      {showHistoriqueModal && (
+        <div className="modal-overlay" onClick={() => setShowHistoriqueModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Historique de carrière</h3>
+              <button className="modal-close" onClick={() => setShowHistoriqueModal(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="history-modal-shell">
+                <div className="history-hero">
+                  <div className="history-hero-icon">
+                    <Clipboard size={18} />
+                  </div>
+                  <div>
+                    <h4>Résumé de votre parcours RH</h4>
+                    <p>Voici un aperçu clair et synthétique des éléments disponibles dans votre espace personnel.</p>
+                  </div>
+                </div>
+
+                <div className="history-summary-grid">
+                  <div className="history-summary-card history-summary-card-accent">
+                    <span className="history-summary-label">Solde actuel</span>
+                    <strong>{soldeConge ? `${soldeConge.jours_restants ?? 0} jours` : 'À confirmer'}</strong>
+                    <small>{soldeConge ? 'Congés restants pour l’année en cours' : 'Données de solde non encore disponibles'}</small>
+                  </div>
+                  <div className="history-summary-card">
+                    <span className="history-summary-label">Demandes déposées</span>
+                    <strong>{mesDemandes.length}</strong>
+                    <small>Demandes suivies dans l’application</small>
+                  </div>
+                  <div className="history-summary-card">
+                    <span className="history-summary-label">Absences utilisées</span>
+                    <strong>{totalAbsences} jour{totalAbsences > 1 ? 's' : ''}</strong>
+                    <small>Volume consommé cette année</small>
+                  </div>
+                </div>
+
+                <div className="history-list">
+                  {historiqueItems.map((item, index) => (
+                    <div key={index} className="history-item">
+                      <div className="history-item-title">{item.label}</div>
+                      <div className="history-item-value">{item.value}</div>
+                      <div className="history-item-detail">{item.detail}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {mesDemandes.length === 0 && totalAbsences === 0 && (!soldeConge || soldeConge.jours_restants === undefined) && (
+                  <div className="history-empty-state">
+                    Aucune information d’historique n’est encore disponible pour votre profil. Les données seront enrichies au fur et à mesure de vos actions dans l’application.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/*  MODAL DEMANDE DE CONGÉ - VERSION MODIFIÉE AVEC NOMBRE DE JOURS */}
       {showCongeForm && (
         <div className="modal-overlay" onClick={() => setShowCongeForm(false)}>
           <div className="modal-content modal-conge" onClick={(e) => e.stopPropagation()}>
             <div className="modal-conge-header">
               <div className="modal-conge-header-content">
                 <div className="modal-conge-icon-wrapper">
-                  <span className="icon">📅</span>
+                  <span className="icon"><CalendarDays size={18} /></span>
                 </div>
                 <div className="modal-conge-title-section">
-                  <h3 className="modal-conge-title">Demande de congé</h3>
+                  <h3 className="modal-conge-title" style={{ color: '#FFFFFF' }}>Demande de congé</h3>
                   <p className="modal-conge-subtitle">Soumettez votre demande de congé annuel</p>
                 </div>
-                <button className="modal-conge-close" onClick={() => setShowCongeForm(false)}>✕</button>
+                <button className="modal-conge-close" onClick={() => setShowCongeForm(false)}><X size={18} /></button>
               </div>
             </div>
 
             <div className="modal-body" style={{ padding: '24px 30px' }}>
               {soldeConge && (
                 <div className="modal-conge-solde">
-                  <span className="modal-conge-solde-icon">🌴</span>
+                  <span className="modal-conge-solde-icon"><CalendarDays size={18} /></span>
                   <div className="modal-conge-solde-text">
                     Solde disponible : <strong>{soldeConge.jours_restants}</strong> jours
                     <small>Congés restants pour l'année en cours</small>
@@ -912,7 +990,7 @@ export default function Demarches() {
                   </div>
                 </div>
                 
-                {/* ✅ Affichage de la date de fin calculée */}
+                {/*  Affichage de la date de fin calculée */}
                 {dateFinCalculee && (
                   <div style={{ 
                     marginTop: '15px', 
@@ -924,7 +1002,7 @@ export default function Demarches() {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: '#1565C0' }}>
-                        📅 Date de fin calculée :
+                         Date de fin calculée :
                       </span>
                       <span style={{ fontWeight: '600', color: '#0D47A1' }}>
                         {formaterDateFr(dateFinCalculee)}
@@ -942,7 +1020,7 @@ export default function Demarches() {
                   </div>
                 )}
                 
-                {/* ✅ Indicateur de dépassement du solde */}
+                {/*  Indicateur de dépassement du solde */}
                 {soldeConge && congeForm.nombre_jours > soldeConge.jours_restants && (
                   <div style={{ 
                     marginTop: '10px', 
@@ -952,11 +1030,11 @@ export default function Demarches() {
                     color: '#C62828',
                     fontSize: '14px'
                   }}>
-                    ⚠️ Vous demandez {congeForm.nombre_jours} jours mais il vous reste {soldeConge.jours_restants} jours.
+                     Vous demandez {congeForm.nombre_jours} jours mais il vous reste {soldeConge.jours_restants} jours.
                   </div>
                 )}
                 
-                {/* ✅ Indicateur de dépassement de 30 jours */}
+                {/*  Indicateur de dépassement de 30 jours */}
                 {congeForm.nombre_jours > 30 && (
                   <div style={{ 
                     marginTop: '10px', 
@@ -966,7 +1044,7 @@ export default function Demarches() {
                     color: '#E65100',
                     fontSize: '14px'
                   }}>
-                    ⚠️ La durée maximale d'un congé est de 30 jours consécutifs.
+                     La durée maximale d'un congé est de 30 jours consécutifs.
                   </div>
                 )}
               </div>
@@ -998,7 +1076,7 @@ export default function Demarches() {
                   ) ? 0.6 : 1
                 }}
               >
-                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
+                {loading ? ' Envoi...' : ' Envoyer la demande'}
               </button>
             </div>
           </div>
@@ -1012,19 +1090,19 @@ export default function Demarches() {
             <div className="modal-absence-header">
               <div className="modal-absence-header-content">
                 <div className="modal-absence-icon-wrapper">
-                  <span className="icon">⏰</span>
+                  <span className="icon"><AlertTriangle size={18} /></span>
                 </div>
                 <div className="modal-absence-title-section">
-                  <h3 className="modal-absence-title">Demande d'absence exceptionnelle</h3>
+                  <h3 className="modal-absence-title" style={{ color: '#FFFFFF' }}>Demande d'absence exceptionnelle</h3>
                   <p className="modal-absence-subtitle">Motif exceptionnel nécessitant une autorisation</p>
                 </div>
-                <button className="modal-absence-close" onClick={() => setShowAbsenceForm(false)}>✕</button>
+                <button className="modal-absence-close" onClick={() => setShowAbsenceForm(false)}><X size={18} /></button>
               </div>
             </div>
 
             <div className="modal-absence-body">
               <div className="modal-absence-reglement">
-                <span className="modal-absence-reglement-icon">📋</span>
+                <span className="modal-absence-reglement-icon"><AlertTriangle size={18} /></span>
                 <div className="modal-absence-reglement-text">
                   <strong>RÈGLEMENTATION</strong>
                   <span>Maximum 10 jours par an par agent</span>
@@ -1064,7 +1142,7 @@ export default function Demarches() {
 
               {totalAbsences >= 8 && (
                 <div className="modal-absence-alert">
-                  <span className="icon">⚠️</span>
+                  <span className="icon"><AlertCircle size={16} /></span>
                   <span>Vous avez consommé {totalAbsences} jours sur 10. Il vous reste {10 - totalAbsences} jour(s).</span>
                 </div>
               )}
@@ -1107,7 +1185,7 @@ export default function Demarches() {
                 </div>
 
                 <div className="modal-absence-info">
-                  <span className="icon">ℹ️</span>
+                  <span className="icon"><Info size={16} /></span>
                   <span>Cette demande sera soumise à la validation de votre supérieur hiérarchique. Vous serez notifié de la décision.</span>
                 </div>
               </div>
@@ -1118,7 +1196,7 @@ export default function Demarches() {
                 Annuler
               </button>
               <button className="btn-absence-submit" onClick={soumettreDemandeAbsence} disabled={loading}>
-                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande'}
+                {loading ? ' Envoi...' : ' Envoyer la demande'}
               </button>
             </div>
           </div>
@@ -1130,8 +1208,8 @@ export default function Demarches() {
         <div className="modal-overlay" onClick={() => setShowDemandeModal(false)}>
           <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📄 Demande d'attestation</h3>
-              <button className="modal-close" onClick={() => setShowDemandeModal(false)}>✕</button>
+              <h3> Demande d'attestation</h3>
+              <button className="modal-close" onClick={() => setShowDemandeModal(false)}><X size={18} /></button>
             </div>
             
             <div className="modal-body">
@@ -1170,7 +1248,7 @@ export default function Demarches() {
                 borderLeft: '4px solid #F59E0B'
               }}>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400E' }}>
-                  ℹ️ Le délai de traitement est généralement de 2 à 3 jours ouvrés.
+                   Le délai de traitement est généralement de 2 à 3 jours ouvrés.
                 </p>
               </div>
             </div>
@@ -1191,7 +1269,7 @@ export default function Demarches() {
                   opacity: loading ? 0.6 : 1
                 }}
               >
-                {loading ? '⏳ Envoi...' : '📤 Envoyer la demande →'}
+                {loading ? ' Envoi...' : ' Envoyer la demande →'}
               </button>
             </div>
           </div>
@@ -1203,8 +1281,8 @@ export default function Demarches() {
         <div className="modal-overlay" onClick={() => setShowCertificatModal(false)}>
           <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>📄 Certificat de non-jouissance de congé</h3>
-              <button className="modal-close" onClick={() => setShowCertificatModal(false)}>✕</button>
+              <h3> Certificat de non-jouissance de congé</h3>
+              <button className="modal-close" onClick={() => setShowCertificatModal(false)}><X size={18} /></button>
             </div>
             
             <div className="modal-body">
@@ -1233,13 +1311,13 @@ export default function Demarches() {
                   })()}
                 </select>
                 <small style={{ display: 'block', marginTop: '5px', color: '#64748B' }}>
-                  ⚠️ Seules les années terminées sont disponibles (année en cours exclue)
+                   Seules les années terminées sont disponibles (année en cours exclue)
                 </small>
               </div>
               
               {certificatLoading ? (
                 <div style={{ textAlign: 'center', padding: '20px' }}>
-                  <span>⏳ Vérification en cours pour l'année {certificatAnnee}...</span>
+                  <span> Vérification en cours pour l'année {certificatAnnee}...</span>
                 </div>
               ) : certificatVerification ? (
                 <>
@@ -1249,15 +1327,21 @@ export default function Demarches() {
                       padding: '15px', 
                       borderRadius: '10px',
                       borderLeft: '4px solid #EF4444',
-                      marginTop: '15px'
+                      marginTop: '15px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px'
                     }}>
-                      <strong style={{ color: '#DC2626' }}>❌ Impossible de faire la demande</strong>
-                      <p style={{ marginTop: '10px', color: '#991B1B' }}>
-                        Vous avez bénéficié d'un congé de <strong>{certificatVerification.jours_pris} jours</strong> en {certificatAnnee}.
-                      </p>
-                      <p style={{ marginTop: '5px', color: '#991B1B', fontSize: '13px' }}>
-                        Le certificat de non-jouissance ne peut être délivré que si vous n'avez pris aucun congé pendant l'année concernée.
-                      </p>
+                      <AlertTriangle size={24} style={{ color: '#DC2626', flexShrink: 0, marginTop: '2px' }} />
+                      <div>
+                        <strong style={{ color: '#DC2626' }}>Impossible de faire la demande</strong>
+                        <p style={{ marginTop: '10px', color: '#991B1B' }}>
+                          Vous avez bénéficié d'un congé de <strong>{certificatVerification.jours_pris} jours</strong> en {certificatAnnee}.
+                        </p>
+                        <p style={{ marginTop: '5px', color: '#991B1B', fontSize: '13px' }}>
+                          Le certificat de non-jouissance ne peut être délivré que si vous n'avez pris aucun congé pendant l'année concernée.
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     <div style={{ 
@@ -1265,9 +1349,13 @@ export default function Demarches() {
                       padding: '15px', 
                       borderRadius: '10px',
                       borderLeft: '4px solid #10B981',
-                      marginTop: '15px'
+                      marginTop: '15px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
                     }}>
-                      <strong style={{ color: '#059669' }}>✅ Éligible</strong>
+                      <CheckCircle size={24} style={{ color: '#059669', flexShrink: 0 }} />
+                      <strong style={{ color: '#059669' }}>Éligible</strong>
                       <p style={{ marginTop: '10px', color: '#065F46' }}>
                         Aucun congé pris en {certificatAnnee}. Vous pouvez faire la demande.
                       </p>
@@ -1284,7 +1372,7 @@ export default function Demarches() {
                 fontSize: '13px',
                 color: '#475569'
               }}>
-                <span>ℹ️</span>
+                <span></span>
                 <span style={{ marginLeft: '8px' }}>
                   Votre demande sera transmise au service RH qui vérifiera votre éligibilité et générera le certificat pour l'année <strong>{certificatAnnee}</strong>.
                 </span>
@@ -1298,7 +1386,7 @@ export default function Demarches() {
                 borderLeft: '4px solid #F59E0B'
               }}>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#92400E' }}>
-                  📌 Le délai de traitement est généralement de 2 à 3 jours ouvrés.
+                   Le délai de traitement est généralement de 2 à 3 jours ouvrés.
                 </p>
               </div>
             </div>
@@ -1331,12 +1419,12 @@ export default function Demarches() {
           <div className="modal-content" style={{ maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header" style={{ borderBottom: 'none' }}>
               <h3 style={{ color: '#DC2626', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '24px' }}>⛔</span> Accès refusé
+                <span style={{ fontSize: '24px' }}></span> Accès refusé
               </h3>
-              <button className="modal-close" onClick={() => setErrorModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => setErrorModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body" style={{ textAlign: 'center', padding: '20px 20px 10px' }}>
-              <div style={{ fontSize: '56px', marginBottom: '16px' }}>🚫</div>
+              <div style={{ fontSize: '56px', marginBottom: '16px' }}></div>
               <p style={{ fontSize: '16px', color: '#374151', lineHeight: '1.7' }}>
                 {errorMessage}
               </p>
@@ -1381,9 +1469,9 @@ export default function Demarches() {
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

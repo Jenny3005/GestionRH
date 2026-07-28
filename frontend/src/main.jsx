@@ -8,7 +8,7 @@ import Demarches from './Demarches';
 import Documents from './Documents';
 import DashboardAdmin from './DashboardAdmin';
 import DashboardRH from './DashboardRH';
-import RHDocuments from './RHDocuments'; 
+import RHDocuments from './RHDocuments';
 import AdminAgents from './AdminAgents';
 import AdminRoles from './AdminRoles';
 import ActivateAccount from './ActivateAccount';
@@ -27,6 +27,59 @@ import CandidaturesPage from './CandidaturesPage';
 import BulletinNotes from './Bulletinnotes';
 import ResetPassword from './ResetPassword';
 
+const originalFetch = window.fetch.bind(window);
+
+window.fetch = (input, init) => {
+  let url = typeof input === 'string' ? input : input instanceof Request ? input.url : input?.url;
+
+  if (typeof url === 'string') {
+    const rewrittenUrl = url
+      .replace(/^http:\/\/localhost:8000\/api\//, '/api/')
+      .replace(/^http:\/\/localhost:3001\/api/, '/api')
+      .replace(/^http:\/\/localhost:8000\//, '/');
+
+    if (rewrittenUrl !== url) {
+      if (typeof input === 'string') {
+        input = rewrittenUrl;
+      } else if (input instanceof Request) {
+        input = new Request(rewrittenUrl, input);
+      } else {
+        input = { ...input, url: rewrittenUrl };
+      }
+    }
+  }
+
+  return originalFetch(input, init);
+};
+
+const rewriteAssetUrl = (url) => {
+  if (!url || /^https?:\/\//i.test(url) || /^data:/i.test(url) || url.startsWith('blob:')) {
+    return url;
+  }
+
+  if (['/logo_MND.png', '/logo2.png', '/favicon.svg', '/icons.svg'].includes(url)) {
+    return `/static${url}`;
+  }
+
+  return url;
+};
+
+const patchStaticAssets = () => {
+  document.querySelectorAll('img').forEach((img) => {
+    const currentSrc = img.getAttribute('src');
+    if (currentSrc) {
+      const rewrittenSrc = rewriteAssetUrl(currentSrc);
+      if (rewrittenSrc !== currentSrc) {
+        img.setAttribute('src', rewrittenSrc);
+      }
+    }
+  });
+};
+
+patchStaticAssets();
+
+const observer = new MutationObserver(() => patchStaticAssets());
+observer.observe(document.body, { childList: true, subtree: true });
 
 // Pas besoin d'état isAuthenticated ici car c'est géré dans chaque composant
 // ou bien on le gère avec un contexte
@@ -43,17 +96,17 @@ createRoot(document.getElementById('root')).render(
       {/* Pages protégées (vérifient la connexion à l'intérieur) */}
       <Route path="/demarches" element={<Demarches />} />
       <Route path="/documents" element={<Documents />} />
-      <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-      <Route path="/admin/agents" element={<AdminAgents />} />
-      <Route path="/admin/roles" element={<AdminRoles />} />
+      <Route path="/app-admin/dashboard" element={<DashboardAdmin />} />
+      <Route path="/app-admin/agents" element={<AdminAgents />} />
+      <Route path="/app-admin/roles" element={<AdminRoles />} />
       <Route path="/activate" element={<ActivateAccount />} />
       <Route path="/dashboard" element={<DashboardAgent />} />
       <Route path="/choose-role" element={<ChooseRole />} />
       <Route path="/profil" element={<Profil />} />
       <Route path="/chef/dashboard" element={<DashboardChef />} />
-      <Route path="/admin/types-demande" element={<AdminTypesDemande />} />
-      <Route path="/admin/types-piece" element={<AdminTypesPiece />} />
-      <Route path="/admin/permissions" element={<AdminPermissions />} />
+      <Route path="/app-admin/types-demande" element={<AdminTypesDemande />} />
+      <Route path="/app-admin/types-piece" element={<AdminTypesPiece />} />
+      <Route path="/app-admin/permissions" element={<AdminPermissions />} />
       <Route path="/secretaire/dashboard" element={<DashboardSecretaireDPAF />} />
       <Route path="/rh/dashboard" element={<DashboardRH />} />
       <Route path="/dpaf/dashboard" element={<DashboardDPAF />} />

@@ -1,9 +1,30 @@
 # backend/emails.py
-from django.core.mail import send_mail
+from django.core.mail import get_connection, send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.conf import settings
 from datetime import date
+import threading
+import random
+import time
+
+
+def resolve_email_backend():
+    """Retourne le backend email configuré.
+
+    Si une clé SendGrid est configurée, on utilise le backend SendGrid par défaut.
+    Sinon, on utilise le backend explicitement défini dans EMAIL_BACKEND.
+    Sinon, on tombe sur le backend console.
+    """
+    sendgrid_key = (getattr(settings, 'SENDGRID_API_KEY', '') or '').strip()
+    if sendgrid_key:
+        return 'monapp.email_backend.SendGridEmailBackend'
+
+    configured_backend = (getattr(settings, 'EMAIL_BACKEND', '') or '').strip()
+    if configured_backend:
+        return configured_backend
+
+    return 'django.core.mail.backends.console.EmailBackend'
 
 
 def _envoyer_email(sujet, template, context, destinataire):
@@ -17,15 +38,36 @@ def _envoyer_email(sujet, template, context, destinataire):
     try:
         html_message = render_to_string(template, context)
         plain_message = strip_tags(html_message)
+        backend = resolve_email_backend()
+        connection = get_connection(
+            backend=backend,
+            fail_silently=True,
+            timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
+        )
 
-        send_mail(
+        if not connection.open():
+            if backend != 'django.core.mail.backends.console.EmailBackend':
+                connection = get_connection(
+                    backend='django.core.mail.backends.console.EmailBackend',
+                    fail_silently=True,
+                    timeout=getattr(settings, 'EMAIL_TIMEOUT', 20)
+                )
+                if not connection.open():
+                    return False, 'Impossible d’ouvrir la connexion email (SMTP/SendGrid et console ont échoué)'
+            else:
+                return False, 'Impossible d’ouvrir la connexion email (console)'
+
+        sent_count = send_mail(
             subject=sujet,
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[destinataire],
             html_message=html_message,
-            fail_silently=False,
+            fail_silently=True,
+            connection=connection,
         )
+        if sent_count == 0:
+            return False, 'Aucun email envoyé (send_mail a échoué silencieusement)'
         return True, None
 
     except Exception as e:
@@ -164,3 +206,41 @@ def envoyer_email_anniversaire(agent):
         print(f"❌ Erreur email anniversaire pour {agent.email} : {erreur}")
 
     return succes, erreur
+
+
+
+def envoyer_email_activation_async(agent):
+    """
+    Envoie l'email d'activation dans un thread séparé (asynchrone)
+    Ne bloque pas l'import
+    """
+    try:
+        # Petit délai aléatoire pour éviter de surcharger le serveur
+        time.sleep(random.uniform(0.5, 2))
+        
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        activation_link = f"{frontend_url}/activate?matricule={agent.matricule}"
+        
+        context = {
+            'prenom': agent.prenom,
+            'nom': agent.nom,
+            'matricule': agent.matricule,
+            'email': agent.email,
+            'activation_link': activation_link,
+        }
+        
+        html_message = render_to_string('emails/activation_email.html', context)
+        plain_message = strip_tags(html_message)
+        
+        send_mail(
+            subject='Activation de votre compte MND',
+            message=plain_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[agent.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        print(f"✅ Email d'activation envoyé à {agent.email}")
+        
+    except Exception as e:
+        print(f"❌ Erreur envoi email à {agent.email}: {e}")

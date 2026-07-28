@@ -33,7 +33,7 @@ export default function ActivateAccount() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/activate/', {
+      const response = await fetch('/api/activate/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -45,7 +45,7 @@ export default function ActivateAccount() {
       const data = await response.json();
       
       if (response.ok) {
-        alert('✅ Compte activé avec succès ! Connectez-vous.');
+        alert(' Compte activé avec succès ! Connectez-vous.');
         navigate('/auth');
       } else {
         setError(data.error || 'Erreur lors de l\'activation');
@@ -67,7 +67,7 @@ export default function ActivateAccount() {
         <div className="auth-header">
            <a href="/" className="logo-nav-link">
             <img 
-              src="/logo_MND.png" 
+              src="/static/logo_MND.png" 
               alt="Logo MND" 
               className="mnd-official-logo" 
             />
@@ -100,10 +100,10 @@ export default function ActivateAccount() {
             />
           </div>
 
-          {error && <div className="error-text">❌ {error}</div>}
+          {error && <div className="error-text"> {error}</div>}
 
           <button type="submit" className="btn-auth-submit" disabled={loading}>
-            {loading ? ' Activation...' : '✅ Activer mon compte'}
+            {loading ? ' Activation...' : ' Activer mon compte'}
           </button>
         </form>
 

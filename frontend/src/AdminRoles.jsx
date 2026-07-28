@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, MapPin } from 'lucide-react';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -12,6 +12,7 @@ export default function AdminRoles() {
   const [agents, setAgents] = useState([]);
   const [filteredAgents, setFilteredAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -38,10 +39,10 @@ export default function AdminRoles() {
       return;
     }
     if (!permissionsLoading && !hasPermission('GERER_ROLES') && !isAdmin()) {
-      navigate('/admin/dashboard');
+      navigate('/app-admin/dashboard');
       return;
     }
-  }, [permissionsLoading]);
+  }, [permissionsLoading, hasPermission, isAdmin, navigate]);
 
   useEffect(() => {
     if (!localStorage.getItem('userMatricule')) {
@@ -79,22 +80,26 @@ export default function AdminRoles() {
   };
 
   const fetchRoles = async () => {
+    setRolesLoaded(false);
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
-        setRoles(data);
+        setRoles(Array.isArray(data) ? data.sort((a, b) => a.libelle.localeCompare(b.libelle)) : []);
+      } else {
+        console.error('Erreur fetchRoles:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
       setLoading(false);
+      setRolesLoaded(true);
     }
   };
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/agents/');
+      const response = await fetch('/api/agents/');
       if (response.ok) {
         const data = await response.json();
         setAgents(data);
@@ -127,14 +132,14 @@ export default function AdminRoles() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/roles/add/', {
+      const response = await fetch('/api/roles/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ libelle: formData.libelle.toLowerCase() })
       });
 
       if (response.ok) {
-        alert('✅ Rôle ajouté avec succès');
+        alert(' Rôle ajouté avec succès');
         setShowModal(false);
         setFormData({ libelle: '' });
         fetchRoles();
@@ -155,7 +160,7 @@ export default function AdminRoles() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentMatricule}/role/update/`, {
+      const response = await fetch(`/api/agents/${agentMatricule}/role/update/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role_id: selectedRole.id })
@@ -163,7 +168,7 @@ export default function AdminRoles() {
       
       if (response.ok) {
         const result = await response.json();
-        alert(result.message || `✅ Rôle attribué avec succès !`);
+        alert(result.message || ` Rôle attribué avec succès !`);
         fetchAgents();
         fetchRoles();
         const updatedFiltered = filteredAgents.filter(agent => agent.matricule !== agentMatricule);
@@ -185,7 +190,7 @@ export default function AdminRoles() {
     }
     
     if (SYSTEM_ROLES.includes(roleLibelle)) {
-      alert(`⚠️ Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
+      alert(` Le rôle "${roleLibelle}" est un rôle système et ne peut pas être supprimé`);
       return;
     }
     
@@ -195,17 +200,17 @@ export default function AdminRoles() {
     });
     
     if (agentsWithRole.length > 0) {
-      alert(`⚠️ Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
+      alert(` Impossible de supprimer ce rôle car ${agentsWithRole.length} agent(s) l'ont encore. Retirez d'abord le rôle de ces agents.`);
       return;
     }
     
     if (window.confirm(`Supprimer le rôle "${roleLibelle}" ?`)) {
       try {
-        const response = await fetch(`http://localhost:8000/api/roles/${roleId}/delete/`, {
+        const response = await fetch(`/api/roles/${roleId}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Rôle supprimé');
+          alert(' Rôle supprimé');
           fetchRoles();
         } else {
           const error = await response.json();
@@ -218,41 +223,60 @@ export default function AdminRoles() {
     }
   };
 
+  const normalizeRoleString = (role) => String(role || '').trim().toLowerCase();
+
   const getRoleLabel = (role) => {
+    const normalized = normalizeRoleString(role);
     const labels = {
       'admin': 'Administrateur',
       'rh': 'Ressources Humaines',
       'chef': 'Chef de service',
-      'agent': 'Agent'
+      'agent': 'Agent',
+      'dpaf': 'DPAF',
+      'dapaf': 'DAPAF',
+      'secretaire': 'Secrétaire DPAF',
+      'rh/secretaire': 'RH / Secrétaire'
     };
-    return labels[role] || role;
+    return labels[normalized] || role || 'Rôle inconnu';
   };
 
   const getRoleBadgeClass = (role) => {
+    const normalized = normalizeRoleString(role);
     const classes = {
       'admin': 'role-badge admin',
       'rh': 'role-badge rh',
       'chef': 'role-badge chef',
-      'agent': 'role-badge agent'
+      'agent': 'role-badge agent',
+      'dpaf': 'role-badge dpaf',
+      'dapaf': 'role-badge dapaf',
+      'secretaire': 'role-badge secretaire',
+      'rh/secretaire': 'role-badge rh-secretaire'
     };
-    return classes[role] || 'role-badge custom';
+    return classes[normalized] || 'role-badge custom';
   };
 
   const getRoleIcon = () => '';
 
   const getRoleDescription = (role) => {
+    const normalized = normalizeRoleString(role);
     const descriptions = {
       'admin': 'Accès total à toutes les fonctionnalités',
       'rh': 'Gestion des agents, validation des demandes',
       'chef': 'Supervision équipe, validation des congés',
-      'agent': 'Accès à son espace personnel uniquement'
+      'agent': 'Accès à son espace personnel uniquement',
+      'dpaf': 'Assignment des demandes aux agents RH',
+      'dapaf': 'Assignment des demandes aux agents DPAF',
+      'secretaire': 'Accès des secrétaires DPAF',
+      'rh/secretaire': 'Gestion RH + Transmission au DPAF'
     };
-    return descriptions[role] || 'Rôle personnalisé créé par l\'administrateur';
+    return descriptions[normalized] || 'Rôle personnalisé créé par l\'administrateur';
   };
 
-  const filteredRoles = roles.filter(role =>
-    role.libelle.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRoles = roles.filter(role => {
+    const search = normalizeRoleString(searchTerm);
+    return normalizeRoleString(role.libelle).includes(search) ||
+      normalizeRoleString(getRoleLabel(role.libelle)).includes(search);
+  });
 
   if (permissionsLoading) {
     return <div className="loading-screen">Chargement des permissions...</div>;
@@ -273,8 +297,8 @@ export default function AdminRoles() {
         <nav className="sidebar-nav">
           {/* Tableau de bord */}
           <button 
-            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
-            onClick={() => navigateTo('/admin/dashboard')}
+            className={`sidebar-item ${window.location.pathname === '/app-admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/app-admin/dashboard')}
           >
             <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
@@ -295,8 +319,8 @@ export default function AdminRoles() {
               <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/agents')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/agents')}
                   >
                     <span className="sidebar-icon"><Users size={16} /></span>
                     <span className="sidebar-label">Agents</span>
@@ -304,8 +328,8 @@ export default function AdminRoles() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/roles')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/roles')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Rôles</span>
@@ -313,8 +337,8 @@ export default function AdminRoles() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/permissions')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/permissions')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Permissions</span>
@@ -322,8 +346,8 @@ export default function AdminRoles() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-demande')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-demande')}
                   >
                     <span className="sidebar-icon"><FileText size={16} /></span>
                     <span className="sidebar-label">Types de demande</span>
@@ -331,8 +355,8 @@ export default function AdminRoles() {
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-piece')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-piece')}
                   >
                     <span className="sidebar-icon"><FilePlus2 size={16} /></span>
                     <span className="sidebar-label">Types de pièce</span>
@@ -408,10 +432,10 @@ export default function AdminRoles() {
           {/* CARDS DES RÔLES */}
           <div className="roles-cards-grid">
             {loading ? (
-              <p>⏳ Chargement...</p>
+              <p> Chargement...</p>
             ) : filteredRoles.length === 0 ? (
               <div className="empty-state">
-                <p>📭 Aucun rôle trouvé</p>
+                <p> Aucun rôle trouvé</p>
                 <Can permission="AJOUTER_ROLE">
                   <button className="btn-add" onClick={() => setShowModal(true)}>Créer un rôle</button>
                 </Can>
@@ -422,7 +446,9 @@ export default function AdminRoles() {
                   <div className="role-card-icon" aria-hidden="true"></div>
                   <div className="role-card-content">
                     <h3>{getRoleLabel(role.libelle)}</h3>
-                    <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
+                    <div className="role-card-meta">
+                      <span className={getRoleBadgeClass(role.libelle)}>{role.libelle}</span>
+                    </div>
                     <p className="role-description">
                       {getRoleDescription(role.libelle)}
                     </p>
@@ -537,9 +563,9 @@ export default function AdminRoles() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>
@@ -586,7 +612,7 @@ export default function AdminRoles() {
             <div className="assign-search-box">
               <input
                 type="text"
-                placeholder="🔍 Rechercher un agent par nom ou prénom..."
+                placeholder=" Rechercher un agent par nom ou prénom..."
                 value={agentSearchTerm}
                 onChange={(e) => setAgentSearchTerm(e.target.value)}
                 className="search-input"

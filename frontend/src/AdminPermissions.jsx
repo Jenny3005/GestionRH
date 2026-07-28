@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus } from 'lucide-react';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, Menu, Plus, MapPin } from 'lucide-react';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
 import './App.css';
@@ -50,7 +50,7 @@ export default function AdminPermissions() {
       const isUserAdmin = checkIsAdmin();
       const hasGererPermissions = hasPermission && hasPermission('GERER_PERMISSIONS');
       if (!isUserAdmin && !hasGererPermissions) {
-        navigate('/admin/dashboard');
+        navigate('/app-admin/dashboard');
         return;
       }
     }
@@ -78,7 +78,7 @@ export default function AdminPermissions() {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/permissions/');
+      const response = await fetch('/api/permissions/');
       if (response.ok) {
         const data = await response.json();
         setPermissions(data);
@@ -92,7 +92,7 @@ export default function AdminPermissions() {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/roles/');
+      const response = await fetch('/api/roles/');
       if (response.ok) {
         const data = await response.json();
         setRoles(data);
@@ -104,7 +104,7 @@ export default function AdminPermissions() {
 
   const fetchRolePermissions = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/role-permissions/');
+      const response = await fetch('/api/role-permissions/');
       if (response.ok) {
         const data = await response.json();
         setRolePermissions(data);
@@ -129,14 +129,14 @@ export default function AdminPermissions() {
     }
 
     try {
-      const response = await fetch('http://localhost:8000/api/permissions/add/', {
+      const response = await fetch('/api/permissions/add/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       });
 
       if (response.ok) {
-        alert('✅ Permission ajoutée avec succès');
+        alert(' Permission ajoutée avec succès');
         setShowModal(false);
         setFormData({ code: '', description: '' });
         fetchPermissions();
@@ -153,11 +153,11 @@ export default function AdminPermissions() {
   const handleDeletePermission = async (code) => {
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer la permission "${code}" ?\n\nCette action est irréversible.`)) {
       try {
-        const response = await fetch(`http://localhost:8000/api/permissions/${code}/delete/`, {
+        const response = await fetch(`/api/permissions/${code}/delete/`, {
           method: 'DELETE'
         });
         if (response.ok) {
-          alert('✅ Permission supprimée avec succès');
+          alert(' Permission supprimée avec succès');
           fetchPermissions();
           fetchRolePermissions();
         } else {
@@ -179,7 +179,7 @@ export default function AdminPermissions() {
     }
     
     try {
-      const response = await fetch('http://localhost:8000/api/role-permissions/toggle/', {
+      const response = await fetch('/api/role-permissions/toggle/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -222,8 +222,8 @@ export default function AdminPermissions() {
         <nav className="sidebar-nav">
           {/* Tableau de bord */}
           <button 
-            className={`sidebar-item ${window.location.pathname === '/admin/dashboard' ? 'active' : ''}`}
-            onClick={() => navigateTo('/admin/dashboard')}
+            className={`sidebar-item ${window.location.pathname === '/app-admin/dashboard' ? 'active' : ''}`}
+            onClick={() => navigateTo('/app-admin/dashboard')}
           >
             <span className="sidebar-icon"><LayoutDashboard size={18} /></span>
             <span className="sidebar-label">Tableau de bord</span>
@@ -244,8 +244,8 @@ export default function AdminPermissions() {
               <div className="sidebar-submenu">
                 <Can permission="VOIR_AGENTS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/agents' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/agents')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/agents' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/agents')}
                   >
                     <span className="sidebar-icon"><Users size={16} /></span>
                     <span className="sidebar-label">Agents</span>
@@ -253,8 +253,8 @@ export default function AdminPermissions() {
                 </Can>
                 <Can permission="GERER_ROLES">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/roles' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/roles')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/roles' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/roles')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Rôles</span>
@@ -262,8 +262,8 @@ export default function AdminPermissions() {
                 </Can>
                 <Can permission="GERER_PERMISSIONS">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/permissions' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/permissions')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/permissions' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/permissions')}
                   >
                     <span className="sidebar-icon"><ShieldCheck size={16} /></span>
                     <span className="sidebar-label">Permissions</span>
@@ -271,8 +271,8 @@ export default function AdminPermissions() {
                 </Can>
                 <Can permission="GERE_TYPE_DEMANDE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-demande' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-demande')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-demande' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-demande')}
                   >
                     <span className="sidebar-icon"><FileText size={16} /></span>
                     <span className="sidebar-label">Types de demande</span>
@@ -280,8 +280,8 @@ export default function AdminPermissions() {
                 </Can>
                 <Can permission="GERER_TYPES_PIECE">
                   <button 
-                    className={`sidebar-subitem ${window.location.pathname === '/admin/types-piece' ? 'active' : ''}`}
-                    onClick={() => navigateTo('/admin/types-piece')}
+                    className={`sidebar-subitem ${window.location.pathname === '/app-admin/types-piece' ? 'active' : ''}`}
+                    onClick={() => navigateTo('/app-admin/types-piece')}
                   >
                     <span className="sidebar-icon"><FilePlus2 size={16} /></span>
                     <span className="sidebar-label">Types de pièce</span>
@@ -364,7 +364,7 @@ export default function AdminPermissions() {
                     </tr>
                   ) : permissions.length === 0 ? (
                     <tr>
-                      <td colSpan="3" style={{ textAlign: 'center' }}>📭 Aucune permission trouvée</td>
+                      <td colSpan="3" style={{ textAlign: 'center' }}><div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Inbox size={24} style={{ color: '#D4AF37' }} /></div>Aucune permission trouvée</td>
                     </tr>
                   ) : (
                     permissions.map((perm) => (
@@ -491,9 +491,9 @@ export default function AdminPermissions() {
               </div>
               <div className="footer-col">
                 <h4>Contact & Situation</h4>
-                <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-                <p>📞 +229 21 30 70 13</p>
-                <p>✉️ numerique@gouv.bj</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+                <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
               </div>
             </div>
           </div>

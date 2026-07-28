@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getDashboardPath, normalizeRole } from './PortalNav';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
 import './App.css';
 
 export default function Auth({ onLogin }) {
@@ -14,6 +15,7 @@ export default function Auth({ onLogin }) {
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showRegistrationInfo, setShowRegistrationInfo] = useState(false);
 
   const handleChange = (e) => {
@@ -47,7 +49,7 @@ export default function Auth({ onLogin }) {
     if (isLogin) {
       if (validateLogin()) {
         try {
-          const response = await fetch('http://localhost:8000/api/login/', {
+          const response = await fetch('/api/login/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -83,25 +85,27 @@ export default function Auth({ onLogin }) {
           } else {
             const errorMessage = data.error || 'Erreur de connexion';
             
-            if (errorMessage.toLowerCase().includes('matricule') || errorMessage.toLowerCase().includes('incorrect')) {
+            if (errorMessage.toLowerCase().includes('matricule')) {
               setFormData(prev => ({ ...prev, matricule: '' }));
               setErrors({ matricule: errorMessage });
-            } else if (errorMessage.toLowerCase().includes('mot de passe') || errorMessage.toLowerCase().includes('password')) {
-              setFormData(prev => ({ ...prev, password: '' }));
-              setErrors({ password: errorMessage });
+            } else if (errorMessage.toLowerCase().includes('mot de passe') || 
+                errorMessage.toLowerCase().includes('password') ||
+                errorMessage.toLowerCase().includes('incorrect')) {
+                setFormData(prev => ({ ...prev, password: '' }));
+                setErrors({ password: errorMessage });
             } else {
               setErrors({ general: errorMessage });
             }
           }
         } catch (error) {
-          console.error("❌ Erreur:", error);
+          console.error(" Erreur:", error);
           setErrors({ general: 'Impossible de se connecter au serveur.' });
         }
       }
     } else {
       if (validateRegister()) {
         try {
-          const response = await fetch('http://localhost:8000/api/activate-account/', {
+          const response = await fetch('/api/activate-account/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -134,13 +138,49 @@ export default function Auth({ onLogin }) {
     setIsLoading(false);
   };
 
+  // Icône œil (œil ouvert)
+  const EyeIcon = () => (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="20" 
+      height="20" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+
+  // Icône œil barré (œil fermé)
+  const EyeOffIcon = () => (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="20" 
+      height="20" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  );
+
   return (
     <div className="auth-page-wrapper">
       {/* ===== NAVBAR ===== */}
       <nav className="auth-navbar">
         <div className="auth-navbar-left">
           <a href="/" className="logo-nav-link">
-            <img src="/logo2.png" alt="Logo MND" className="oo" />
+            <img src="/static/logo2.png" alt="Logo MND" className="oo" />
           </a>
         </div>
       </nav>
@@ -154,17 +194,17 @@ export default function Auth({ onLogin }) {
             </h1>
           </div>
 
-          {/* ✅ Message de succès */}
+          {/*  Message de succès */}
           {errors.success && (
             <div className="auth-success-message">
-              ✅ {errors.success}
+               {errors.success}
             </div>
           )}
 
-          {/* ✅ Message d'erreur général */}
+          {/*  Message d'erreur général */}
           {errors.general && (
             <div className="auth-error-message">
-              ❌ {errors.general}
+               {errors.general}
             </div>
           )}
 
@@ -213,27 +253,34 @@ export default function Auth({ onLogin }) {
               {errors.matricule && <span className="error-text">{errors.matricule}</span>}
             </div>
 
+            {/* Champ Mot de passe */}
             <div className="form-group">
               <label htmlFor="password">Mot de passe <span className="required">*</span></label>
-              <div className="input-icon">
+              <div className="password-wrapper">
                 <input 
                   id="password"
                   type={showPassword ? 'text' : 'password'} 
                   name="password" 
-                  placeholder="••••••••" 
+                  placeholder="●●●●●●●" 
                   value={formData.password} 
                   onChange={handleChange} 
                   className={errors.password ? 'error' : ''} 
                   disabled={isLoading} 
                 />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
-                  {showPassword ? '🙈' : '👁️'}
+                <button 
+                  type="button" 
+                  className="password-toggle-btn" 
+                  onClick={() => setShowPassword(!showPassword)} 
+                  disabled={isLoading}
+                  aria-label={showPassword ? "Cacher le mot de passe" : "Afficher le mot de passe"}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
               </div>
               {errors.password && <span className="error-text">{errors.password}</span>}
             </div>
 
-            {/* ✅ MOT DE PASSE OUBLIÉ - UNIQUEMENT EN MODE CONNEXION */}
+            {/*  MOT DE PASSE OUBLIÉ - UNIQUEMENT EN MODE CONNEXION */}
             {isLogin && (
               <div className="forgot-password-link">
                 <Link to="/reset-password" className="forgot-password-btn">
@@ -242,19 +289,31 @@ export default function Auth({ onLogin }) {
               </div>
             )}
 
+            {/* Champ Confirmer le mot de passe */}
             {!isLogin && (
               <div className="form-group">
                 <label htmlFor="confirmPassword">Confirmer le mot de passe <span className="required">*</span></label>
-                <input 
-                  id="confirmPassword"
-                  type="password" 
-                  name="confirmPassword" 
-                  placeholder="••••••••" 
-                  value={formData.confirmPassword} 
-                  onChange={handleChange} 
-                  className={errors.confirmPassword ? 'error' : ''} 
-                  disabled={isLoading} 
-                />
+                <div className="password-wrapper">
+                  <input 
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'} 
+                    name="confirmPassword" 
+                    placeholder="●●●●●●●" 
+                    value={formData.confirmPassword} 
+                    onChange={handleChange} 
+                    className={errors.confirmPassword ? 'error' : ''} 
+                    disabled={isLoading} 
+                  />
+                  <button 
+                    type="button" 
+                    className="password-toggle-btn" 
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
+                    disabled={isLoading}
+                    aria-label={showConfirmPassword ? "Cacher le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
                 {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
               </div>
             )}
@@ -267,7 +326,7 @@ export default function Auth({ onLogin }) {
           {/* Message info */}
           {showRegistrationInfo && (
             <div className="auth-info-message">
-              <div className="info-icon">ℹ️</div>
+              <div className="info-icon">ℹ</div>
               <div className="info-content">
                 <h4>Matricule non trouvé</h4>
                 <p>Votre matricule n'existe pas dans notre base de données.</p>
@@ -298,7 +357,7 @@ export default function Auth({ onLogin }) {
         <div className="benin-national-tricolor-line"></div>
         <div className="footer-main-content">
           <div className="footer-centered-logo-zone">
-            <img src="/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
+            <img src="/static/logo2.png" alt="Logo MND" className="footer-logo-official-center" />
             <p className="brand-motto-centered">Ministère du Numérique et de la Digitalisation — République du Bénin</p>
           </div>
           <div className="footer-columns-grid">
@@ -315,14 +374,14 @@ export default function Auth({ onLogin }) {
               <ul>
                 <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
                 <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>

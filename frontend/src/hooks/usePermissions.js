@@ -20,7 +20,7 @@ export default function usePermissions() {
       setUserRole(storedRole);
       
       try {
-        const response = await fetch(`http://localhost:8000/api/user-permissions/${storedMatricule}/`);
+        const response = await fetch(`/api/user-permissions/${storedMatricule}/`);
         if (response.ok) {
           const data = await response.json();
           setUserPermissions(data.permissions || []);

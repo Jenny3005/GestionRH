@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { LayoutDashboard, Settings2, Users, ShieldCheck, FileText, FilePlus2, UserCircle2, LogOut, ChevronDown, ChevronRight, MapPin, Phone, Mail, UserRound } from 'lucide-react';
 import './App.css';
 
 export default function ResetPassword() {
@@ -19,7 +20,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/forgot-password/', {
+      const response = await fetch('/api/forgot-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -47,7 +48,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/verify-reset-code/', {
+      const response = await fetch('/api/verify-reset-code/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code })
@@ -86,7 +87,7 @@ export default function ResetPassword() {
     setMessage({ type: '', text: '' });
 
     try {
-      const response = await fetch('http://localhost:8000/api/reset-password/', {
+      const response = await fetch('/api/reset-password/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,7 +120,7 @@ export default function ResetPassword() {
       <nav className="auth-navbar">
         <div className="auth-navbar-left">
           <a href="/" className="logo-nav-link">
-            <img src="/logo2.png" alt="Logo MND" className="mnd-official-logo" />
+            <img src="/logo2.png" alt="Logo MND" className="oo" />
           </a>
         </div>
       </nav>
@@ -129,9 +130,9 @@ export default function ResetPassword() {
         <div className="auth-card">
           <div className="auth-header">
             <h1 className="auth-title">
-              {step === 1 && '🔐 Réinitialisation du mot de passe'}
-              {step === 2 && '📱 Vérification du code'}
-              {step === 3 && '✏️ Nouveau mot de passe'}
+              {step === 1 && ' Réinitialisation du mot de passe'}
+              {step === 2 && ' Vérification du code'}
+              {step === 3 && ' Nouveau mot de passe'}
             </h1>
             <p className="auth-subtitle-reset">
               {step === 1 && 'Entrez votre email pour recevoir un code de réinitialisation'}
@@ -143,7 +144,7 @@ export default function ResetPassword() {
           {/* Message */}
           {message.text && (
             <div className={`reset-message ${message.type}`}>
-              {message.type === 'success' ? '✅' : '❌'} {message.text}
+              {message.type === 'success' ? '' : ''} {message.text}
             </div>
           )}
 
@@ -269,14 +270,14 @@ export default function ResetPassword() {
               <ul>
                 <li><a href="https://www.numerique.gouv.bj" target="_blank">Portail du Ministère</a></li>
                 <li><a href="https://eservices.travail.gouv.bj" target="_blank">E-Services SIGRH</a></li>
-                <li><a href="https://sgg.gouv.bj/doc/loi-2015-18/" target="_blank">Statut de l'Agent (SGG)</a></li>
+                <li><a href="https://sgg.gouv.bj/doc/loi-2015-018/" target="_blank">Statut de l'Agent (SGG)</a></li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Contact & Situation</h4>
-              <p>📍 Avenue Jean-Paul II, Cotonou, Bénin</p>
-              <p>📞 +229 21 30 70 13</p>
-              <p>✉️ numerique@gouv.bj</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><MapPin size={16} style={{ color: '#D4AF37' }} /> Avenue Jean-Paul II, Cotonou, Bénin</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Phone size={16} style={{ color: '#D4AF37' }} /> +229 21 30 70 13</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}><Mail size={16} style={{ color: '#D4AF37' }} /> numerique@gouv.bj</p>
             </div>
           </div>
         </div>
