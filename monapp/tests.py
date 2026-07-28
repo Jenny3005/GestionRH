@@ -6,7 +6,7 @@ from django.test import SimpleTestCase, override_settings
 
 from django.db import connection
 from monapp.emails import resolve_email_backend
-from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier
+from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier, _synchroniser_champs_demande
 
 
 class EmailBackendTests(SimpleTestCase):
@@ -77,3 +77,30 @@ class DossierCompletudeTests(SimpleTestCase):
 
             self.assertTrue(ok)
             self.assertEqual(message, 'Dossier suffisamment complet')
+
+
+class DemandeFieldSyncTests(SimpleTestCase):
+    def test_synchroniser_champs_demande_populates_request_fields(self):
+        class DummyDemande:
+            def __init__(self):
+                self.annee = None
+                self.jours_consommes = None
+                self.jours_restants = None
+                self.saved_fields = None
+
+            def save(self, update_fields=None):
+                self.saved_fields = update_fields
+
+        class DummySolde:
+            jours_acquis = 30
+            jours_pris = 5
+
+        demande = DummyDemande()
+        solde = DummySolde()
+
+        _synchroniser_champs_demande(demande, 4, 2026, solde)
+
+        self.assertEqual(demande.annee, 2026)
+        self.assertEqual(demande.jours_consommes, 4)
+        self.assertEqual(demande.jours_restants, 25)
+        self.assertEqual(demande.saved_fields, ['annee', 'jours_consommes', 'jours_restants'])
