@@ -4763,14 +4763,10 @@ def refresh_cached_analysis(matricule, refresh_payload=None):
         cache.delete(f'anomalies_refresh_{matricule}')
 
 
-def _get_ollama_host():
-    return os.getenv('OLLAMA_HOST') or os.getenv('OLLAMA_URL') or 'http://127.0.0.1:11434'
-
-
 @require_http_methods(["GET"])
 def health_ollama(request):
     """Health-check endpoint for Ollama connectivity."""
-    host = _get_ollama_host()
+    host = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
     try:
         client = ollama.Client(host=host)
         models = client.list()
@@ -4782,12 +4778,12 @@ def health_ollama(request):
 @require_http_methods(["GET"])
 def health(request):
     """Simple application health endpoint."""
-    return JsonResponse({'ok': True, 'version': '1.0', 'ollama_host': os.getenv('OLLAMA_HOST', 'unset')})
+    return JsonResponse({'ok': True, 'version': '1.0', 'ollama_url': os.getenv('OLLAMA_URL', 'unset')})
 
 
 def _ensure_ollama_running():
-    host = _get_ollama_host()
-    model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
+    host = os.getenv('OLLAMA_URL', 'http://127.0.0.1:11434')
+    model_name = 'llama3.2:3b'
 
     try:
         client = ollama.Client(host=host)
