@@ -19,6 +19,7 @@ export default function Demarches() {
   const [showCongeForm, setShowCongeForm] = useState(false);
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
   const [showSoldeModal, setShowSoldeModal] = useState(false);
+  const [showHistoriqueModal, setShowHistoriqueModal] = useState(false);
   const [showDemandeModal, setShowDemandeModal] = useState(false);
   const [demandeEnCours, setDemandeEnCours] = useState('');
   const [commentaireDemande, setCommentaireDemande] = useState('');
@@ -484,7 +485,7 @@ export default function Demarches() {
 
   const handleHistoriqueCarriere = () => {
     requireLogin("consulter votre historique de carrière", () => {
-      alert("Affichage de l'historique...");
+      setShowHistoriqueModal(true);
     });
   };
 
@@ -547,6 +548,24 @@ export default function Demarches() {
       id: 3,
       titre: " Historique de carrière",
       description: "Consultez l'ensemble de vos nominations, avancements et positions.",
+    }
+  ];
+
+  const historiqueItems = [
+    {
+      label: 'Échelon actuel',
+      value: soldeConge ? `${soldeConge.jours_restants ?? 0} jours restants` : 'À confirmer',
+      detail: 'Informations disponibles depuis votre solde de congés.'
+    },
+    {
+      label: 'Demandes soumises',
+      value: mesDemandes.length,
+      detail: 'Suivi des demandes déposées dans l’application.'
+    },
+    {
+      label: 'Absences exceptionnelles',
+      value: `${totalAbsences} jour${totalAbsences > 1 ? 's' : ''}`,
+      detail: 'Total de jours consommés cette année.'
     }
   ];
 
@@ -797,6 +816,36 @@ export default function Demarches() {
               <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
                 Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoriqueModal && (
+        <div className="modal-overlay" onClick={() => setShowHistoriqueModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Historique de carrière</h3>
+              <button className="modal-close" onClick={() => setShowHistoriqueModal(false)}><X size={18} /></button>
+            </div>
+            <div className="modal-body">
+              <div className="info-card">
+                <p>Voici un aperçu des éléments disponibles pour votre parcours professionnel dans l’intranet.</p>
+              </div>
+              <div className="history-list">
+                {historiqueItems.map((item, index) => (
+                  <div key={index} className="history-item">
+                    <div className="history-item-title">{item.label}</div>
+                    <div className="history-item-value">{item.value}</div>
+                    <div className="history-item-detail">{item.detail}</div>
+                  </div>
+                ))}
+              </div>
+              {mesDemandes.length === 0 && totalAbsences === 0 && (!soldeConge || soldeConge.jours_restants === undefined) && (
+                <div className="alert-info">
+                  Aucune information d’historique n’est encore disponible pour votre profil. Les données seront complétées au fur et à mesure de vos actions dans l’application.
+                </div>
+              )}
             </div>
           </div>
         </div>
