@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
-import { Clipboard, Leaf, Bell, BarChart3, CheckCircle2, UserCheck, Share2, Zap, FileCheck, Signature, Package, MapPin, Phone, Mail, Trash2, X, Users, CalendarDays, CheckCircle } from 'lucide-react';
+import { Clipboard, Leaf, Bell, BarChart3, CheckCircle2, UserCheck, Share2, Zap, FileCheck, Signature, Package, MapPin, Phone, Mail, Trash2, X, User, CalendarDays, CheckCircle } from 'lucide-react';
 import './App.css';
 
 export default function DashboardAgent() {

@@ -4877,11 +4877,45 @@ body {
   padding-bottom: 15px;
   border-bottom: 1px solid #e9ecef;
   margin-bottom: 20px;
+  background: linear-gradient(90deg, #f8fbff 0%, #e8f1ff 100%);
+  border-radius: 10px;
+  padding: 14px 16px;
 }
 
 .modal-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: #0f172a;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.7);
+}
+
+.modal-content .form-group label,
+.modal-content .form-group small,
+.modal-content p,
+.modal-content li,
+.modal-content .info-text,
+.modal-content .help-text {
+  color: #1f2937;
+}
+
+.modal-content .form-group input,
+.modal-content .form-group select,
+.modal-content .form-group textarea {
+  color: #111827;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+}
+
+.modal-content .alert-info,
+.modal-content .info-card,
+.modal-content .bg-blue-50,
+.modal-content [style*="background: #DBEAFE"],
+.modal-content [style*="background:#DBEAFE"],
+.modal-content [style*="background: #E0E7FF"],
+.modal-content [style*="background:#E0E7FF"] {
+  color: #0f172a !important;
+  border: 1px solid #93c5fd !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
 }
 
 .modal-close {
