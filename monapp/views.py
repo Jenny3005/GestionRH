@@ -6777,7 +6777,17 @@ def analyser_candidature(request, candidature_id):
             diplome_requis = poste[0] or ''
             profil_recherche = poste[1] or ''
             poste_intitule = poste[2] or ''
-            pieces_requises = _charger_pieces_requises(poste[3]) or ['CV', 'LM', 'DIPLOME']
+            pieces_requises_raw = poste[3]
+            if pieces_requises_raw:
+                try:
+                    if isinstance(pieces_requises_raw, str):
+                        pieces_requises = json.loads(pieces_requises_raw)
+                    else:
+                        pieces_requises = pieces_requises_raw
+                except Exception:
+                    pieces_requises = ['CV', 'LM', 'DIPLOME']
+            else:
+                pieces_requises = ['CV', 'LM', 'DIPLOME']
             pieces_fournies = [_normaliser_type_piece(piece[1]) for piece in pieces]
             textes_par_piece = {}
             

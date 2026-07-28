@@ -239,7 +239,7 @@ export default function Postuler() {
       
       setMessage({ 
         type: 'success', 
-        text: 'Candidature envoyée avec succès ! L\'analyse IA est en cours en arrière-plan.' 
+        text: 'Candidature envoyée avec succès !' 
       });
       setIsPolling(true);
       pollCandidatureStatus(candidatureId);
