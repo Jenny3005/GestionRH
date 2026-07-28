@@ -72,7 +72,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://gestionrh-gnxw.onrender.com",
+    "https://gestionrh-vu84.onrender.com",
 ]
 
 # Configuration des uploads
@@ -174,7 +174,7 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 CSRF_TRUSTED_ORIGINS = [
-    'https://gestionrh-gnxw.onrender.com',
+    'https://gestionrh-vu84.onrender.com',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]

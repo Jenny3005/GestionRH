@@ -42,7 +42,7 @@ class SecurityHeadersMiddleware:
             "frame-ancestors 'self'; form-action 'self'; "
             "img-src 'self' data: https:; script-src 'self'; "
             "style-src 'self' 'unsafe-inline'; font-src 'self' data:; "
-            "connect-src 'self' https://gestionrh-gnxw.onrender.com http://localhost:8000 http://localhost:5173"
+            "connect-src 'self' https://gestionrh-vu84.onrender.com http://localhost:8000 http://localhost:5173"
         )
 
         return response
