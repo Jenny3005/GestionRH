@@ -1272,6 +1272,20 @@ def valider_demande_absence(request, demande_id):
         
         if decision == 'valide':
             demande.statut = 'valide'
+            
+            if hasattr(demande, 'demandeabsence') and demande.demandeabsence:
+                annee_absence = demande.demandeabsence.date_debut.year if demande.demandeabsence.date_debut else datetime.now().year
+                nombre_jours = demande.demandeabsence.nombrejours or 0
+                
+                solde, _ = SoldeConge.objects.get_or_create(
+                    agent=demande.agent,
+                    annee=annee_absence,
+                    defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
+                )
+                
+                solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
+                solde.jours_restants = max((solde.jours_acquis or 30) - solde.jours_pris, 0)
+                solde.save()
         else:
             demande.statut = 'refuse'
         
@@ -1516,15 +1530,19 @@ def solde_conge(request, matricule):
         
         demandes_validees = Demande.objects.filter(
             agent=agent,
-            type_demande__libelle='Congé',
             statut='valide',
-            demandeconge__date_debut__year=annee_courante
-        )
+            annee=annee_courante
+        ).select_related('type_demande', 'demandeconge', 'demandeabsence')
         
         jours_pris = 0
         for d in demandes_validees:
-            if hasattr(d, 'demandeconge') and d.demandeconge:
-                jours_pris += d.demandeconge.nombrejours
+            libelle = (d.type_demande.libelle if d.type_demande else '').strip().lower()
+            if libelle == 'congé' or libelle == 'conge':
+                if hasattr(d, 'demandeconge') and d.demandeconge:
+                    jours_pris += int(d.demandeconge.nombrejours or 0)
+            elif libelle == 'absence':
+                if hasattr(d, 'demandeabsence') and d.demandeabsence:
+                    jours_pris += int(d.demandeabsence.nombrejours or 0)
         
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
@@ -1533,7 +1551,7 @@ def solde_conge(request, matricule):
         )
         
         solde.jours_pris = jours_pris
-        solde.jours_restants = (solde.jours_acquis or 30) - jours_pris
+        solde.jours_restants = max((solde.jours_acquis or 30) - jours_pris, 0)
         solde.save()
         
         return JsonResponse({
@@ -5885,6 +5903,20 @@ def _verifier_completude_dossier(agent_matricule, seuil=0.6):
     return True, 'Dossier suffisamment complet'
 
 
+def _normalize_text_for_matching(text):
+    import re
+    import unicodedata
+
+    if not text:
+        return ''
+
+    normalized = unicodedata.normalize('NFKD', str(text))
+    normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
+    normalized = normalized.lower()
+    normalized = re.sub(r'[^a-z0-9]+', ' ', normalized)
+    return ' '.join(normalized.split())
+
+
 def _extract_technical_skills(text):
     if not text:
         return []
@@ -5928,16 +5960,6 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
     """
     def _clean_text(text):
         return ' '.join(str(text or '').lower().split())
-
-    def _normalize_text_for_matching(text):
-        import unicodedata, re
-        if not text:
-            return ''
-        normalized = unicodedata.normalize('NFKD', str(text))
-        normalized = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
-        normalized = normalized.lower()
-        normalized = re.sub(r'[^a-z0-9]+', ' ', normalized)
-        return ' '.join(normalized.split())
 
     def _extract_degree_related_text(text):
         if not text:
