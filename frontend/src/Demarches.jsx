@@ -829,23 +829,51 @@ export default function Demarches() {
               <button className="modal-close" onClick={() => setShowHistoriqueModal(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
-              <div className="info-card">
-                <p>Voici un aperçu des éléments disponibles pour votre parcours professionnel dans l’intranet.</p>
-              </div>
-              <div className="history-list">
-                {historiqueItems.map((item, index) => (
-                  <div key={index} className="history-item">
-                    <div className="history-item-title">{item.label}</div>
-                    <div className="history-item-value">{item.value}</div>
-                    <div className="history-item-detail">{item.detail}</div>
+              <div className="history-modal-shell">
+                <div className="history-hero">
+                  <div className="history-hero-icon">
+                    <Clipboard size={18} />
                   </div>
-                ))}
-              </div>
-              {mesDemandes.length === 0 && totalAbsences === 0 && (!soldeConge || soldeConge.jours_restants === undefined) && (
-                <div className="alert-info">
-                  Aucune information d’historique n’est encore disponible pour votre profil. Les données seront complétées au fur et à mesure de vos actions dans l’application.
+                  <div>
+                    <h4>Résumé de votre parcours RH</h4>
+                    <p>Voici un aperçu clair et synthétique des éléments disponibles dans votre espace personnel.</p>
+                  </div>
                 </div>
-              )}
+
+                <div className="history-summary-grid">
+                  <div className="history-summary-card history-summary-card-accent">
+                    <span className="history-summary-label">Solde actuel</span>
+                    <strong>{soldeConge ? `${soldeConge.jours_restants ?? 0} jours` : 'À confirmer'}</strong>
+                    <small>{soldeConge ? 'Congés restants pour l’année en cours' : 'Données de solde non encore disponibles'}</small>
+                  </div>
+                  <div className="history-summary-card">
+                    <span className="history-summary-label">Demandes déposées</span>
+                    <strong>{mesDemandes.length}</strong>
+                    <small>Demandes suivies dans l’application</small>
+                  </div>
+                  <div className="history-summary-card">
+                    <span className="history-summary-label">Absences utilisées</span>
+                    <strong>{totalAbsences} jour{totalAbsences > 1 ? 's' : ''}</strong>
+                    <small>Volume consommé cette année</small>
+                  </div>
+                </div>
+
+                <div className="history-list">
+                  {historiqueItems.map((item, index) => (
+                    <div key={index} className="history-item">
+                      <div className="history-item-title">{item.label}</div>
+                      <div className="history-item-value">{item.value}</div>
+                      <div className="history-item-detail">{item.detail}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {mesDemandes.length === 0 && totalAbsences === 0 && (!soldeConge || soldeConge.jours_restants === undefined) && (
+                  <div className="history-empty-state">
+                    Aucune information d’historique n’est encore disponible pour votre profil. Les données seront enrichies au fur et à mesure de vos actions dans l’application.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
