@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import UserMenu from './UserMenu';
-import { CheckCircle, FileText, Upload, Save, MapPin, Phone, Mail, Pencil, Trash2, Users, Lock, Plus, Paperclip, Inbox, X } from 'lucide-react';
+import { CheckCircle, FileText, Upload, Save, MapPin, Phone, Mail, Pencil, Trash2, Users, Lock, Plus, Paperclip, Inbox, X, FolderOpen, ArrowRight, Trophy, Download, BriefcaseBusiness, ClipboardList, ShieldCheck, CalendarDays, FileBadge, FileCheck2, BadgeCheck } from 'lucide-react';
 import './App.css';
 
 function addYears(date, years) {
@@ -1307,49 +1307,49 @@ export default function DashboardRH() {
           <>
             <div className="rh-stats-grid">
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><Users size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.totalAgents}</span>
                   <span className="rh-stat-label">Agents actifs</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><ClipboardList size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnAttente}</span>
                   <span className="rh-stat-label">Demandes à traiter</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><FileCheck2 size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.demandesEnCours}</span>
                   <span className="rh-stat-label">Demandes en cours</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><BadgeCheck size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.actesAEnvoyer}</span>
                   <span className="rh-stat-label">Actes à envoyer</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><FileBadge size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.documentsExpires}</span>
                   <span className="rh-stat-label">Documents expirés</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><BriefcaseBusiness size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{stats.annoncesActives}</span>
                   <span className="rh-stat-label">Annonces actives</span>
                 </div>
               </div>
               <div className="rh-stat-card">
-                <div className="rh-stat-icon"></div>
+                <div className="rh-stat-icon"><CalendarDays size={22} /></div>
                 <div className="rh-stat-info">
                   <span className="rh-stat-value">{alertesSemaine}</span>
                   <span className="rh-stat-label">Avancements prévus (7j)</span>
@@ -1381,7 +1381,7 @@ export default function DashboardRH() {
                                 : '-'}
                           </td>
                           <td>{getStatutBadge(demande.statut)}</td>
-                          <td><button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}>▶️ Traiter</button></td>
+                          <td><button className="btn-traiter" onClick={() => handleTraiterDemande(demande.id)}><ArrowRight size={16} style={{ marginRight: '6px' }} /> Traiter</button></td>
                         </tr>
                       ))
                     )}
@@ -1473,7 +1473,7 @@ export default function DashboardRH() {
             <div className="rh-card full-width">
               <div className="rh-card-header">
                 <h3> Derniers agents inscrits</h3>
-                <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tous les agents →</button>
+                <button className="rh-card-btn" onClick={() => setActiveTab('dossiers')}>Voir tous les agents </button>
               </div>
               <div className="rh-table-container">
                 <table className="rh-table">
@@ -1489,7 +1489,7 @@ export default function DashboardRH() {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button></td>
+                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}><FolderOpen size={16} /></button></td>
                         </tr>
                       ))
                     )}
@@ -1571,7 +1571,7 @@ export default function DashboardRH() {
                           <td>{agent.poste || 'Agent'}</td>
                           <td>{agent.direction || 'À renseigner'}</td>
                           <td>{getStatutBadge(agent.actif ? 'actif' : 'inactif')}</td>
-                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}>📁</button></td>
+                          <td className="rh-actions-cell"><button className="btn-icon" title="Voir dossier" onClick={() => handleViewDocuments(agent.matricule)}><FolderOpen size={16} /></button></td>
                         </tr>
                       ))
                     )}
@@ -2341,7 +2341,7 @@ export default function DashboardRH() {
                           <tr key={cand.id}>
                             <td>
                               <strong>#{index + 1}</strong>
-                              {index === 0 && <span style={{ marginLeft: '8px' }}>🏆</span>}
+                              {index === 0 && <span style={{ marginLeft: '8px' }}><Trophy size={16} color="#D4AF37" /></span>}
                             </td>
                             <td>
                               {cand.agent_nom} {cand.agent_prenom}<br/>
@@ -2480,7 +2480,7 @@ export default function DashboardRH() {
                           gap: '6px'
                         }}
                       >
-                        ⬇ Télécharger
+                        <Download size={16} /> Télécharger
                       </button>
                     </div>
                   ))}
@@ -2624,7 +2624,7 @@ export default function DashboardRH() {
               {previewUrl ? <iframe src={previewUrl} title={previewTitle} className="pdf-preview-iframe" frameBorder="0" /> : <div className="loading-preview">Chargement de l'aperçu...</div>}
             </div>
             <div className="modal-footer preview-modal-footer">
-              <button className="btn-download" onClick={() => { const link = document.createElement('a'); link.href = previewUrl; link.download = previewTitle; link.click(); }}>⬇️ Télécharger</button>
+              <button className="btn-download" onClick={() => { const link = document.createElement('a'); link.href = previewUrl; link.download = previewTitle; link.click(); }}><Download size={16} style={{ marginRight: '6px' }} /> Télécharger</button>
               <button className="btn-close" onClick={() => { setShowPreviewModal(false); if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(''); }}>Fermer</button>
             </div>
           </div>

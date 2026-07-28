@@ -4,7 +4,7 @@ import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
 import Can from './components/Can';
-import { MapPin, Phone, Mail, FileText, Send } from 'lucide-react';
+import { MapPin, Phone, Mail, FileText, Send,Inbox } from 'lucide-react';
 import './App.css';
 
 export default function DashboardSecretaire() {

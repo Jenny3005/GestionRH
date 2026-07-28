@@ -47,7 +47,7 @@ export function getRoleLabel(role = localStorage.getItem('userRole')) {
     case 'rh/secretaire': return ' RH / Secrétaire DPAF';
     case 'dpaf': return ' DPAF - Direction Planification';
     case 'dapaf': return ' DAPAF - Direction Affaires Politiques';
-    default: return '👤 Agent';
+    default: return ' Agent';
   }
 }
 
