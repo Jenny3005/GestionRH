@@ -1232,7 +1232,10 @@ def demande_absence(request):
         
         type_demande_obj, _ = TypeDemande.objects.get_or_create(
             libelle='Absence',
-            defaults={'acte_generable': 0}
+            defaults={
+                'acte_generable': 0,
+                'duree_traitement_moyenne': 3,
+            }
         )
         
         numerosuivi = f"ABS-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
@@ -6319,8 +6322,27 @@ def analyser_candidature_avec_ia(candidature_id, cv_text, lettre_text, diplome_t
         if not text:
             return 0, 'inconnu'
         norm = _normalize_text_for_matching(text)
+
+        # Reconnaître explicitement les formulations anglaises et les variantes courantes.
+        if any(term in norm for term in ['master in', 'master of', 'master degree', 'masters in', 'masters degree', 'master s']):
+            return 4, 'master'
+        if any(term in norm for term in ['bachelor in', 'bachelor s in', 'bachelors in', 'bachelor of', 'bachelor degree', 'bachelors degree']):
+            return 3, 'bachelor'
+        if any(term in norm for term in ['doctorat', 'phd', 'these', 'doctorate', 'doctoral']):
+            return 5, 'doctorat'
+        if any(term in norm for term in ['ingénieur', 'ingenieur', 'engineer', 'titre d ingenieur']):
+            return 4, 'ingenieur'
+        if any(term in norm for term in ['bac+5', 'bac plus 5']):
+            return 4, 'bac+5'
+        if any(term in norm for term in ['bac+4', 'bac plus 4']):
+            return 3, 'bac+4'
+        if any(term in norm for term in ['bac+3', 'bac plus 3', 'bts', 'dut']):
+            return 2, 'bac+3'
+        if any(term in norm for term in ['bac', 'baccalaureat', 'baccalauréat']):
+            return 1, 'bac'
+
         niveaux = [
-            (5, ['doctorat', 'phd', 'thèse', 'these', 'doctorate']),
+            (5, ['doctorat', 'phd', 'these', 'doctorate']),
             (4, ['master 2', 'master 1', 'master', 'mba', 'ingénieur', 'ingenieur', 'engineer', 'bac+5']),
             (3, ['licence en', 'licence', 'bachelor of', 'bachelor', 'bac+4']),
             (2, ['bac+3', 'bac +3', 'bts', 'dut']),
@@ -7755,7 +7777,10 @@ def demande_attestation(request):
 
         type_demande_obj, created = TypeDemande.objects.get_or_create(
             libelle=type_attestation_canonique,
-            defaults={'acte_generable': 1}
+            defaults={
+                'acte_generable': 1,
+                'duree_traitement_moyenne': 3,
+            }
         )
         
         if created:
