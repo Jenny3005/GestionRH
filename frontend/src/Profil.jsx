@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
-import UserMenu from './UserMenu';import { MapPin, Phone, Mail, Trash2 } from 'lucide-react';import './App.css';
+import UserMenu from './UserMenu';
+import { MapPin, Phone, Mail, Trash2 } from 'lucide-react';
+import './App.css';
 
 function normalizeRole(role) {
   if (!role || typeof role !== 'string') return '';
