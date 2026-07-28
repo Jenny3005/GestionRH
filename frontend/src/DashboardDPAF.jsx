@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import PortalNav from './PortalNav';
 import UserMenu from './UserMenu';
 import usePermissions from './hooks/usePermissions';
-import { User, Check, Send, CheckCircle, AlertCircle, MapPin, Phone, Mail, FileText, Signature, Users, Clipboard ,Inbox} from 'lucide-react';
+import { User, Check, Send, CheckCircle,X, AlertCircle, MapPin, Phone, Mail, FileText, Signature, Users, Clipboard ,Inbox} from 'lucide-react';
 import './App.css';
 
 // Fonction pour normaliser le rôle
