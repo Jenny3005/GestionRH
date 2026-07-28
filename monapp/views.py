@@ -4773,7 +4773,7 @@ def health(request):
 
 
 def _ensure_ollama_running():
-    host = os.getenv('OLLAMA_URL', 'https://and-precious-andy-except.trycloudflare.com')
+    host = os.getenv('OLLAMA_URL', 'https://given-sentences-actions-governor.trycloudflare.com')
     model_name = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
 
     try:
