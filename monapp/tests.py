@@ -6,7 +6,7 @@ from django.test import SimpleTestCase, override_settings
 
 from django.db import connection
 from monapp.emails import resolve_email_backend
-from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier, _synchroniser_champs_demande
+from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier, _synchroniser_champs_demande, _calculer_jours_pris_depuis_demandes
 
 
 class EmailBackendTests(SimpleTestCase):
@@ -104,3 +104,30 @@ class DemandeFieldSyncTests(SimpleTestCase):
         self.assertEqual(demande.jours_consommes, 4)
         self.assertEqual(demande.jours_restants, 25)
         self.assertEqual(demande.saved_fields, ['annee', 'jours_consommes', 'jours_restants'])
+
+
+class SoldeCongeCalculationTests(SimpleTestCase):
+    def test_calculer_jours_pris_depuis_demandes_counts_only_validated_conges(self):
+        class DummyTypeDemande:
+            def __init__(self, libelle):
+                self.libelle = libelle
+
+        class DummyDemandeConge:
+            def __init__(self, nombrejours):
+                self.nombrejours = nombrejours
+
+        class DummyDemande:
+            def __init__(self, statut, libelle, nombrejours, is_absence=False):
+                self.statut = statut
+                self.type_demande = DummyTypeDemande(libelle)
+                self.demandeconge = DummyDemandeConge(nombrejours) if not is_absence else None
+                self.demandeabsence = DummyDemandeConge(nombrejours) if is_absence else None
+
+        demandes = [
+            DummyDemande('en_attente_chef', 'Demande de congé', 16),
+            DummyDemande('valide', 'Congé annuel', 4),
+            DummyDemande('refuse', 'Congé', 3),
+            DummyDemande('valide', 'Absence exceptionnelle', 2, is_absence=True),
+        ]
+
+        self.assertEqual(_calculer_jours_pris_depuis_demandes(demandes), 6)

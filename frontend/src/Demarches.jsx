@@ -799,9 +799,7 @@ export default function Demarches() {
                 <h4> Informations</h4>
                 <ul>
                   <li> 30 jours de congés par an</li>
-                  <li> Les congés non pris sont perdus en fin d'année</li>
-                  <li> Maximum 2 demandes de congé par an</li>
-                  <li> Maximum 30 jours consécutifs</li>
+                  <li> Maximum 30 jours </li>
                 </ul>
               </div>
             </div>
