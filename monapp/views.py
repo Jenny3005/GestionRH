@@ -65,6 +65,30 @@ def _synchroniser_champs_demande(demande, nombre_jours, annee, solde=None, jours
     demande.save(update_fields=['annee', 'jours_consommes', 'jours_restants'])
     return demande
 
+
+def _calculer_jours_pris_depuis_demandes(demandes):
+    """Calcule le total de jours consommés à partir des demandes validées de congé/absence."""
+    total = 0
+    for demande in demandes or []:
+        if not demande:
+            continue
+
+        statut = getattr(demande, 'statut', '') or ''
+        if statut != 'valide':
+            continue
+
+        libelle = (getattr(getattr(demande, 'type_demande', None), 'libelle', '') or '').strip().lower()
+        if libelle in {'congé', 'conge', 'demande de congé', 'congé annuel', 'conge annuel'}:
+            conge = getattr(demande, 'demandeconge', None)
+            if conge is not None:
+                total += int(getattr(conge, 'nombrejours', 0) or 0)
+        elif libelle in {'absence', 'absence exceptionnelle'}:
+            absence = getattr(demande, 'demandeabsence', None)
+            if absence is not None:
+                total += int(getattr(absence, 'nombrejours', 0) or 0)
+
+    return total
+
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
@@ -376,9 +400,9 @@ def register(request):
                 echelon_courant = nouvel_echelon
                 prochaine_date = ajouter_annees(prochaine_date, 2)
 
-            print(f"✅ Avancements calculés pour {agent.matricule}")
+            print(f" Avancements calculés pour {agent.matricule}")
         except Exception as e:
-            print(f"⚠️ Erreur calcul avancements pour {agent.matricule}: {e}")
+            print(f" Erreur calcul avancements pour {agent.matricule}: {e}")
 
         envoyer_email_activation(agent)
         
@@ -786,7 +810,7 @@ def import_agents(request):
                 except Exception as e:
                     error_count += 1
                     errors.append(f"{agent_data.get('matricule', '?')}: {str(e)}")
-                    print(f"❌ Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
+                    print(f" Erreur import agent {agent_data.get('matricule', '?')}: {str(e)}")
 
             if created_agents:
                 created_agents_db = Agent.objects.bulk_create(created_agents, batch_size=20)
@@ -816,7 +840,7 @@ def import_agents(request):
         })
 
     except Exception as e:
-        print(f"❌ Erreur générale dans import_agents: {str(e)}")
+        print(f" Erreur générale dans import_agents: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -1102,8 +1126,8 @@ def demande_conge(request):
             annee=annee_courante,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
         )
-        
-        if nombre_jours > solde.jours_restants:
+
+        if nombre_jours > (solde.jours_restants or 0):
             return JsonResponse({
                 'error': f'Solde insuffisant. Vous avez {solde.jours_restants} jours restants, vous demandez {nombre_jours} jours.'
             }, status=400)
@@ -1141,7 +1165,7 @@ def demande_conge(request):
             jours_restants=max(solde.jours_restants - nombre_jours, 0)
         )
         
-        # ✅ Créer le congé avec date_fin calculée
+        #  Créer le congé avec date_fin calculée
         conge = DemandeConge.objects.create(
             demande=demande,
             date_debut=date_debut,
@@ -1435,7 +1459,7 @@ def valider_demande_conge(request, demande_id):
         
         if decision == 'valide':
             demande.statut = 'valide'
-            print("✅ Demande validée")
+            print(" Demande validée")
             
             if hasattr(demande, 'demandeconge') and demande.demandeconge:
                 annee_conge = demande.demandeconge.date_debut.year
@@ -1449,7 +1473,7 @@ def valider_demande_conge(request, demande_id):
                 
                 solde.jours_pris = (solde.jours_pris or 0) + nombre_jours
                 solde.jours_restants = max((solde.jours_acquis or 30) - solde.jours_pris, 0)
-                solde.save()
+                solde.save(update_fields=['jours_pris', 'jours_restants'])
                 _synchroniser_champs_demande(
                     demande,
                     nombre_jours,
@@ -1459,7 +1483,7 @@ def valider_demande_conge(request, demande_id):
                 )
         else:
             demande.statut = 'refuse'
-            print("❌ Demande rejetée")
+            print(" Demande rejetée")
         
         demande.commentaire_chef = commentaire
         demande.save()
@@ -1468,9 +1492,9 @@ def valider_demande_conge(request, demande_id):
             type_libelle = demande.type_demande.libelle if demande.type_demande else "demande"
             
             if decision == 'valide':
-                message = f"✅ Votre {type_libelle} a été APPROUVÉE par votre chef"
+                message = f" Votre {type_libelle} a été APPROUVÉE par votre chef"
             else:
-                message = f"❌ Votre {type_libelle} a été REJETÉE par votre chef"
+                message = f" Votre {type_libelle} a été REJETÉE par votre chef"
                 if commentaire:
                     message += f"\nMotif: {commentaire}"
             
@@ -1483,7 +1507,7 @@ def valider_demande_conge(request, demande_id):
             )
             
         except Exception as notif_error:
-            print(f"⚠️ ERREUR notification: {notif_error}")
+            print(f" ERREUR notification: {notif_error}")
         
         return JsonResponse({'success': True, 'message': f'Demande {decision}e'})
         
@@ -1492,7 +1516,7 @@ def valider_demande_conge(request, demande_id):
     except Demande.DoesNotExist:
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
-        print(f"❌ ERREUR: {str(e)}")
+        print(f" ERREUR: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -1506,16 +1530,16 @@ def mes_demandes(request, matricule):
             return JsonResponse([], safe=False)
 
         print("=" * 50)
-        print(f"🔍 mes_demandes appelée avec matricule: '{matricule}'")
+        print(f" mes_demandes appelée avec matricule: '{matricule}'")
         
         agent = Agent.objects.get(matricule=matricule)
-        print(f"✅ Agent trouvé: {agent.nom} {agent.prenom}")
+        print(f" Agent trouvé: {agent.nom} {agent.prenom}")
         
         demandes = Demande.objects.filter(
             agent=agent
         ).select_related('type_demande', 'demandeconge', 'demandeabsence').order_by('-date_soumission')
         
-        print(f"📋 Nombre total de demandes trouvées: {demandes.count()}")
+        print(f" Nombre total de demandes trouvées: {demandes.count()}")
         
         result = []
         for d in demandes:
@@ -1548,13 +1572,13 @@ def mes_demandes(request, matricule):
                 'agent_rh_prenom': agent_rh_prenom
             })
         
-        print(f"✅ FINAL - {len(result)} demandes retournées")
+        print(f" FINAL - {len(result)} demandes retournées")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
         return JsonResponse([], safe=False)
     except Exception as e:
-        print(f"❌ ERREUR: {str(e)}")
+        print(f" ERREUR: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -1578,21 +1602,13 @@ def solde_conge(request, matricule):
         
         print(f"=== solde_conge pour {matricule}, année: {annee_courante}")
         
-        demandes_validees = Demande.objects.filter(
+        demandes_concernees = Demande.objects.filter(
             agent=agent,
-            statut='valide',
-            annee=annee_courante
+            annee=annee_courante,
+            statut='valide'
         ).select_related('type_demande', 'demandeconge', 'demandeabsence')
         
-        jours_pris = 0
-        for d in demandes_validees:
-            libelle = (d.type_demande.libelle if d.type_demande else '').strip().lower()
-            if libelle == 'congé' or libelle == 'conge':
-                if hasattr(d, 'demandeconge') and d.demandeconge:
-                    jours_pris += int(d.demandeconge.nombrejours or 0)
-            elif libelle == 'absence':
-                if hasattr(d, 'demandeabsence') and d.demandeabsence:
-                    jours_pris += int(d.demandeabsence.nombrejours or 0)
+        jours_pris = _calculer_jours_pris_depuis_demandes(demandes_concernees)
         
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
@@ -2011,7 +2027,7 @@ def get_demandes_validees_secretaire(request, matricule_secretaire):
                 'numerosuivi': d.numerosuivi
             })
         
-        print(f"✅ Demandes retournées: {len(result)}")
+        print(f" Demandes retournées: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2043,7 +2059,7 @@ def transmettre_demande(request, demande_id):
         
         demande.save()
         
-        print(f"✅ Demande {demande_id} transmise au {destinataire} par {matricule_secretaire}")
+        print(f" Demande {demande_id} transmise au {destinataire} par {matricule_secretaire}")
         
         return JsonResponse({
             'success': True,
@@ -2099,7 +2115,7 @@ def get_demandes_transmises_secretaire(request, matricule_secretaire):
                 'statut': d.statut
             })
         
-        print(f"✅ {len(result)} demandes transmises trouvées")
+        print(f" {len(result)} demandes transmises trouvées")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -2146,7 +2162,7 @@ def get_demandes_transmises_secretaire_dapaf(request, matricule_secretaire):
                 'statut': d.statut
             })
         
-        print(f"✅ {len(result)} demandes transmises au DAPAF trouvées")
+        print(f" {len(result)} demandes transmises au DAPAF trouvées")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -2184,9 +2200,9 @@ def get_actes_a_transmettre_secretaire_dpaf(request, matricule_secretaire):
                     'reference': acte.reference,
                     'date_reception': str(acte.date_generation)
                 })
-                print(f"✅ Acte trouvé: {acte.reference} - {acte.type_acte}")
+                print(f" Acte trouvé: {acte.reference} - {acte.type_acte}")
         
-        print(f"✅ Total actes à transmettre au DPAF: {len(result)}")
+        print(f" Total actes à transmettre au DPAF: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2224,7 +2240,7 @@ def get_actes_a_transmettre_secretaire_dapaf(request, matricule_secretaire):
                     'date_reception': str(acte.date_generation)
                 })
         
-        print(f"✅ Total actes à transmettre au DAPAF: {len(result)}")
+        print(f" Total actes à transmettre au DAPAF: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2253,9 +2269,9 @@ def get_actes_a_transmettre_secretaire(request, matricule_secretaire):
                     'reference': acte.reference,
                     'date_reception': str(acte.date_generation)
                 })
-                print(f"✅ Acte ajouté: {acte.reference} pour {acte.demande.agent.nom}")
+                print(f" Acte ajouté: {acte.reference} pour {acte.demande.agent.nom}")
         
-        print(f"✅ Total actes à transmettre: {len(result)}")
+        print(f" Total actes à transmettre: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2285,7 +2301,7 @@ def get_actes_a_remettre_secretaire(request, matricule_secretaire):
                     'date_signature': str(acte.date_generation)
                 })
         
-        print(f"✅ Total actes à remettre: {len(result)}")
+        print(f" Total actes à remettre: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2315,7 +2331,7 @@ def get_actes_recus_secretaire(request, matricule_secretaire):
                     'date_reception': str(acte.date_generation)
                 })
         
-        print(f"✅ Total actes reçus: {len(result)}")
+        print(f" Total actes reçus: {len(result)}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2355,7 +2371,7 @@ def transmettre_acte(request, reference):
         if responsable:
             Notification.objects.create(
                 agent_id=responsable.matricule,
-                message=f"📄 Acte à signer pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
+                message=f" Acte à signer pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
                 type_notification='acte_a_signer',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -2390,7 +2406,7 @@ def transmettre_acte_dpaf(request, reference):
         if dpaf:
             Notification.objects.create(
                 agent_id=dpaf.matricule,
-                message=f"📄 Acte à signer pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
+                message=f" Acte à signer pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
                 type_notification='acte_a_signer',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -2423,7 +2439,7 @@ def remettre_acte(request, reference):
             
             Notification.objects.create(
                 agent_id=acte.demande.agent.matricule,
-                message=f"📄 Votre acte {acte.reference} est disponible au secrétariat",
+                message=f" Votre acte {acte.reference} est disponible au secrétariat",
                 type_notification='acte_disponible',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -2459,7 +2475,7 @@ def get_demandes_a_assigner(request, matricule):
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # ✅ EXCLURE les attestations de cette requête
+        #  EXCLURE les attestations de cette requête
         types_attestation = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -2486,7 +2502,7 @@ def get_demandes_a_assigner(request, matricule):
                 'destinataire': destinataire
             })
         
-        print(f"✅ {len(result)} demandes à assigner pour {matricule} ({destinataire})")
+        print(f" {len(result)} demandes à assigner pour {matricule} ({destinataire})")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -2531,12 +2547,12 @@ def get_demandes_assignees_by_role(request, matricule):
                 'statut': d.statut,
                 'agent_rh_nom': d.agent_rh.nom if d.agent_rh else None,
                 'agent_rh_prenom': d.agent_rh.prenom if d.agent_rh else None,
-                # ✅ Utiliser date_soumission comme fallback
+                #  Utiliser date_soumission comme fallback
                 'date_assignation': str(d.date_soumission),  # ou une autre date
                 'date_soumission': str(d.date_soumission)
             })
         
-        print(f"✅ {len(result)} demandes assignées pour {matricule}")
+        print(f" {len(result)} demandes assignées pour {matricule}")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -2580,7 +2596,7 @@ def get_actes_a_signer_by_role(request, matricule):
         result = []
         for acte in actes:
             if acte.demande:
-                # ✅ Récupérer la date de soumission de la demande
+                #  Récupérer la date de soumission de la demande
                 date_demande = acte.demande.date_soumission if acte.demande.date_soumission else acte.date_generation
                 
                 result.append({
@@ -2589,8 +2605,8 @@ def get_actes_a_signer_by_role(request, matricule):
                     'agent_prenom': acte.demande.agent.prenom,
                     'type_acte': acte.type_acte,
                     'date_generation': str(acte.date_generation),
-                    'date_demande': str(date_demande),  # ✅ Date de soumission de la demande
-                    'demande_type': acte.demande.type_demande.libelle if acte.demande.type_demande else 'Inconnu'  # ✅ Type de la demande
+                    'date_demande': str(date_demande),  #  Date de soumission de la demande
+                    'demande_type': acte.demande.type_demande.libelle if acte.demande.type_demande else 'Inconnu'  #  Type de la demande
                 })
         
         return JsonResponse(result, safe=False)
@@ -2643,7 +2659,7 @@ def get_demandes_historique_by_role(request, matricule):
                 'date_soumission': str(d.date_soumission)
             })
         
-        print(f"✅ {len(result)} demandes dans l'historique pour {matricule}")
+        print(f" {len(result)} demandes dans l'historique pour {matricule}")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -2672,7 +2688,7 @@ def get_agents_rh(request):
             'email': a.email
         } for a in agents_rh]
         
-        print(f"✅ {len(result)} agents RH trouvés")
+        print(f" {len(result)} agents RH trouvés")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
@@ -2899,7 +2915,7 @@ def signer_acte_dpaf(request, reference):
         demande = acte.demande
         dpaf = Agent.objects.get(matricule=dpaf_matricule)
         
-        # ✅ CORRECTION : Ajouter "Autorisation d'absence exceptionnelle"
+        #  CORRECTION : Ajouter "Autorisation d'absence exceptionnelle"
         types_dpaf = [
             'Attestation de travail', 
             'Absence', 
@@ -2946,7 +2962,7 @@ def signer_acte_dpaf(request, reference):
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"✅ Acte signé par {dpaf.prenom} {dpaf.nom} (DPAF) - Réf: {reference}",
+                message=f" Acte signé par {dpaf.prenom} {dpaf.nom} (DPAF) - Réf: {reference}",
                 type_notification='acte_signe',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -2955,7 +2971,7 @@ def signer_acte_dpaf(request, reference):
         # Notifier l'agent
         Notification.objects.create(
             agent_id=demande.agent.matricule,
-            message=f"📄 Votre acte {reference} a été signé par le DPAF et est disponible au secrétariat",
+            message=f" Votre acte {reference} a été signé par le DPAF et est disponible au secrétariat",
             type_notification='acte_signe',
             date_envoi=datetime.now().date(),
             lue=0
@@ -3022,7 +3038,7 @@ def signer_acte_dapaf(request, reference):
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"✅ Acte signé par {dapaf.prenom} {dapaf.nom} (DAPAF) - Réf: {reference}",
+                message=f" Acte signé par {dapaf.prenom} {dapaf.nom} (DAPAF) - Réf: {reference}",
                 type_notification='acte_signe',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -3030,7 +3046,7 @@ def signer_acte_dapaf(request, reference):
         
         Notification.objects.create(
             agent_id=demande.agent.matricule,
-            message=f"📄 Votre acte {reference} a été signé par le DAPAF et est disponible au secrétariat",
+            message=f" Votre acte {reference} a été signé par le DAPAF et est disponible au secrétariat",
             type_notification='acte_signe',
             date_envoi=datetime.now().date(),
             lue=0
@@ -3067,7 +3083,7 @@ def _type_acte_canonique(type_acte):
         'reprise de service': 'Reprise de service',
     }
     
-    # ✅ Si le type commence par "certificat de non-jouissance de congé" (avec année)
+    #  Si le type commence par "certificat de non-jouissance de congé" (avec année)
     if type_normalise.startswith('certificat de non-jouissance de congé'):
         return 'Certificat de non-jouissance de congé'
     
@@ -3091,11 +3107,11 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
     import re
     import base64
     from django.conf import settings
-    from datetime import timedelta  # ✅ AJOUTER CET IMPORT
+    from datetime import timedelta  #  AJOUTER CET IMPORT
     
     type_acte = _type_acte_canonique(acte.type_acte)
     
-    # ✅ Déterminer le template selon le type d'acte
+    #  Déterminer le template selon le type d'acte
     if type_acte == 'Attestation de présence au poste':
         template_name = 'attestation_presence_template.docx'
     elif type_acte == 'Attestation de travail':
@@ -3118,7 +3134,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
     
     doc = Document(template_path)
     
-    # ✅ Remplacer les placeholders selon le type d'acte
+    #  Remplacer les placeholders selon le type d'acte
     if type_acte == 'Attestation de présence au poste':
         nom_complet = f"{demande.agent.nom} {demande.agent.prenom}".upper()
         poste = demande.agent.poste or 'Agent'
@@ -3233,7 +3249,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
             date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
             date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
             
-            # ✅ CORRECTION : La date de reprise est le lendemain de la date de fin
+            #  CORRECTION : La date de reprise est le lendemain de la date de fin
             date_reprise = demande.demandeconge.date_fin + timedelta(days=1)
             date_reprise_str = date_reprise.strftime('%d/%m/%Y')
             
@@ -3243,7 +3259,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
             date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
             date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y') if hasattr(demande, 'demandeabsence') else ''
             
-            # ✅ CORRECTION : Date de reprise pour les absences aussi
+            #  CORRECTION : Date de reprise pour les absences aussi
             if hasattr(demande, 'demandeabsence') and demande.demandeabsence:
                 date_reprise = demande.demandeabsence.date_fin + timedelta(days=1)
                 date_reprise_str = date_reprise.strftime('%d/%m/%Y')
@@ -3253,7 +3269,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
             nombre_jours = demande.demandeabsence.nombrejours if hasattr(demande, 'demandeabsence') else ''
             motif = demande.demandeabsence.motif if hasattr(demande, 'demandeabsence') else ''
         
-        # ✅ AJOUTER date_reprise dans les replacements
+        #  AJOUTER date_reprise dans les replacements
         replacements = {
             '{{REFERENCE}}': acte.reference,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
@@ -3261,7 +3277,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
             '{{DATE_DEBUT}}': date_debut,
             '{{DATE_FIN}}': date_fin,
-            '{{DATE_REPRISE}}': date_reprise_str,  # ✅ NOUVEAU
+            '{{DATE_REPRISE}}': date_reprise_str,  #  NOUVEAU
             '{{NOMBRE_JOURS}}': str(nombre_jours),
             '{{MOTIF}}': motif,
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
@@ -3283,7 +3299,7 @@ def generer_acte_avec_signature_et_cachet(acte, demande, signataire, signature_b
                         if key in paragraph.text:
                             paragraph.text = paragraph.text.replace(key, value)
     
-    # ✅ Ajouter la signature et le cachet
+    #  Ajouter la signature et le cachet
     nom_a_chercher = None
     agent_roles = AgentRole.objects.filter(agent=signataire).select_related('role')
     roles = [ar.role.libelle.lower() for ar in agent_roles]
@@ -3431,7 +3447,7 @@ def get_demandes_assignees_rh(request, matricule_rh):
                 'date_debut': date_debut,
                 'date_fin': date_fin,
                 'statut': d.statut,
-                # ✅ Utiliser date_soumission comme fallback
+                #  Utiliser date_soumission comme fallback
                 'date_assignation': str(d.date_soumission),  # ou str(d.date_soumission) si tu veux la date de soumission
                 'date_soumission': str(d.date_soumission)   # Ajoute aussi date_soumission pour le frontend
             })
@@ -3461,7 +3477,7 @@ def generer_acte_rh(request, demande_id):
         demande = Demande.objects.get(id=demande_id)
         demande_type_label = demande.type_demande.libelle if demande.type_demande else ''
         
-        # ✅ Vérification flexible avec startswith
+        #  Vérification flexible avec startswith
         types_attestation = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -3473,14 +3489,14 @@ def generer_acte_rh(request, demande_id):
         for type_autorise in types_attestation:
             if demande_type_label.startswith(type_autorise):
                 est_attestation = True
-                print(f"✅ Attestation détectée: {demande_type_label} (commence par {type_autorise})")
+                print(f" Attestation détectée: {demande_type_label} (commence par {type_autorise})")
                 break
         
-        # ✅ Si c'est une attestation, utiliser la fonction dédiée
+        #  Si c'est une attestation, utiliser la fonction dédiée
         if est_attestation:
             return generer_attestation_rh(request, demande_id)
         
-        # ✅ Sinon, vérifier les autres types
+        #  Sinon, vérifier les autres types
         is_conge = demande_type_label.lower() in ['congé', 'conge']
         is_absence = 'absence' in demande_type_label.lower()
 
@@ -3497,7 +3513,7 @@ def generer_acte_rh(request, demande_id):
                 date_debut = demande.demandeconge.date_debut.strftime('%d/%m/%Y')
                 date_fin = demande.demandeconge.date_fin.strftime('%d/%m/%Y')
                 
-                # ✅ CORRECTION : Date de reprise = lendemain de la date de fin
+                #  CORRECTION : Date de reprise = lendemain de la date de fin
                 date_reprise = demande.demandeconge.date_fin + timedelta(days=1)
                 date_reprise_str = date_reprise.strftime('%d/%m/%Y')
                 
@@ -3513,7 +3529,7 @@ def generer_acte_rh(request, demande_id):
                 date_debut = demande.demandeabsence.date_debut.strftime('%d/%m/%Y')
                 date_fin = demande.demandeabsence.date_fin.strftime('%d/%m/%Y')
                 
-                # ✅ CORRECTION : Date de reprise pour absence
+                #  CORRECTION : Date de reprise pour absence
                 date_reprise = demande.demandeabsence.date_fin + timedelta(days=1)
                 date_reprise_str = date_reprise.strftime('%d/%m/%Y')
                 
@@ -3535,11 +3551,11 @@ def generer_acte_rh(request, demande_id):
         
         doc = Document(template_path)
 
-        # ✅ GÉNÉRER LA RÉFÉRENCE ICI
+        #  GÉNÉRER LA RÉFÉRENCE ICI
         numero_seul = generer_reference_acte(type_acte)
         reference_complete = f"{numero_seul}/MND/DPAF/SRHDS/SA"
         
-        # ✅ AJOUTER DATE_REPRISE dans les replacements
+        #  AJOUTER DATE_REPRISE dans les replacements
         replacements = {
             '{{REFERENCE}}': numero_seul,
             '{{AGENT_NOM}}': demande.agent.nom.upper(),
@@ -3547,7 +3563,7 @@ def generer_acte_rh(request, demande_id):
             '{{AGENT_POSTE}}': demande.agent.poste or 'Agent',
             '{{DATE_DEBUT}}': date_debut,
             '{{DATE_FIN}}': date_fin,
-            '{{DATE_REPRISE}}': date_reprise_str,  # ✅ NOUVEAU
+            '{{DATE_REPRISE}}': date_reprise_str,  # NOUVEAU
             '{{NOMBRE_JOURS}}': str(nombre_jours),
             '{{MOTIF}}': motif,
             '{{DATE_AUJOURD_HUI}}': datetime.now().strftime('%d/%m/%Y'),
@@ -3593,7 +3609,7 @@ def generer_acte_rh(request, demande_id):
     except Demande.DoesNotExist:
         return JsonResponse({'error': 'Demande non trouvée'}, status=404)
     except Exception as e:
-        print(f"❌ ERREUR generer_acte_rh: {str(e)}")
+        print(f" ERREUR generer_acte_rh: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -3623,7 +3639,7 @@ def envoyer_acte_secretaire(request, reference):
             if secretaire:
                 Notification.objects.create(
                     agent_id=secretaire.matricule,
-                    message=f"📄 Nouvel acte à remettre pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
+                    message=f" Nouvel acte à remettre pour {acte.demande.agent.nom} {acte.demande.agent.prenom} - Réf: {reference}",
                     type_notification='acte_recu',
                     date_envoi=datetime.now().date(),
                     lue=0
@@ -3710,7 +3726,7 @@ def get_demandes_cours_rh(request, matricule_rh):
                 'date_debut': date_debut,
                 'date_fin': date_fin,
                 'statut': d.statut,
-                # ✅ Utiliser date_soumission comme fallback pour date_debut_traitement
+                #  Utiliser date_soumission comme fallback pour date_debut_traitement
                 'date_debut_traitement': str(d.date_soumission),  # ou une autre date
                 'date_soumission': str(d.date_soumission)
             })
@@ -3828,11 +3844,11 @@ def generer_attestation_presence(request):
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
-        demande_id = data.get('demande_id')  # ✅ AJOUTÉ
+        demande_id = data.get('demande_id')  #  AJOUTÉ
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Récupérer la demande si demande_id existe
+        #  Récupérer la demande si demande_id existe
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
@@ -3893,7 +3909,7 @@ def generer_attestation_presence(request):
             traceback.print_exc()
             return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
-        # ✅ Créer l'acte AVEC la demande
+        #  Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
             reference=reference,
             demande=demande,  # ← AJOUTÉ
@@ -3919,11 +3935,11 @@ def generer_attestation_travail(request):
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
-        demande_id = data.get('demande_id')  # ✅ AJOUTÉ
+        demande_id = data.get('demande_id')  #  AJOUTÉ
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Récupérer la demande si demande_id existe
+        #  Récupérer la demande si demande_id existe
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
@@ -3984,7 +4000,7 @@ def generer_attestation_travail(request):
             traceback.print_exc()
             return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
-        # ✅ Créer l'acte AVEC la demande
+        #  Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
             reference=reference,
             demande=demande,  # ← AJOUTÉ
@@ -4009,11 +4025,11 @@ def generer_attestation_validite_services(request):
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
-        demande_id = data.get('demande_id')  # ✅ AJOUTÉ
+        demande_id = data.get('demande_id')  #  AJOUTÉ
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Récupérer la demande si demande_id existe
+        #  Récupérer la demande si demande_id existe
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
@@ -4110,7 +4126,7 @@ def generer_attestation_validite_services(request):
             traceback.print_exc()
             return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
-        # ✅ Créer l'acte AVEC la demande
+        #  Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
             reference=reference,
             demande=demande,  # ← AJOUTÉ
@@ -4133,12 +4149,12 @@ def generer_certificat_non_jouissance(request):
     try:
         data = json.loads(request.body)
         matricule = data.get('matricule')
-        demande_id = data.get('demande_id')  # ✅ AJOUTÉ
+        demande_id = data.get('demande_id')  #  AJOUTÉ
         annee = data.get('annee')
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Récupérer la demande si demande_id existe
+        #  Récupérer la demande si demande_id existe
         demande = None
         if demande_id:
             demande = Demande.objects.get(id=demande_id)
@@ -4233,7 +4249,7 @@ def generer_certificat_non_jouissance(request):
             traceback.print_exc()
             return JsonResponse({'error': 'Conversion en PDF impossible sur le serveur.'}, status=500)
 
-        # ✅ Créer l'acte AVEC la demande
+        #  Créer l'acte AVEC la demande
         ActeAdministratif.objects.create(
             reference=reference,
             demande=demande,  # ← AJOUTÉ
@@ -5080,11 +5096,11 @@ def get_actes_a_envoyer_rh(request, matricule_rh):
                     'date_generation': str(acte.date_generation)
                 })
         
-        print(f"✅ {len(result)} actes à envoyer pour {matricule_rh}")
+        print(f" {len(result)} actes à envoyer pour {matricule_rh}")
         return JsonResponse(result, safe=False)
         
     except Exception as e:
-        print(f"❌ ERREUR get_actes_a_envoyer_rh: {str(e)}")
+        print(f" ERREUR get_actes_a_envoyer_rh: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -5216,14 +5232,14 @@ def calculer_et_notifier():
     demain = today + timedelta(days=1)
     for av in Avancement.objects.filter(date_prevue=demain).select_related('agent'):
         for rh in rh_agents:
-            Notification.objects.create(agent_id=rh.matricule, message=f"📈 Avancement de {av.agent.prenom} {av.agent.nom} demain - {av.echelon_ancien} → {av.echelon_nouveau}", type_notification='avancement', date_envoi=today, lue=0)
+            Notification.objects.create(agent_id=rh.matricule, message=f" Avancement de {av.agent.prenom} {av.agent.nom} demain - {av.echelon_ancien} → {av.echelon_nouveau}", type_notification='avancement', date_envoi=today, lue=0)
             envoyer_email_rappel_avancement(rh=rh, agent=av.agent, echelon_ancien=av.echelon_ancien, echelon_nouveau=av.echelon_nouveau, date_prevue=demain)
     for jours, label in [(90, '3 mois'), (30, '1 mois'), (7, '1 semaine')]:
         date_alerte = today + timedelta(days=jours)
         for av in Avancement.objects.filter(date_prevue=date_alerte).select_related('agent'):
             for rh in rh_agents:
-                Notification.objects.create(agent_id=rh.matricule, message=f"📈 Avancement de {av.agent.prenom} {av.agent.nom} dans {label} ({av.date_prevue})", type_notification='avancement', date_envoi=today, lue=0)
-    print("✅ Actualisation des avancements terminée.")
+                Notification.objects.create(agent_id=rh.matricule, message=f" Avancement de {av.agent.prenom} {av.agent.nom} dans {label} ({av.date_prevue})", type_notification='avancement', date_envoi=today, lue=0)
+    print(" Actualisation des avancements terminée.")
 
 
 def calculer_et_notifier_async():
@@ -5495,16 +5511,16 @@ def postuler(request):
             lm_file = request.FILES.get('lm')
             diplome_file = request.FILES.get('diplome')
             
-            print(f"📌 Matricule: {matricule}, Poste ID: {poste_id}")
-            print(f"📄 CV: {cv_file.name if cv_file else 'Non fourni'}")
-            print(f"📄 LM: {lm_file.name if lm_file else 'Non fourni'}")
-            print(f"📄 Diplôme: {diplome_file.name if diplome_file else 'Non fourni'}")
+            print(f" Matricule: {matricule}, Poste ID: {poste_id}")
+            print(f" CV: {cv_file.name if cv_file else 'Non fourni'}")
+            print(f" LM: {lm_file.name if lm_file else 'Non fourni'}")
+            print(f" Diplôme: {diplome_file.name if diplome_file else 'Non fourni'}")
         else:
             # Cas JSON
             data = json.loads(request.body)
             matricule = data.get('matricule')
             poste_id = data.get('poste_id')
-            print(f"📌 Matricule: {matricule}, Poste ID: {poste_id} (JSON)")
+            print(f" Matricule: {matricule}, Poste ID: {poste_id} (JSON)")
         
         if not matricule or not poste_id:
             return JsonResponse({'error': 'Matricule et poste_id requis'}, status=400)
@@ -5556,7 +5572,7 @@ def postuler(request):
             """, [matricule, poste_id, date.today(), 0, 'deposee', None, None])
             
             candidature_id = cursor.lastrowid
-            print(f"✅ Candidature créée avec ID: {candidature_id}")
+            print(f" Candidature créée avec ID: {candidature_id}")
             
             # ========== TRAITER LES FICHIERS UPLOADÉS ==========
             uploaded_count = 0
@@ -5613,9 +5629,9 @@ def postuler(request):
                             """, [candidature_id, type_piece_id, fichier.name, date.today(), 1, file_path, date_expiration])
                             
                             uploaded_count += 1
-                            print(f"✅ {type_document} uploadé")
+                            print(f" {type_document} uploadé")
                         except Exception as e:
-                            print(f"❌ Erreur upload {type_document}: {e}")
+                            print(f" Erreur upload {type_document}: {e}")
                 
                 # Vérifier combien de pièces sont uploadées
                 cursor.execute("""
@@ -5626,15 +5642,15 @@ def postuler(request):
                 """, [candidature_id])
                 uploaded_count = cursor.fetchone()[0]
                 
-                print(f"📊 Pièces uploadées: {uploaded_count}/{len(pieces_requises)}")
+                print(f" Pièces uploadées: {uploaded_count}/{len(pieces_requises)}")
                 
                 # Lancer l'analyse si toutes les pièces sont là
                 if uploaded_count >= len(pieces_requises):
-                    print(f"🚀 Lancement de l'analyse asynchrone...")
+                    print(f" Lancement de l'analyse asynchrone...")
                     thread = threading.Thread(target=lancer_analyse_async, args=(candidature_id,))
                     thread.daemon = True
                     thread.start()
-                    print(f"✅ Analyse asynchrone lancée")
+                    print(f" Analyse asynchrone lancée")
             
             return JsonResponse({
                 'success': True,
@@ -5645,10 +5661,10 @@ def postuler(request):
             })
         
     except json.JSONDecodeError as e:
-        print(f"❌ Erreur JSON: {str(e)}")
+        print(f" Erreur JSON: {str(e)}")
         return JsonResponse({'error': 'Données JSON invalides'}, status=400)
     except Exception as e:
-        print(f"❌ ERREUR dans postuler: {str(e)}")
+        print(f" ERREUR dans postuler: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -5756,10 +5772,10 @@ def analyser_candidature_worker(candidature_id):
         request = factory.post('/')
         response = analyser_candidature(request, candidature_id)
         if hasattr(response, 'status_code') and response.status_code != 200:
-            print(f"❌ [WORKER] analyse échouée (HTTP {response.status_code}) pour candidature {candidature_id}")
+            print(f" [WORKER] analyse échouée (HTTP {response.status_code}) pour candidature {candidature_id}")
         return response
     except Exception as e:
-        print(f"❌ [WORKER] erreur interne: {type(e).__name__} - {e}")
+        print(f" [WORKER] erreur interne: {type(e).__name__} - {e}")
         return None
 
 
@@ -6825,8 +6841,8 @@ Score final: {score_final}/100
 def analyser_candidature(request, candidature_id):
     """Analyse une candidature avec IA et met à jour le score_eligibilite et analyse_ia"""
     print("=" * 70)
-    print("🔍 [DEBUG] analyser_candidature() a été appelée")
-    print(f"📌 ID Candidature: {candidature_id}")
+    print(" [DEBUG] analyser_candidature() a été appelée")
+    print(f" ID Candidature: {candidature_id}")
     print("=" * 70)
     
     try:
@@ -6834,7 +6850,7 @@ def analyser_candidature(request, candidature_id):
             # 1. Vérifier que la candidature existe
             cursor.execute("SELECT id FROM candidature WHERE id = %s", [candidature_id])
             if not cursor.fetchone():
-                print("❌ Candidature non trouvée")
+                print(" Candidature non trouvée")
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
             print(" Candidature trouvée")
             
@@ -6846,7 +6862,7 @@ def analyser_candidature(request, candidature_id):
                 WHERE p.candidature_id = %s
             """, [candidature_id])
             pieces = cursor.fetchall()
-            print(f"📄 {len(pieces)} pièce(s) trouvée(s)")
+            print(f" {len(pieces)} pièce(s) trouvée(s)")
             
             # Afficher chaque pièce
             for piece in pieces:
@@ -6862,7 +6878,7 @@ def analyser_candidature(request, candidature_id):
             poste = cursor.fetchone()
             
             if not poste:
-                print("❌ Poste non trouvé")
+                print(" Poste non trouvé")
                 return JsonResponse({'error': 'Poste non trouvé'}, status=404)
             
             diplome_requis = poste[0] or ''
@@ -6882,11 +6898,11 @@ def analyser_candidature(request, candidature_id):
             pieces_fournies = [_normaliser_type_piece(piece[1]) for piece in pieces]
             textes_par_piece = {}
             
-            print(f"📌 Poste: {poste_intitule}")
-            print(f"📌 Diplôme requis: {diplome_requis if diplome_requis else 'Non spécifié'}")
-            print(f"📌 Profil recherché: {profil_recherche[:100] if profil_recherche else 'Non spécifié'}...")
-            print(f"📋 Pièces requises: {pieces_requises}")
-            print(f"📄 Pièces fournies: {pieces_fournies}")
+            print(f" Poste: {poste_intitule}")
+            print(f" Diplôme requis: {diplome_requis if diplome_requis else 'Non spécifié'}")
+            print(f" Profil recherché: {profil_recherche[:100] if profil_recherche else 'Non spécifié'}...")
+            print(f" Pièces requises: {pieces_requises}")
+            print(f" Pièces fournies: {pieces_fournies}")
             
             # 4. Extraire les textes des pièces
             cv_text = ""
@@ -6902,32 +6918,32 @@ def analyser_candidature(request, candidature_id):
                 texte = extraire_texte_piece(piece_id)
                 type_piece_code = _normaliser_type_piece(type_libelle)
                 textes_par_piece[type_piece_code] = texte
-                print(f"   ✅ Normalized type: {type_piece_code}")
-                print(f"   📝 Texte extrait: {len(texte)} caractères")
+                print(f"    Normalized type: {type_piece_code}")
+                print(f"    Texte extrait: {len(texte)} caractères")
                 if len(texte) > 0 and len(texte) < 500:
-                    print(f"   📝 Contenu: {texte[:200]}...")
+                    print(f"    Contenu: {texte[:200]}...")
                 
                 if type_piece_code == 'CV':
                     cv_text = texte
-                    print(f"   ✅ Assigné à CV")
+                    print(f"    Assigné à CV")
                 elif type_piece_code == 'LM':
                     lettre_text = texte
-                    print(f"   ✅ Assigné à Lettre de motivation")
+                    print(f"    Assigné à Lettre de motivation")
                 elif type_piece_code == 'DIPLOME':
                     diplome_text = texte
-                    print(f"   ✅ Assigné à Diplôme")
+                    print(f"    Assigné à Diplôme")
                 elif type_piece_code == 'CNI':
                     cni_text = texte
                     # Ne pas ignorer la CNI : ajouter son texte à l'analyse générale
                     if texte:
                         cv_text = (cv_text or '') + ' ' + texte
-                    print(f"   ✅ Assigné à CNI (inclus dans l'analyse)")
+                    print(f"    Assigné à CNI (inclus dans l'analyse)")
                 else:
-                    print(f"   ⚠️ Type non reconnu: {type_libelle} (code normalisé: {type_piece_code})")
+                    print(f"    Type non reconnu: {type_libelle} (code normalisé: {type_piece_code})")
             
             # 5. Résumé des textes extraits
             print("\n" + "-" * 50)
-            print("📊 RÉSUMÉ DES TEXTES EXTRAITS:")
+            print(" RÉSUMÉ DES TEXTES EXTRAITS:")
             print(f"   CV: {len(cv_text)} caractères")
             print(f"   Lettre de motivation: {len(lettre_text)} caractères")
             print(f"   Diplôme: {len(diplome_text)} caractères")
@@ -6936,15 +6952,15 @@ def analyser_candidature(request, candidature_id):
             
             # 6. Vérifier si on a assez de données pour l'analyse
             if len(cv_text) == 0 and len(lettre_text) == 0 and len(diplome_text) == 0:
-                print("⚠️ ATTENTION: Aucun texte extrait des documents!")
+                print(" ATTENTION: Aucun texte extrait des documents!")
                 print("   L'analyse IA risque de ne pas être pertinente")
 
             # Si aucun texte de diplôme séparé n'est disponible, on utilisera le CV comme source secondaire pour l'analyse IA
             if not diplome_text and cv_text:
-                print("⚠️ Aucun diplôme séparé trouvé; le CV sera utilisé comme source secondaire pour l'analyse du diplôme")
+                print(" Aucun diplôme séparé trouvé; le CV sera utilisé comme source secondaire pour l'analyse du diplôme")
             
             # 7. Analyser avec IA
-            print("\n🤖 Appel de l'IA pour analyse...")
+            print("\n Appel de l'IA pour analyse...")
             cursor.execute("SELECT a.nom, a.prenom FROM candidature c JOIN agent a ON c.agent_id = a.matricule WHERE c.id = %s", [candidature_id])
             agent_info_nom = cursor.fetchone()
             agent_nom = agent_info_nom[0] if agent_info_nom else None
@@ -6961,9 +6977,9 @@ def analyser_candidature(request, candidature_id):
                 cni_text=cni_text
             )
             
-            print(f"\n📊 RÉSULTAT DE L'IA:")
-            print(f"   ✅ Score: {score_ia}/100")
-            print(f"   📝 Analyse: {analyse_ia[:200]}...")
+            print(f"\n RÉSULTAT DE L'IA:")
+            print(f"    Score: {score_ia}/100")
+            print(f"    Analyse: {analyse_ia[:200]}...")
             
             # 8. Mettre à jour la candidature
             cursor.execute("""
@@ -6971,7 +6987,7 @@ def analyser_candidature(request, candidature_id):
                 SET score_eligibilite = %s, analyse_ia = %s
                 WHERE id = %s
             """, [score_ia, analyse_ia, candidature_id])
-            print(f"✅ Candidature mise à jour avec score {score_ia}")
+            print(f" Candidature mise à jour avec score {score_ia}")
             
             # 9. Mettre à jour le rang
             # Calculer le rang côté application pour éviter l'erreur MySQL 1093
@@ -6986,11 +7002,11 @@ def analyser_candidature(request, candidature_id):
                 count_higher = cursor.fetchone()[0] or 0
                 new_rank = count_higher + 1
                 cursor.execute("UPDATE candidature SET rang = %s WHERE id = %s", [str(new_rank), candidature_id])
-                print(f"✅ Rang mis à jour (nouveau rang: {new_rank})")
+                print(f" Rang mis à jour (nouveau rang: {new_rank})")
                 # Générer le classement complet du poste
                 _generer_classement(cursor, poste_vacant_id)
             else:
-                print("⚠️ Impossible de récupérer poste_vacant_id pour calcul du rang")
+                print(" Impossible de récupérer poste_vacant_id pour calcul du rang")
             
             # 10. Notifier l'agent
             cursor.execute("""
@@ -7007,15 +7023,15 @@ def analyser_candidature(request, candidature_id):
                     VALUES (%s, %s, %s, %s, %s)
                 """, [
                     agent_info[0],
-                    f"🤖 Analyse IA terminée pour {poste_intitule} - Score: {score_ia}/100",
+                    f" Analyse IA terminée pour {poste_intitule} - Score: {score_ia}/100",
                     'ANALYSE_IA',
                     date.today(),
                     0
                 ])
-                print(f"✅ Notification envoyée à {agent_info[1]} {agent_info[2]}")
+                print(f" Notification envoyée à {agent_info[1]} {agent_info[2]}")
         
         print("\n" + "=" * 70)
-        print(f"✅ [SUCCÈS] Analyse terminée - Score: {score_ia}/100")
+        print(f" [SUCCÈS] Analyse terminée - Score: {score_ia}/100")
         print("=" * 70)
         
         return JsonResponse({
@@ -7027,7 +7043,7 @@ def analyser_candidature(request, candidature_id):
         })
         
     except Exception as e:
-        print(f"\n❌ [ERREUR] dans analyser_candidature: {str(e)}")
+        print(f"\n [ERREUR] dans analyser_candidature: {str(e)}")
         import traceback
         traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
@@ -7066,9 +7082,9 @@ def upload_piece_candidature(request, candidature_id):
             # Format multipart/form-data (avec fichier)
             type_document = request.POST.get('type_document')
             fichier = request.FILES.get('file')
-            print(f"📌 Format: multipart/form-data")
-            print(f"📌 Type: {type_document}")
-            print(f"📌 Fichier: {fichier.name if fichier else 'Non fourni'}")
+            print(f" Format: multipart/form-data")
+            print(f" Type: {type_document}")
+            print(f" Fichier: {fichier.name if fichier else 'Non fourni'}")
             
             if not type_document or not fichier:
                 return JsonResponse({'error': 'type_document et file requis'}, status=400)
@@ -7078,9 +7094,9 @@ def upload_piece_candidature(request, candidature_id):
             type_document = data.get('type_document')
             file_base64 = data.get('file_base64')
             file_name = data.get('file_name')
-            print(f"📌 Format: JSON")
-            print(f"📌 Type: {type_document}")
-            print(f"📌 Nom fichier: {file_name}")
+            print(f" Format: JSON")
+            print(f" Type: {type_document}")
+            print(f" Nom fichier: {file_name}")
             
             if not all([type_document, file_base64, file_name]):
                 return JsonResponse({'error': 'type_document, file_base64 et file_name requis'}, status=400)
@@ -7099,7 +7115,7 @@ def upload_piece_candidature(request, candidature_id):
                 return JsonResponse({'error': 'Candidature non trouvée'}, status=404)
             
             pieces_requises = json.loads(result[2]) if result[2] else ['CV', 'LM', 'DIPLOME']
-            print(f"📋 Pièces requises: {pieces_requises}")
+            print(f" Pièces requises: {pieces_requises}")
             
             # ========== SAUVEGARDE DU FICHIER ==========
             upload_dir = f'uploads/pieces/candidature_{candidature_id}'
@@ -7116,7 +7132,7 @@ def upload_piece_candidature(request, candidature_id):
                         f.write(chunk)
                 
                 original_filename = fichier.name
-                print(f"✅ Fichier sauvegardé: {file_path}")
+                print(f" Fichier sauvegardé: {file_path}")
                 
             else:
                 # Cas JSON : décoder le base64
@@ -7164,10 +7180,10 @@ def upload_piece_candidature(request, candidature_id):
                     VALUES (%s, %s, %s)
                 """, [type_document, 0, ''])
                 type_piece_id = cursor.lastrowid
-                print(f"✅ Nouveau type_piece créé: {type_document}")
+                print(f" Nouveau type_piece créé: {type_document}")
             else:
                 type_piece_id = type_piece[0]
-                print(f"✅ Type_piece existant: {type_document} (ID: {type_piece_id})")
+                print(f" Type_piece existant: {type_document} (ID: {type_piece_id})")
             
             # ========== SUPPRIMER L'ANCIENNE PIÈCE DU MÊME TYPE ==========
             cursor.execute("""
@@ -7181,7 +7197,7 @@ def upload_piece_candidature(request, candidature_id):
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, [candidature_id, type_piece_id, original_filename, date.today(), 1, file_path, date_expiration])
             
-            print(f"✅ Pièce insérée dans la base")
+            print(f" Pièce insérée dans la base")
             
             # ========== COMPTER LES PIÈCES UPLOADÉES ==========
             cursor.execute("""
@@ -7193,21 +7209,21 @@ def upload_piece_candidature(request, candidature_id):
             uploaded_count = cursor.fetchone()[0]
             
             required_count = len(pieces_requises)
-            print(f"📊 Progression: {uploaded_count}/{required_count} pièces uploadées")
+            print(f" Progression: {uploaded_count}/{required_count} pièces uploadées")
             
             # ========== LANCER L'ANALYSE SI TOUTES LES PIÈCES SONT UPLOADÉES ==========
             if uploaded_count >= required_count:
-                print(f"🎯 TOUTES LES PIÈCES SONT UPLOADÉES ({uploaded_count}/{required_count})")
-                print(f"🚀 Lancement de l'analyse asynchrone pour candidature {candidature_id}")
+                print(f" TOUTES LES PIÈCES SONT UPLOADÉES ({uploaded_count}/{required_count})")
+                print(f" Lancement de l'analyse asynchrone pour candidature {candidature_id}")
                 
                 # Lancer l'analyse en arrière-plan
                 thread = threading.Thread(target=lancer_analyse_async, args=(candidature_id,))
                 thread.daemon = True
                 thread.start()
                 
-                print(f"✅ Analyse asynchrone lancée pour candidature {candidature_id}")
+                print(f" Analyse asynchrone lancée pour candidature {candidature_id}")
             else:
-                print(f"⏳ En attente des autres pièces... ({uploaded_count}/{required_count})")
+                print(f" En attente des autres pièces... ({uploaded_count}/{required_count})")
         
         return JsonResponse({
             'success': True,
@@ -7218,11 +7234,11 @@ def upload_piece_candidature(request, candidature_id):
         })
         
     except json.JSONDecodeError as e:
-        print(f"❌ Erreur JSON: {str(e)}")
+        print(f" Erreur JSON: {str(e)}")
         return JsonResponse({'error': 'Données JSON invalides'}, status=400)
     except Exception as e:
         import traceback
-        print(f"❌ ERREUR upload_piece_candidature: {traceback.format_exc()}")
+        print(f" ERREUR upload_piece_candidature: {traceback.format_exc()}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
@@ -7384,7 +7400,7 @@ def check_anniversaires(request):
                 # Créer une notification pour tracer l'envoi
                 Notification.objects.create(
                     agent=agent,
-                    message=f"🎂 Joyeux anniversaire {agent.prenom} ! Toute l'équipe RH vous souhaite une excellente journée.",
+                    message=f" Joyeux anniversaire {agent.prenom} ! Toute l'équipe RH vous souhaite une excellente journée.",
                     type_notification='anniversaire',
                     date_envoi=today,
                     lue=0
@@ -7772,7 +7788,7 @@ def demande_attestation(request):
         
         agent = Agent.objects.get(matricule=matricule)
         
-        # ✅ Normaliser le type d'attestation pour éviter les suffixes d'année
+        #  Normaliser le type d'attestation pour éviter les suffixes d'année
         type_attestation_canonique = _type_acte_canonique(type_attestation)
 
         type_demande_obj, created = TypeDemande.objects.get_or_create(
@@ -7784,7 +7800,7 @@ def demande_attestation(request):
         )
         
         if created:
-            print(f"✅ Nouveau type de demande créé: {type_attestation_canonique}")
+            print(f" Nouveau type de demande créé: {type_attestation_canonique}")
         
         numerosuivi = f"ATT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{agent.matricule}"
         
@@ -7812,7 +7828,7 @@ def demande_attestation(request):
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"📄 Nouvelle demande d'attestation de {agent.prenom} {agent.nom} - {type_attestation}",
+                message=f" Nouvelle demande d'attestation de {agent.prenom} {agent.nom} - {type_attestation}",
                 type_notification='demande_attestation',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -7820,7 +7836,7 @@ def demande_attestation(request):
         
         Notification.objects.create(
             agent_id=agent.matricule,
-            message=f"✅ Votre demande d'attestation \"{type_attestation_canonique}\" a été transmise au secrétariat.",
+            message=f" Votre demande d'attestation \"{type_attestation_canonique}\" a été transmise au secrétariat.",
             type_notification='demande_attestation_envoyee',
             date_envoi=datetime.now().date(),
             lue=0
@@ -7851,7 +7867,7 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
         
         secretaire = Agent.objects.get(matricule=matricule_secretaire)
         
-        # ✅ Utiliser icontains pour capturer toutes les variantes
+        #  Utiliser icontains pour capturer toutes les variantes
         attestations = Demande.objects.filter(
             statut='soumise'
         ).filter(
@@ -7859,10 +7875,10 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
             models.Q(type_demande__libelle='Attestation de présence au poste') |
             models.Q(type_demande__libelle='Attestation de validité de services') |
             models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
-        print(f"📋 Total attestations soumises trouvées: {attestations.count()}")
+        print(f" Total attestations soumises trouvées: {attestations.count()}")
         
         result = []
         for att in attestations:
@@ -7887,9 +7903,9 @@ def get_demandes_attestations_secretaire(request, matricule_secretaire):
                 'commentaire': commentaire,
                 'statut': att.statut
             })
-            print(f"   ✅ Attestation ajoutée: {att.agent.nom} {att.agent.prenom} - {type_attestation}")
+            print(f"  Attestation ajoutée: {att.agent.nom} {att.agent.prenom} - {type_attestation}")
         
-        print(f"✅ {len(result)} attestations trouvées")
+        print(f" {len(result)} attestations trouvées")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -7913,7 +7929,7 @@ def transmettre_attestation_destinataire(request, demande_id):
         demande = Demande.objects.get(id=demande_id)
         type_libelle = demande.type_demande.libelle if demande.type_demande else ''
         
-        # ✅ Vérifier si c'est une attestation (avec ou sans année)
+        #  Vérifier si c'est une attestation (avec ou sans année)
         types_attestation_autorises = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -7963,7 +7979,7 @@ def transmettre_attestation_destinataire(request, demande_id):
         if responsable:
             Notification.objects.create(
                 agent_id=responsable.matricule,
-                message=f"📄 Attestation à assigner pour {demande.agent.prenom} {demande.agent.nom} - {type_libelle}",
+                message=f" Attestation à assigner pour {demande.agent.prenom} {demande.agent.nom} - {type_libelle}",
                 type_notification='attestation_a_assigner',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -7998,7 +8014,7 @@ def get_attestations_transmises_secretaire(request, matricule_secretaire):
             models.Q(type_demande__libelle='Attestation de présence au poste') |
             models.Q(type_demande__libelle='Attestation de validité de services') |
             models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
         result = []
@@ -8014,7 +8030,7 @@ def get_attestations_transmises_secretaire(request, matricule_secretaire):
                 'statut': att.statut
             })
         
-        print(f"✅ {len(result)} attestations transmises trouvées")
+        print(f" {len(result)} attestations transmises trouvées")
         return JsonResponse(result, safe=False)
         
     except Agent.DoesNotExist:
@@ -8033,7 +8049,7 @@ def generer_attestation_rh(request, demande_id):
         demande = Demande.objects.get(id=demande_id)
         type_libelle = demande.type_demande.libelle if demande.type_demande else ''
         
-        # ✅ Vérification avec startswith pour les certificats
+        #  Vérification avec startswith pour les certificats
         types_attestation_autorises = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -8041,7 +8057,7 @@ def generer_attestation_rh(request, demande_id):
             'Certificat de non-jouissance de congé'
         ]
         
-        # ✅ Vérification flexible
+        #  Vérification flexible
         est_attestation = False
         
         # 1. Vérifier si le type est exactement dans la liste
@@ -8053,7 +8069,7 @@ def generer_attestation_rh(request, demande_id):
             for type_autorise in types_attestation_autorises:
                 if type_libelle.startswith(type_autorise):
                     est_attestation = True
-                    print(f"✅ Type reconnu: {type_libelle} (commence par {type_autorise})")
+                    print(f" Type reconnu: {type_libelle} (commence par {type_autorise})")
                     break
         
         if not est_attestation:
@@ -8062,14 +8078,14 @@ def generer_attestation_rh(request, demande_id):
                 'types_acceptes': types_attestation_autorises
             }, status=400)
         
-        # ✅ Déterminer le type d'attestation pour la génération
+        #  Déterminer le type d'attestation pour la génération
         # Si c'est un certificat avec année, on prend le type de base
         if type_libelle.startswith('Certificat de non-jouissance de congé'):
             type_attestation = 'Certificat de non-jouissance de congé'
         else:
             type_attestation = type_libelle
         
-        # ✅ Accepter les statuts
+        #  Accepter les statuts
         statuts_acceptes = ['en_cours_traitement', 'assignee_rh']
         if demande.statut not in statuts_acceptes:
             return JsonResponse({
@@ -8078,12 +8094,12 @@ def generer_attestation_rh(request, demande_id):
                 'statuts_acceptes': statuts_acceptes
             }, status=400)
         
-        # ✅ Assigner le RH si ce n'est pas fait
+        #  Assigner le RH si ce n'est pas fait
         if not demande.agent_rh:
             rh = Agent.objects.get(matricule=rh_matricule)
             demande.agent_rh = rh
             demande.save()
-            print(f"✅ Agent RH {rh_matricule} assigné à la demande {demande_id}")
+            print(f" Agent RH {rh_matricule} assigné à la demande {demande_id}")
         
         from django.test import RequestFactory
         factory = RequestFactory()
@@ -8151,7 +8167,7 @@ def generer_attestation_rh(request, demande_id):
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"📄 Nouvelle attestation générée pour {demande.agent.prenom} {demande.agent.nom} - {type_attestation}",
+                message=f" Nouvelle attestation générée pour {demande.agent.prenom} {demande.agent.nom} - {type_attestation}",
                 type_notification='attestation_generee',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -8204,7 +8220,7 @@ def envoyer_acte_signature_rh(request, reference):
         if responsable:
             Notification.objects.create(
                 agent_id=responsable.matricule,
-                message=f"📄 Acte à signer pour {acte.demande.agent.prenom} {acte.demande.agent.nom} - Réf: {reference}",
+                message=f" Acte à signer pour {acte.demande.agent.prenom} {acte.demande.agent.nom} - Réf: {reference}",
                 type_notification='acte_a_signer',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -8249,7 +8265,7 @@ def envoyer_acte_secretaire_apres_signature(request, reference):
             if secretaire:
                 Notification.objects.create(
                     agent_id=secretaire.matricule,
-                    message=f"📄 Acte signé à remettre pour {acte.demande.agent.prenom} {acte.demande.agent.nom} - Réf: {reference}",
+                    message=f" Acte signé à remettre pour {acte.demande.agent.prenom} {acte.demande.agent.nom} - Réf: {reference}",
                     type_notification='acte_signe_a_remettre',
                     date_envoi=datetime.now().date(),
                     lue=0
@@ -8298,7 +8314,7 @@ def get_attestations_recues(request, matricule):
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
         
-        # ✅ Utiliser icontains pour capturer toutes les variantes (avec ou sans année)
+        #  Utiliser icontains pour capturer toutes les variantes (avec ou sans année)
         attestations = Demande.objects.filter(
             statut=statut
         ).filter(
@@ -8306,7 +8322,7 @@ def get_attestations_recues(request, matricule):
             models.Q(type_demande__libelle='Attestation de présence au poste') |
             models.Q(type_demande__libelle='Attestation de validité de services') |
             models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+            models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
         ).select_related('agent', 'type_demande').order_by('-date_soumission')
         
         result = []
@@ -8353,7 +8369,7 @@ def get_attestations_transmises(request, matricule):
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
         if 'dpaf' in roles or 'dapaf' in roles:
-            # ✅ Utiliser icontains pour capturer toutes les variantes
+            #  Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
                 statut='assignee_rh'
             ).filter(
@@ -8361,7 +8377,7 @@ def get_attestations_transmises(request, matricule):
                 models.Q(type_demande__libelle='Attestation de présence au poste') |
                 models.Q(type_demande__libelle='Attestation de validité de services') |
                 models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
             ).select_related('agent', 'type_demande').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -8405,7 +8421,7 @@ def assigner_attestation_rh(request, attestation_id):
         demande = Demande.objects.get(id=attestation_id)
         agent_rh = Agent.objects.get(matricule=agent_rh_matricule)
         
-        # ✅ Vérifier avec les types exacts
+        #  Vérifier avec les types exacts
         types_attestation_autorises = [
             'Attestation de travail',
             'Attestation de présence au poste',
@@ -8428,7 +8444,7 @@ def assigner_attestation_rh(request, attestation_id):
         type_attestation = demande.type_demande.libelle
         Notification.objects.create(
             agent_id=agent_rh.matricule,
-            message=f"📄 Nouvelle attestation à générer pour {demande.agent.prenom} {demande.agent.nom} - {type_attestation}",
+            message=f" Nouvelle attestation à générer pour {demande.agent.prenom} {demande.agent.nom} - {type_attestation}",
             type_notification='attestation_a_generer',
             date_envoi=datetime.now().date(),
             lue=0
@@ -8462,7 +8478,7 @@ def get_attestations_historique(request, matricule):
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
         if 'dpaf' in roles or 'dapaf' in roles:
-            # ✅ Utiliser icontains pour capturer toutes les variantes
+            #  Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
                 statut__in=['termine', 'remis', 'signe']
             ).filter(
@@ -8470,7 +8486,7 @@ def get_attestations_historique(request, matricule):
                 models.Q(type_demande__libelle='Attestation de présence au poste') |
                 models.Q(type_demande__libelle='Attestation de validité de services') |
                 models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
             ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -8510,7 +8526,7 @@ def get_attestations_assignees(request, matricule):
         roles = [ar.role.libelle.lower() for ar in agent_roles]
         
         if 'dpaf' in roles or 'dapaf' in roles:
-            # ✅ Utiliser icontains pour capturer toutes les variantes
+            #  Utiliser icontains pour capturer toutes les variantes
             attestations = Demande.objects.filter(
                 statut__in=['assignee_rh', 'en_cours_traitement', 'acte_genere', 'termine', 'envoye_secretaire']
             ).filter(
@@ -8518,7 +8534,7 @@ def get_attestations_assignees(request, matricule):
                 models.Q(type_demande__libelle='Attestation de présence au poste') |
                 models.Q(type_demande__libelle='Attestation de validité de services') |
                 models.Q(type_demande__libelle='Certificat de non-jouissance de congé') |
-                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  # ✅ Pour les variantes avec année
+                models.Q(type_demande__libelle__icontains='Certificat de non-jouissance')  #  Pour les variantes avec année
             ).select_related('agent', 'type_demande', 'agent_rh').order_by('-date_soumission')
         else:
             return JsonResponse({'error': 'Non autorisé'}, status=403)
@@ -8604,7 +8620,7 @@ def signer_attestation(request, reference):
         if secretaire:
             Notification.objects.create(
                 agent_id=secretaire.matricule,
-                message=f"✅ Attestation signée par {signataire.prenom} {signataire.nom} - Réf: {reference}",
+                message=f" Attestation signée par {signataire.prenom} {signataire.nom} - Réf: {reference}",
                 type_notification='attestation_signe',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -8614,7 +8630,7 @@ def signer_attestation(request, reference):
         if acte.demande:
             Notification.objects.create(
                 agent_id=acte.demande.agent.matricule,
-                message=f"📄 Votre attestation {reference} a été signée et est disponible au secrétariat",
+                message=f" Votre attestation {reference} a été signée et est disponible au secrétariat",
                 type_notification='attestation_signe',
                 date_envoi=datetime.now().date(),
                 lue=0
@@ -8719,12 +8735,12 @@ def forgot_password(request):
     
     try:
         data = json.loads(request.body)
-        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
+        email = data.get('email')  #  CHANGÉ : email au lieu de matricule
         
         if not email:
             return JsonResponse({'error': 'Email requis'}, status=400)
         
-        # ✅ Vérifier si l'email existe dans Agent
+        #  Vérifier si l'email existe dans Agent
         try:
             agent = Agent.objects.get(email=email)
         except Agent.DoesNotExist:
@@ -8740,7 +8756,7 @@ def forgot_password(request):
         code = ''.join(random.choices(string.digits, k=6))
         
         # Stocker le code dans le cache avec l'email
-        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
+        cache_key = f'reset_code_{email}'  #  CHANGÉ : email au lieu de matricule
         cache.set(cache_key, {
             'code': code,
             'email': email,
@@ -8749,7 +8765,7 @@ def forgot_password(request):
         }, timeout=900)
         
         # Préparer l'email
-        subject = "🔐 Réinitialisation de votre mot de passe"
+        subject = " Réinitialisation de votre mot de passe"
         
         html_message = render_to_string('emails/reset_password_email.html', {
             'nom': agent.nom,
@@ -8792,14 +8808,14 @@ def verify_reset_code(request):
     
     try:
         data = json.loads(request.body)
-        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
+        email = data.get('email')  #  CHANGÉ : email au lieu de matricule
         code = data.get('code')
         
         if not email or not code:
             return JsonResponse({'error': 'Email et code requis'}, status=400)
         
         # Récupérer le code du cache
-        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
+        cache_key = f'reset_code_{email}'  #  CHANGÉ : email au lieu de matricule
         cached_data = cache.get(cache_key)
         
         if not cached_data:
@@ -8831,7 +8847,7 @@ def reset_password(request):
     
     try:
         data = json.loads(request.body)
-        email = data.get('email')  # ✅ CHANGÉ : email au lieu de matricule
+        email = data.get('email')  #  CHANGÉ : email au lieu de matricule
         code = data.get('code')
         new_password = data.get('new_password')
         
@@ -8842,7 +8858,7 @@ def reset_password(request):
             return JsonResponse({'error': 'Le mot de passe doit contenir au moins 6 caractères'}, status=400)
         
         # Vérifier le code dans le cache
-        cache_key = f'reset_code_{email}'  # ✅ CHANGÉ : email au lieu de matricule
+        cache_key = f'reset_code_{email}'  #  CHANGÉ : email au lieu de matricule
         cached_data = cache.get(cache_key)
         
         if not cached_data:
@@ -8858,7 +8874,7 @@ def reset_password(request):
             cache.delete(cache_key)
             return JsonResponse({'error': 'Code expiré. Veuillez en demander un nouveau.'}, status=400)
         
-        # ✅ Récupérer le matricule depuis le cache
+        #  Récupérer le matricule depuis le cache
         matricule = cached_data.get('matricule')
         
         # Mettre à jour le mot de passe
