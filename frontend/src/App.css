@@ -7326,22 +7326,42 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
-.rh-actions-cell .btn-icon {
-  background: #F1F5F9;
-  border: none;
+.rh-actions-cell .btn-icon,
+.rh-table .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 7px;
+  background: #FFFFFF;
+  color: #0B192C;
+  border: 1px solid #CBD5E1;
   font-size: 1rem;
   cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  line-height: 1;
 }
 
-.rh-actions-cell .btn-icon:hover {
+.rh-actions-cell .btn-icon:hover,
+.rh-table .btn-icon:hover {
   background: #0B192C;
   color: #D4AF37;
-  transform: scale(1.05);
+  border-color: #0B192C;
+  transform: translateY(-1px);
+}
+
+.rh-actions-cell .btn-icon svg,
+.rh-table .btn-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* ==================== BOUTONS RH ==================== */

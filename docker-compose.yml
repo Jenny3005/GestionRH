@@ -16,7 +16,7 @@ services:
       - ollama
     environment:
       - PORT=8000
-      - OLLAMA_URL=https://significant-autumn-lake-basket.trycloudflare.com
+      - OLLAMA_URL=https://previous-cabinet-youth-excess.trycloudflare.com
     ports:
       - "8000:8000"
     volumes:

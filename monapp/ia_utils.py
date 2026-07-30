@@ -1,6 +1,15 @@
 # ia_utils.py
 from datetime import date, datetime
-from .models import Agent, Soldeconge, Demandeconge, Demande
+from .models import Agent, SoldeConge, DemandeConge, Demande
+
+
+def _valider_quota_conge(solde, nombre_jours):
+    """Valide qu'un congé ne dépasse pas le solde annuel restant."""
+    jours_restants = (getattr(solde, 'jours_restants', None) or 0)
+    if nombre_jours > jours_restants:
+        return False, f"Solde insuffisant. Vous avez {jours_restants} jours restants, vous demandez {nombre_jours} jours."
+    return True, None
+
 
 def verifier_eligibilite_conge(agent, date_debut, date_fin):
     """
@@ -17,22 +26,12 @@ def verifier_eligibilite_conge(agent, date_debut, date_fin):
             reste = 365 - anciennete_jours
             erreurs.append(f"Ancienneté insuffisante. {reste} jours restants avant de pouvoir poser un congé.")
     
-    # Règle 2: Nombre de demandes par an (max 2)
+    # Règle 2: Solde suffisant (plusieurs demandes autorisées tant que le quota n'est pas dépassé)
     annee_courante = aujourd_hui.year
-    nb_demandes_annee = Demande.objects.filter(
-        agent=agent,
-        typedemande__libelle='Congé',
-        date_soumission__year=annee_courante
-    ).count()
-    
-    if nb_demandes_annee >= 2:
-        erreurs.append(f"Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.")
-    
-    # Règle 3: Solde suffisant
     nb_jours = (date_fin - date_debut).days + 1
-    solde = Soldeconge.objects.filter(agent=agent, annee=annee_courante).first()
+    solde = SoldeConge.objects.filter(agent=agent, annee=annee_courante).first()
     
-    if not solde:
+    if solde is None:
         jours_restants = 30
     else:
         jours_restants = solde.jours_restants
@@ -41,7 +40,7 @@ def verifier_eligibilite_conge(agent, date_debut, date_fin):
         erreurs.append(f"Solde insuffisant. Vous demandez {nb_jours} jours, il vous reste {jours_restants} jours.")
     
     # Règle 4: Pas de chevauchement avec une demande existante
-    chevauchement = Demandeconge.objects.filter(
+    chevauchement = DemandeConge.objects.filter(
         demande__agent=agent,
         date_debut__lte=date_fin,
         date_fin__gte=date_debut,
