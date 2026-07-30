@@ -106,6 +106,7 @@ from .models import (
     Agent, Role, AgentRole, Permission, RolePermission, TypeDemande, Demande, DemandeAbsence,EnfantAgent,Validation,
     DemandeConge, Notification, SoldeConge, TypePiece, Compte, DossierAgent, Piece, ActeAdministratif, Avancement, Candidature
 )
+from .ia_utils import _valider_quota_conge
 
 import json
 import random
@@ -1110,27 +1111,16 @@ def demande_conge(request):
             if anciennete_jours < 365:
                 return JsonResponse({'error': 'Ancienneté insuffisante. Vous devez avoir au moins 1 an de service.'}, status=400)
         
-        # Vérifier le nombre de demandes dans l'année
-        nb_demandes_annee = Demande.objects.filter(
-            agent=agent,
-            type_demande__libelle='Congé',
-            date_soumission__year=annee_courante
-        ).count()
-        
-        if nb_demandes_annee >= 2:
-            return JsonResponse({'error': f'Vous avez déjà effectué {nb_demandes_annee} demande(s) de congé cette année. Maximum 2 demandes par an.'}, status=400)
-        
-        #  Vérifier le solde avec le nombre de jours
+        # Vérifier le solde avec le nombre de jours
         solde, _ = SoldeConge.objects.get_or_create(
             agent=agent,
             annee=annee_courante,
             defaults={'jours_acquis': 30, 'jours_pris': 0, 'jours_restants': 30}
         )
 
-        if nombre_jours > (solde.jours_restants or 0):
-            return JsonResponse({
-                'error': f'Solde insuffisant. Vous avez {solde.jours_restants} jours restants, vous demandez {nombre_jours} jours.'
-            }, status=400)
+        ok_quota, message_quota = _valider_quota_conge(solde, nombre_jours)
+        if not ok_quota:
+            return JsonResponse({'error': message_quota}, status=400)
         
         # Vérifier les chevauchements
         chevauchement = DemandeConge.objects.filter(

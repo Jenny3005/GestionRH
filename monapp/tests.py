@@ -6,7 +6,14 @@ from django.test import SimpleTestCase, override_settings
 
 from django.db import connection
 from monapp.emails import resolve_email_backend
-from monapp.views import normalize_matricule, save_uploaded_file_bytes, _verifier_completude_dossier, _synchroniser_champs_demande, _calculer_jours_pris_depuis_demandes
+from monapp.ia_utils import _valider_quota_conge
+from monapp.views import (
+    normalize_matricule,
+    save_uploaded_file_bytes,
+    _verifier_completude_dossier,
+    _synchroniser_champs_demande,
+    _calculer_jours_pris_depuis_demandes,
+)
 
 
 class EmailBackendTests(SimpleTestCase):
@@ -104,6 +111,20 @@ class DemandeFieldSyncTests(SimpleTestCase):
         self.assertEqual(demande.jours_consommes, 4)
         self.assertEqual(demande.jours_restants, 25)
         self.assertEqual(demande.saved_fields, ['annee', 'jours_consommes', 'jours_restants'])
+
+
+class LeaveQuotaTests(SimpleTestCase):
+    def test_allows_multiple_conge_requests_when_remaining_balance_is_sufficient(self):
+        class DummySolde:
+            jours_restants = 10
+
+        ok, message = _valider_quota_conge(DummySolde(), 5)
+        self.assertTrue(ok)
+        self.assertIsNone(message)
+
+        ok, message = _valider_quota_conge(DummySolde(), 5)
+        self.assertTrue(ok)
+        self.assertIsNone(message)
 
 
 class SoldeCongeCalculationTests(SimpleTestCase):
