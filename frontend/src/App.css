@@ -116,17 +116,25 @@ body {
 .btn-login-main {
   background-color: #2563EB;
   color: white;
-  border: none;
+  border: 1px solid #2563EB;
   padding: 0.6rem 1.3rem;
   font-size: 0.85rem;
   font-weight: 700;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  min-height: 42px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
 }
 
 .btn-login-main:hover {
   background-color: #1D4ED8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.24);
 }
 
 /* Badge utilisateur */
@@ -1890,7 +1898,7 @@ body {
 
 /* Bouton de soumission */
 .btn-auth-submit {
-  background: linear-gradient(135deg, #0B192C, #1E2E44);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: white;
   border: none;
   padding: 1rem;
@@ -1900,18 +1908,25 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
 }
 
 .btn-auth-submit:hover {
-  background: #D4AF37;
-  color: #0B192C;
+  background: #1D4ED8;
+  color: white;
   transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
 }
 
 .btn-auth-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 /* Footer du formulaire */
@@ -7740,6 +7755,11 @@ textarea {
   font: inherit;
 }
 
+button {
+  appearance: auto;
+  -webkit-appearance: auto;
+}
+
 .intranet-main,
 .left-column,
 .right-column,
@@ -11597,7 +11617,7 @@ td span[style*="#D1FAE5"] {
 
 /* ===== BOUTON SUBMIT ===== */
 .btn-auth-submit {
-  background: #2563EB;
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #FFFFFF;
   border: none;
   padding: 0.95rem;
@@ -11609,6 +11629,10 @@ td span[style*="#D1FAE5"] {
   margin-top: 0.3rem;
   width: 100%;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
 }
 
 .btn-auth-submit:hover:not(:disabled) {
@@ -11621,6 +11645,7 @@ td span[style*="#D1FAE5"] {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none !important;
+  box-shadow: none;
 }
 
 /* ===== LIEN BAS DE PAGE ===== */
