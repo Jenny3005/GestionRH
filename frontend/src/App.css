@@ -6890,7 +6890,28 @@ body {
 }
 
 .btn-icon {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 7px;
+  background: #FFFFFF;
+  color: #0B192C;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  line-height: 1;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.btn-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  stroke: currentColor;
+  fill: none;
 }
 
 /* Message vide */
