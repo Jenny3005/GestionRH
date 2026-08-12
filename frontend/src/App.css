@@ -116,17 +116,12 @@ body {
 .btn-login-main {
   background-color: #2563EB;
   color: white;
-<<<<<<< HEAD
   border: 1px solid #2563EB;
-=======
-  border: none;
->>>>>>> Mary
   padding: 0.6rem 1.3rem;
   font-size: 0.85rem;
   font-weight: 700;
   border-radius: 6px;
   cursor: pointer;
-<<<<<<< HEAD
   transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -134,18 +129,12 @@ body {
   line-height: 1.2;
   min-height: 42px;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.18);
-=======
-  transition: background-color 0.2s ease;
->>>>>>> Mary
 }
 
 .btn-login-main:hover {
   background-color: #1D4ED8;
-<<<<<<< HEAD
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.24);
-=======
->>>>>>> Mary
 }
 
 /* Badge utilisateur */
@@ -1909,11 +1898,7 @@ body {
 
 /* Bouton de soumission */
 .btn-auth-submit {
-<<<<<<< HEAD
   background: linear-gradient(135deg, #2563EB, #1D4ED8);
-=======
-  background: linear-gradient(135deg, #0B192C, #1E2E44);
->>>>>>> Mary
   color: white;
   border: none;
   padding: 1rem;
@@ -1923,7 +1908,6 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   margin-top: 1rem;
-<<<<<<< HEAD
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1936,24 +1920,13 @@ body {
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
-=======
-}
-
-.btn-auth-submit:hover {
-  background: #D4AF37;
-  color: #0B192C;
-  transform: translateY(-2px);
->>>>>>> Mary
 }
 
 .btn-auth-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
-<<<<<<< HEAD
   box-shadow: none;
-=======
->>>>>>> Mary
 }
 
 /* Footer du formulaire */
@@ -5282,15 +5255,12 @@ body {
   font-size: 1.1rem;
 }
 
-<<<<<<< HEAD
 .permissions-list .admin-table-container {
   max-height: 420px;
   overflow-y: auto;
   overflow-x: auto;
 }
 
-=======
->>>>>>> Mary
 /* Section rôles et permissions */
 .roles-permissions {
   background: white;
@@ -6920,7 +6890,6 @@ body {
 }
 
 .btn-icon {
-<<<<<<< HEAD
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6943,9 +6912,6 @@ body {
   color: inherit;
   stroke: currentColor;
   fill: none;
-=======
-  font-size: 14px;
->>>>>>> Mary
 }
 
 /* Message vide */
@@ -7396,7 +7362,6 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
-<<<<<<< HEAD
   justify-content: center;
   white-space: nowrap;
 }
@@ -7433,24 +7398,6 @@ body {
   display: block;
   width: 16px;
   height: 16px;
-=======
-}
-
-.rh-actions-cell .btn-icon {
-  background: #F1F5F9;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.rh-actions-cell .btn-icon:hover {
-  background: #0B192C;
-  color: #D4AF37;
-  transform: scale(1.05);
->>>>>>> Mary
 }
 
 /* ==================== BOUTONS RH ==================== */
@@ -7829,14 +7776,11 @@ textarea {
   font: inherit;
 }
 
-<<<<<<< HEAD
 button {
   appearance: auto;
   -webkit-appearance: auto;
 }
 
-=======
->>>>>>> Mary
 .intranet-main,
 .left-column,
 .right-column,
@@ -11694,11 +11638,7 @@ td span[style*="#D1FAE5"] {
 
 /* ===== BOUTON SUBMIT ===== */
 .btn-auth-submit {
-<<<<<<< HEAD
   background: linear-gradient(135deg, #2563EB, #1D4ED8);
-=======
-  background: #2563EB;
->>>>>>> Mary
   color: #FFFFFF;
   border: none;
   padding: 0.95rem;
@@ -11710,13 +11650,10 @@ td span[style*="#D1FAE5"] {
   margin-top: 0.3rem;
   width: 100%;
   font-family: inherit;
-<<<<<<< HEAD
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 48px;
-=======
->>>>>>> Mary
 }
 
 .btn-auth-submit:hover:not(:disabled) {
@@ -11729,10 +11666,7 @@ td span[style*="#D1FAE5"] {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none !important;
-<<<<<<< HEAD
   box-shadow: none;
-=======
->>>>>>> Mary
 }
 
 /* ===== LIEN BAS DE PAGE ===== */
