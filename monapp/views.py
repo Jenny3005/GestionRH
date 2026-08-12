@@ -5262,7 +5262,7 @@ def get_avancements_agent(request, matricule):
             return JsonResponse([], safe=False)
 
         agent = Agent.objects.get(matricule=matricule)
-        avancements = Avancement.objects.filter(agent=agent).order_by('-date_prevue')
+        avancements = Avancement.objects.filter(agent=agent).order_by('date_prevue')
         result = [{'id': a.id, 'date_prevue': str(a.date_prevue), 'date_effective': str(a.date_effective) if a.date_effective else None, 'type': a.type_avancement, 'echelon_ancien': a.echelon_ancien, 'echelon_nouveau': a.echelon_nouveau} for a in avancements]
         return JsonResponse(result, safe=False)
     except Agent.DoesNotExist:
