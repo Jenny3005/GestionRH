@@ -5163,54 +5163,53 @@ def actualiser_avancements():
     
     for agent in agents:
         if agent.typecontrat == 'ACE':
-            premier_delai = 4 * 365
+            premier_delai_annees = 4
         else:
-            premier_delai = 2 * 365
-        anciennete = (today - agent.date_prise_service).days
+            premier_delai_annees = 2
         
+        anciennete_annees = (today - agent.date_prise_service).days / 365
+        
+        # Déterminer l'échelon de base (utiliser l'échelon réel de l'agent)
         if agent.echelon and '-' in agent.echelon:
-            partie_fixe = get_partie_fixe(agent.echelon)
+            echelon_courant = agent.echelon
         else:
             partie_fixe = get_type_echelon(agent.echelon or 'A1-1') + '1'
-        echelon_base = f"{partie_fixe}-1"
+            echelon_courant = f"{partie_fixe}-1"
         
-        if anciennete < premier_delai:
-            echelon_courant = echelon_base
-            prochaine_date = ajouter_annees(agent.date_prise_service, 2 if agent.typecontrat != 'ACE' else 4)
+        # Calculer la date du prochain avancement
+        if anciennete_annees < premier_delai_annees:
+            prochaine_date = ajouter_annees(agent.date_prise_service, premier_delai_annees)
         else:
-            nb_passes = 1 + (anciennete - premier_delai) // (2 * 365)
-            echelon_courant = echelon_base
-            for _ in range(nb_passes):
-                nouvel = calculer_nouvel_echelon(echelon_courant)
-                if nouvel:
-                    echelon_courant = nouvel
-                else:
-                    break
-            dernier_date = ajouter_annees(agent.date_prise_service, premier_delai//365 + (nb_passes - 1) * 2)
-            if dernier_date <= today:
-                sous_actuel = get_sous_indice(agent.echelon or echelon_base)
-                sous_calcule = get_sous_indice(echelon_courant)
-                if sous_actuel < sous_calcule:
-                    ancien_echelon = agent.echelon
-                    agent.echelon = echelon_courant
-                    agent.save()
-                    Notification.objects.create(agent_id=agent.matricule, message=f"📈 Échelon mis à jour : {ancien_echelon} → {echelon_courant}", type_notification='avancement', date_envoi=today, lue=0)
-                    envoyer_email_avancement_agent(agent=agent, echelon_ancien=ancien_echelon, echelon_nouveau=echelon_courant, date_effective=today)
-                    rh_agents = Agent.objects.filter(agentrole__role__libelle='rh', actif=1)
-                    for rh in rh_agents:
-                        Notification.objects.create(agent_id=rh.matricule, message=f"📈 Avancement : {agent.prenom} {agent.nom} → {echelon_courant}", type_notification='avancement', date_envoi=today, lue=0)
-                        envoyer_email_avancement_effectue(rh=rh, agent=agent, echelon_ancien=ancien_echelon, echelon_nouveau=echelon_courant, date_effective=today)
-            dernier_date_effective = dernier_date
-            prochaine_date = ajouter_annees(dernier_date_effective, 2)
+            nb_deja_faits = 1 + int((anciennete_annees - premier_delai_annees) // 2)
+            dernier_date = ajouter_annees(agent.date_prise_service, premier_delai_annees + (nb_deja_faits - 1) * 2)
+            prochaine_date = ajouter_annees(dernier_date, 2)
         
+        # Générer les avancements futurs
         while True:
             if not peut_avancer(agent, prochaine_date):
                 break
+            
             nouvel_echelon = calculer_nouvel_echelon(echelon_courant)
             if nouvel_echelon is None:
-                Avancement.objects.create(agent=agent, date_prevue=None, date_effective=None, type_avancement='plafonne', echelon_ancien=echelon_courant, echelon_nouveau=echelon_courant)
+                Avancement.objects.create(
+                    agent=agent,
+                    date_prevue=None,
+                    date_effective=None,
+                    type_avancement='plafonne',
+                    echelon_ancien=echelon_courant,
+                    echelon_nouveau=echelon_courant
+                )
                 break
-            Avancement.objects.create(agent=agent, date_prevue=prochaine_date, date_effective=None, type_avancement='normal', echelon_ancien=echelon_courant, echelon_nouveau=nouvel_echelon)
+            
+            Avancement.objects.create(
+                agent=agent,
+                date_prevue=prochaine_date,
+                date_effective=None,
+                type_avancement='normal',
+                echelon_ancien=echelon_courant,
+                echelon_nouveau=nouvel_echelon
+            )
+            
             echelon_courant = nouvel_echelon
             prochaine_date = ajouter_annees(prochaine_date, 2)
 
@@ -5222,7 +5221,7 @@ def calculer_et_notifier():
     demain = today + timedelta(days=1)
     for av in Avancement.objects.filter(date_prevue=demain).select_related('agent'):
         for rh in rh_agents:
-            Notification.objects.create(agent_id=rh.matricule, message=f" Avancement de {av.agent.prenom} {av.agent.nom} demain - {av.echelon_ancien} → {av.echelon_nouveau}", type_notification='avancement', date_envoi=today, lue=0)
+            Notification.objects.create(agent_id=rh.matricule, message=f"📈 Avancement de {av.agent.prenom} {av.agent.nom} demain - {av.echelon_ancien} → {av.echelon_nouveau}", type_notification='avancement', date_envoi=today, lue=0)
             envoyer_email_rappel_avancement(rh=rh, agent=av.agent, echelon_ancien=av.echelon_ancien, echelon_nouveau=av.echelon_nouveau, date_prevue=demain)
     for jours, label in [(90, '3 mois'), (30, '1 mois'), (7, '1 semaine')]:
         date_alerte = today + timedelta(days=jours)
@@ -5742,14 +5741,14 @@ def _ocr_image_bytes(img_bytes):
         if tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         elif not shutil.which('tesseract'):
-            print("⚠️ pytesseract installé mais tesseract non trouvé dans le PATH et TESSERACT_CMD non défini")
+            print(" pytesseract installé mais tesseract non trouvé dans le PATH et TESSERACT_CMD non défini")
             return ''
 
         with Image.open(io.BytesIO(img_bytes)) as img:
             text = pytesseract.image_to_string(img, lang='fra+eng')
             return text.replace('\n', ' ').strip()
     except Exception as e:
-        print(f"⚠️ pytesseract fallback failed: {e}")
+        print(f" pytesseract fallback failed: {e}")
     return ""
 
 
@@ -7058,7 +7057,7 @@ def get_candidatures_by_poste(request, poste_id):
 def upload_piece_candidature(request, candidature_id):
     """Upload d'une pièce pour une candidature (support JSON + multipart)"""
     print("=" * 60)
-    print(f"🔍 [DEBUG] upload_piece_candidature() - ID: {candidature_id}")
+    print(f" [DEBUG] upload_piece_candidature() - ID: {candidature_id}")
     print("=" * 60)
     
     try:
