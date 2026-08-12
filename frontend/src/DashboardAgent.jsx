@@ -81,8 +81,8 @@ export default function DashboardAgent() {
       const response = await fetch(`/api/avancements/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
-        // ✅ Prendre le premier avancement AVEC une date prévue (ignorer le plafonné)
-        const prochain = data.find(a => a.date_prevue) || data[0] || null;
+        // ✅ Prendre le premier avancement NORMAL avec une date (ignorer les plafonnés)
+        const prochain = data.filter(a => a.date_prevue && a.type !== 'plafonne')[0] || null;
         setAvancement(prochain);
       }
     } catch (error) {
