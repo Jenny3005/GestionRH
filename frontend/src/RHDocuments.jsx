@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { X, Download, RotateCw, Trash2 } from 'lucide-react';
 =======
 import { X } from 'lucide-react';
 >>>>>>> Mary
+=======
+
+import { X, Download, RotateCw, Trash2 } from 'lucide-react';
+
+>>>>>>> 25ac1c55ba67ea553d2cf5ce63a2441fee90308f
 import './App.css';
 
 export default function RHDocuments() {
@@ -556,6 +562,7 @@ export default function RHDocuments() {
                       <td><span className={`status-badge ${doc.est_expire ? 'status-rejected' : 'status-approved'}`}>{doc.est_expire ? 'Expiré' : 'Valide'}</span></td>
                       <td className="rh-actions-cell">
 <<<<<<< HEAD
+<<<<<<< HEAD
                         <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"><Download size={16} /></button>
                         <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"><RotateCw size={16} /></button>
                         <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"><Trash2 size={16} /></button>
@@ -564,6 +571,13 @@ export default function RHDocuments() {
                         <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"></button>
                         <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"></button>
 >>>>>>> Mary
+=======
+
+                        <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"><Download size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"><RotateCw size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"><Trash2 size={16} /></button>
+
+>>>>>>> 25ac1c55ba67ea553d2cf5ce63a2441fee90308f
                       </td>
                     </tr>
                   ))
