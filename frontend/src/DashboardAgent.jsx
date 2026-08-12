@@ -81,13 +81,14 @@ export default function DashboardAgent() {
       const response = await fetch(`/api/avancements/agent/${matricule}/`);
       if (response.ok) {
         const data = await response.json();
-        const prochain = data.find(a => a.type === 'normal' && a.date_prevue) || data[0] || null;
+        // Prendre le premier avancement avec une date prévue (normal ou non)
+        const prochain = data.find(a => a.date_prevue) || data[0] || null;
         setAvancement(prochain);
       }
     } catch (error) {
       console.error('Erreur chargement avancement:', error);
     }
-  };
+};
 
   const checkExpiryOnce = async () => {
     if (expiryChecked) return;
