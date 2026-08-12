@@ -664,11 +664,7 @@ export default function DashboardAgent() {
               </div>
             </div>
             <div className="modal-footer">
-<<<<<<< HEAD
-              <button className="btn-demander-conge" onClick={() => { setShowSoldeModal(false); navigate('/demarches'); }}>
-=======
               <button className="btn-demander-conge" onClick={() => { setShowSoldeModal(false); navigate('/demandes/conge'); }}>
->>>>>>> Mary
                 Demander un congé
               </button>
               <button className="btn-close-modal" onClick={() => setShowSoldeModal(false)}>
