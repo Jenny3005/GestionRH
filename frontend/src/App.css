@@ -7409,11 +7409,8 @@ body {
   display: block;
   width: 16px;
   height: 16px;
-=======
-=======
   justify-content: center;
   white-space: nowrap;
->>>>>>> 25ac1c55ba67ea553d2cf5ce63a2441fee90308f
 }
 
 .rh-actions-cell .btn-icon,
@@ -7448,7 +7445,6 @@ body {
   display: block;
   width: 16px;
   height: 16px;
->>>>>>> 25ac1c55ba67ea553d2cf5ce63a2441fee90308f
 }
 
 /* ==================== BOUTONS RH ==================== */
