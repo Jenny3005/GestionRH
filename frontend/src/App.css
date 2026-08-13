@@ -1922,6 +1922,14 @@ body {
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
 }
 
+.btn-auth-submit:hover {
+  background: #1D4ED8;
+  color: white;
+  transform: translateY(-2px);
+
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25);
+}
+
 .btn-auth-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;

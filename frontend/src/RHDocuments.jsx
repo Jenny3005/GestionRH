@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
 import { X, Download, RotateCw, Trash2 } from 'lucide-react';
 
 import './App.css';
@@ -554,10 +553,20 @@ export default function RHDocuments() {
                       <td><span className={`status-badge ${doc.est_expire ? 'status-rejected' : 'status-approved'}`}>{doc.est_expire ? 'Expiré' : 'Valide'}</span></td>
                       <td className="rh-actions-cell">
 
+<<<<<<< HEAD
                         <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"><Download size={16} /></button>
                         <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"><RotateCw size={16} /></button>
                         <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"><Trash2 size={16} /></button>
 
+=======
+                        <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"><Download size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"><RotateCw size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"><Trash2 size={16} /></button>
+
+                        <button className="btn-icon" onClick={() => handleDownload(doc.id)} title="Télécharger"><Download size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleReplace(doc.type_piece_id)} title="Remplacer"><RotateCw size={16} /></button>
+                        <button className="btn-icon" onClick={() => handleDelete(doc.id)} title="Supprimer"><Trash2 size={16} /></button>
+>>>>>>> Mary
                       </td>
                     </tr>
                   ))
