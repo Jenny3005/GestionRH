@@ -5105,9 +5105,9 @@ def ajouter_annees(date_source, nb_annees):
 
 
 def get_type_echelon(echelon):
-    if echelon and len(echelon) > 0:
+    if echelon and len(echelon) > 0 and echelon[0].isalpha():
         return echelon[0].upper()
-    return 'A'
+    return 'A'  # valeur par défaut si le format est invalide
 
 
 def get_age_retraite(type_echelon):
@@ -5262,7 +5262,9 @@ def get_avancements_agent(request, matricule):
             return JsonResponse([], safe=False)
 
         agent = Agent.objects.get(matricule=matricule)
-        avancements = Avancement.objects.filter(agent=agent).order_by('date_prevue')
+        avancements = Avancement.objects.filter(
+            agent=agent, date_prevue__gte=date.today()
+        ).order_by('date_prevue')
         result = [{'id': a.id, 'date_prevue': str(a.date_prevue), 'date_effective': str(a.date_effective) if a.date_effective else None, 'type': a.type_avancement, 'echelon_ancien': a.echelon_ancien, 'echelon_nouveau': a.echelon_nouveau} for a in avancements]
         return JsonResponse(result, safe=False)
     except Agent.DoesNotExist:
